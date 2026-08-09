@@ -1,0 +1,22 @@
+oled多级菜单设计思路：
+确定自己需要多少页以及相对应关系
+创建类似MenuPage AboutThisDeviceMenuPage的页变量
+创建该页的General_MenuItems菜单项变量
+如果某个菜单项有窗口需求，还需要创建MenuWindow变量并且加一个showwindows函数
+
+oled多级菜单文件中：
+有关菜单项的内容：
+General_item_text为菜单项的名字
+General_callback为NULL应该就是直接进入一个界面 有数据则为弹出一个窗口
+General_SubMenuPage为是否弹出下一页，NULL应该就是没有下一页， 有数据则为下一页
+对于磁贴菜单项，要有Tiles_Icon存放图标
+对于列表类型菜单项，要有List_BoolRadioBox，一般都是NULL，但是可以用来控制显示模式和是否显示帧率
+每个菜单项点击后有三种可能：
+①弹出窗口（修改变量的值）②进入下一页 ③单选框（适用于bool型变量--非黑即白）
+
+
+关于辅助显示函数，暂时还未完全搞明白，但是大致了解如下内容：先定义OLED_ChangePoint变量？写一个辅助函数，
+依次对OLED_ChangePoint变量设置target值，使其隐藏/显示出来，接着依次调用ChangePoint函数，接着调用OLED_ShowImageArea函数
+
+窗口变量类型仅支持有符号整数/浮点数
+OLED_UI开源库在使用的时候一定要注意窗口中变量实际类型和对应的类型的匹配，否则容易出现一些未知的错误
