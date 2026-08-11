@@ -46,6 +46,7 @@
 #include "./../../Mycode/myflash.h"
 #include "./../../Mycode/storage.h"
 #include "./../../Mycode/nmos.h"
+#include "./../../Mycode/motor/motor.h"
 
 #include <math.h>
 #include <stdint.h>
@@ -136,6 +137,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
     //   ICM42688Mahony_Update();
     // }
 
+    //===== 电机10ms控制环: 每10次(10ms)调用一次 time_period_fun() =====
+    static uint8_t motor_pid_cnt = 0;
+    if(++motor_pid_cnt >= 10){
+      motor_pid_cnt = 0;
+      time_period_fun();
+    }
+    //=================================================================
+
   }
 
 }
@@ -223,6 +232,17 @@ int main(void)
   /* USER CODE BEGIN 2 */
   OLED_Init();
   // uint8_t a = 'n';
+
+  /* 电机子系统初始化: TIM1四路PWM + TB6612方向引脚 + 4路编码器 + car_init */
+  motor_init();
+
+  /* ================= 速度环测试配置（临时，测试完请删除） ================= */
+  HAL_TIM_Base_Start_IT(&htim7);   // 关键：启动1ms中断 -> 控制环每10ms运行一次
+  w_set_flag = 1;                  // 关闭角度环(yaw环)，w 手动控制
+  my_car.v_x = 0.0f;               // 左右速度清零
+  my_car.w   = 0.0f;               // 旋转速度清零
+  my_car.v_y = 10.0f;              // 固定目标速度 10 cm/s（四轮同速前进）
+  /* ====================================================================== */
 
 
   /*注意：更改了serialplot文件中的函数和内容，但是由于没来得及测试，所以暂时不知道有没有bug*/

@@ -111,6 +111,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Mycode/myflash.c
     ${CMAKE_SOURCE_DIR}/Mycode/storage.c
     ${CMAKE_SOURCE_DIR}/Mycode/nmos.c
+    ${CMAKE_SOURCE_DIR}/Mycode/motor/motor.c
 
     ${CMAKE_SOURCE_DIR}/Mycode/mpu6050/mpu.c
     ${CMAKE_SOURCE_DIR}/Mycode/mpu6050/inv_mpu.c
@@ -137,6 +138,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
     ${CMAKE_SOURCE_DIR}/Mycode
+    ${CMAKE_SOURCE_DIR}/Mycode/motor
     ${CMAKE_SOURCE_DIR}/Mycode/mpu6050
     ${CMAKE_SOURCE_DIR}/Mycode/icm42688
     ${CMAKE_SOURCE_DIR}/Drivers/CMSIS/DSP/Include
