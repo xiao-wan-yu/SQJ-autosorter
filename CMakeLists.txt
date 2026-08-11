@@ -21,14 +21,24 @@ add_compile_options(
 )
 # 硬件浮点设置（STM32F407 使用 Cortex-M4 FPU）
 add_compile_options(
+    -mcpu=cortex-m4                    # CPU 型号（必须，否则默认ARM模式编译会报 cpsid 错误）
+    -mthumb                            # Thumb 指令集（Cortex-M 必须）
     -mfloat-abi=hard                    # 硬件浮点
     -mfpu=fpv4-sp-d16                   # F4系列的FPU
 )
 # 链接选项也要添加
 add_link_options(
     -u _printf_float
+    -mcpu=cortex-m4
+    -mthumb
     -mfloat-abi=hard
     -mfpu=fpv4-sp-d16
+    # 注意：--specs=nano.specs 和 -T 链接脚本已由 cmake/gcc-arm-none-eabi.cmake 工具链文件添加，
+    # 这里不能再加，否则 GCC 14.x 分别报 "attempt to rename spec 'link'..."
+    # 和 "linker script file appears multiple times" 链接错误
+    -Wl,-Map=${CMAKE_PROJECT_NAME}.map
+    -Wl,--gc-sections
+    -Wl,--print-memory-usage
 )
 #为解决支持%f问题添加--结束
 
@@ -49,8 +59,6 @@ endif()
 # Set the project name
 set(CMAKE_PROJECT_NAME 7_AutomatedSortingRobot_26)
 
-# Include toolchain file
-include("cmake/gcc-arm-none-eabi.cmake")
 
 # Enable compile command to ease indexing with e.g. clangd
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
@@ -58,6 +66,11 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 # Core project settings
 project(${CMAKE_PROJECT_NAME})
 message("Build type: " ${CMAKE_BUILD_TYPE})
+
+# 确保可执行文件带 .elf 后缀（工具链文件的设置未生效，这里强制）
+set(CMAKE_EXECUTABLE_SUFFIX_C ".elf")
+set(CMAKE_EXECUTABLE_SUFFIX_ASM ".elf")
+set(CMAKE_EXECUTABLE_SUFFIX_CXX ".elf")
 
 # Enable CMake support for ASM and C languages
 enable_language(C ASM)
@@ -145,4 +158,5 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 
     # Add user defined libraries
     libarm_cortexM4lf_math.a
+    m
 )

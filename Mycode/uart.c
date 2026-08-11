@@ -12,6 +12,7 @@
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 extern UART_HandleTypeDef huart3;
+extern UART_HandleTypeDef huart4;
 extern UART_HandleTypeDef huart5;
 
 uint8_t UART1_RxNewData;                //串口1最新接收到的数据
@@ -84,6 +85,22 @@ void UART3_Printf(char *fmt, ...){
     i=strlen(buff);//得出数据长度
     if(strlen(buff)>UART3_TxLengthMax)i=UART3_TxLengthMax;//如果长度大于最大值，则长度等于最大值（多出部分忽略）
     HAL_UART_Transmit(&huart3,(uint8_t  *)buff,i,0xffff);//串口发送函数（串口号，内容，数量，溢出时间）
+    va_end(arg_ptr);
+}
+
+/**
+  * @brief UART4 备用串口打印
+  * @attention 调用方法：UART4_Printf("666");
+  */
+void UART4_Printf(char *fmt, ...){
+    char buff[UART4_TxLengthMax+1];  //用于存放转换后的数据 [长度]
+    uint16_t i=0;
+    va_list arg_ptr;
+    va_start(arg_ptr, fmt);
+    vsnprintf(buff, UART4_TxLengthMax+1, fmt,  arg_ptr);//数据转换
+    i=strlen(buff);//得出数据长度
+    if(strlen(buff)>UART4_TxLengthMax)i=UART4_TxLengthMax;//如果长度大于最大值，则长度等于最大值（多出部分忽略）
+    HAL_UART_Transmit(&huart4,(uint8_t  *)buff,i,0xffff);//串口发送函数（串口号，内容，数量，溢出时间）
     va_end(arg_ptr);
 }
 

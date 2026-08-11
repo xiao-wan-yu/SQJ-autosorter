@@ -4,14 +4,7 @@
         {
             "label": "Build STM32 Project",
             "type": "shell",
-            "command": "cmake",
-            "args": [
-                "--build",
-                "${workspaceFolder}/build/Debug",        // 关键：你的构建目录，如果是`build/Debug`请修改
-                "--target",
-                "all",
-                "-j4"
-            ],
+            "command": "${workspaceFolder}/build.bat",
             "group": {
                 "kind": "build",
                 "isDefault": true

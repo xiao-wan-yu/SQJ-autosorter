@@ -1,0 +1,384 @@
+# 机器人识别色块
+
+# 黄=（60,90,-20,0,40,70）
+
+# 红=(15,60,20,50,0,40)
+
+# 蓝=（15，30，-10，20，-45，-10 ）
+# 35,65,-55,-38,20,40lu
+
+import sensor, image, time, math
+import json,utime
+from pyb import UART
+from pyb import Pin, Servo
+
+sensor.reset()
+sensor.set_pixformat(sensor.RGB565)
+sensor.set_framesize(sensor.QQVGA)
+sensor.skip_frames(time=1000)
+sensor.set_auto_gain(False)
+sensor.set_auto_whitebal(False)     #寻找色块不能开白平衡
+#sensor.set_vflip(True)             #垂直翻转
+#sensor.set_hmirror(1)           #镜像翻转
+#sensor.run(1)
+#sensor.set_contrast(1)
+#sensor.set_gainceiling(16)
+
+y_thresholds  = (60, 90, -20, 0, 40, 70)  # 黄
+y2_thresholds = (75, 100, -24, -4, 8, 87) # 黄亮阈值
+
+r_thresholds = (15, 60, 10, 60, 0, 40) # 红
+b_thresholds = (15, 30, -10, 20, -45, -10)  # 蓝
+b2_thresholds = ((7, 67, 46, 5, -81, -16))
+g_thresholds = (35, 65, -55, -38, 20, 40)  # lv
+# 3，86，141，87
+
+clock = time.clock()
+ROI = (3, 87, 219, 75)
+
+uart = UART(3, 9600)  # P4为TX P5为RX
+#p_out_0 = Pin('P0', Pin.OUT_PP)
+
+
+t_t = 320
+pia = 2500
+hui = 920
+t_1 = 20
+t_2 = 100
+
+s1=Servo(1)
+s2=Servo(2)
+def bense():#打到右边,本色
+    #s1.pulse_width(2200)
+    s1.pulse_width(pia)
+
+    time.sleep_ms(t_1)
+
+    s2.pulse_width(2000)
+
+    time.sleep_ms(t_2)
+    s1.pulse_width(hui)
+    time.sleep_ms(t_t-t_1-t_2)
+
+def huangse():#打到左边，黄色
+    #s1.pulse_width(850)
+    s1.pulse_width(pia)
+
+    time.sleep_ms(t_1)
+    s2.pulse_width(1150)
+    time.sleep_ms(t_2)
+    s1.pulse_width(hui)
+    time.sleep_ms(t_t-t_1-t_2)
+
+i = 0
+
+B0 = 0  # 为接收串口标志
+C0 = 1  #红色方标志位
+H0 = 0  #蓝色方标志位
+
+
+D0 = 0  # 0
+E0 = 0
+
+C1 = 0
+C2 = 0
+C3 = 0
+
+BLUE = 0  # 蓝球标志位（用于计数）
+RED = 0  # 红球标志位
+
+F0 = 0
+G0 = 0
+R0 = 0
+
+
+
+s1.pulse_width(850)      #球拍初始化
+while (True):
+
+    start_time = utime.time()
+
+    while (B0):  # 等待主控信息，切换红蓝方
+            if (uart.any()):
+                B = uart.read()
+                print(B)
+                if B == b'1':            #红方，C0
+                    print("1")
+                    # 获取当前时间
+                    start_time = utime.time()
+                    B0 = 0
+                    C0 = 1
+                if B== b'2':              #蓝方，H0
+                    print("2")
+                    # 获取当前时间
+                    start_time = utime.time()
+                    B0=0
+                    H0=1
+
+
+
+    while (C0):  # C0，红方圆盘机
+        clock.tick()
+
+        # 获取当前时间
+        end_time = utime.time()
+        # 计算时间差
+        elapsed_time = end_time- start_time
+        print(elapsed_time)
+
+        img = sensor.snapshot()
+        blobs = img.find_blobs([y_thresholds], pixels_threshold=600, area_threshold=800)
+        if (blobs):
+              #for b in blobs:
+                #img.draw_rectangle(b[0:4])  ##在图像上绘制一个矩形。
+                #img.draw_cross(b[5], b[6])  ##画十字交叉
+                #statistics = img.get_statistics(roi=ROI)
+                time.sleep_ms(235)
+                huangse()
+                print('yellow')
+
+
+        if elapsed_time > 15:      #（15s后识别红球）
+            while(C0):
+                 clock.tick()
+                 img = sensor.snapshot()
+                 blobs = img.find_blobs([r_thresholds], pixels_threshold=600, area_threshold=800)
+                 if blobs:
+                      #for b in blobs:
+                         #img.draw_rectangle(b[0:4])  ##在图像上绘制一个矩形。
+                         #img.draw_cross(b[5], b[6])  ##画十字交叉
+                         #statistics = img.get_statistics(roi=ROI)
+                         print('red')
+                         time.sleep_ms(235)
+                         bense()
+
+                         RED = RED +1
+                         time.sleep_ms(10)
+
+
+                         if (RED + BLUE == 8):             #满八个本色，跳出
+                            uart.write('3')
+                            print('you send:3')
+                            RED = 0
+                            BLUE = 0
+                            C0 = 0
+                            D0 = 1
+
+
+
+
+
+
+    while (H0):
+        clock.tick()
+        # 获取当前时间
+        end_time = utime.time()
+        # 计算时间差
+        elapsed_time = end_time- start_time
+        print(elapsed_time)
+        img = sensor.snapshot()
+        blobs = img.find_blobs([y2_thresholds], pixels_threshold=600, area_threshold=800)
+        if (blobs):
+              #for b in blobs:
+                #img.draw_rectangle(b[0:4])  ##在图像上绘制一个矩形。
+                #img.draw_cross(b[5], b[6])  ##画十字交叉
+                #statistics = img.get_statistics(roi=ROI)
+                time.sleep_ms(235)
+                huangse()
+                print('yellow')
+
+        if elapsed_time >15:
+            while(H0):
+                 clock.tick()
+                 img = sensor.snapshot()
+                 blobs = img.find_blobs([b2_thresholds], pixels_threshold=600, area_threshold=800)
+                 if blobs:
+                      #for b in blobs:
+                         #img.draw_rectangle(b[0:4])  ##在图像上绘制一个矩形。
+                         #img.draw_cross(b[5], b[6])  ##画十字交叉
+                         #statistics = img.get_statistics(roi=ROI)
+                         print('blue')
+                         time.sleep_ms(235)
+                         bense()
+
+                         BLUE = BLUE + 1  # 蓝球标志位
+                         RED = 0  # 红球标志位
+                         time.sleep_ms(10)
+
+                         if (RED + BLUE == 8):
+                            uart.write('3')
+                            print('you send:3')
+                            RED = 0
+                            BLUE = 0
+                            H0 = 0
+                            D0 = 1
+
+
+
+                 ####################################   圆盘机代码到此为止
+
+
+
+        while (D0):  # D0
+            if (uart.any()):
+                B = uart.read()
+                print(B)
+                if B == b'4':
+                    print("4")
+                    D0 = 0
+                    E0 = 1
+                if B == b'6':
+                    print("6")
+                    D0 = 0
+                    R0 = 1
+
+        while (E0):  # E0
+            clock.tick()
+            img = sensor.snapshot()
+            blobs =  img.find_blobs([r_thresholds], pixels_threshold=2000, area_threshold=3000)  # 红球输出1
+            if blobs:
+                    img.draw_rectangle(b[0:4])  ##在图像上绘制一个矩形。
+                    img.draw_cross(b[5], b[6])  ##画十字交叉
+                    #statistics = img.get_statistics(roi=ROI)
+                    print('red')
+                    BLUE = 0  # 蓝球标志位
+                    RED = RED + 1  # 红球标志位
+                    time.sleep_ms(235)
+                    bense()
+
+                    if (RED==2):
+                        uart.write('5')
+                        print('you send:5')
+                        RED = 0
+                        BLUE = 0
+                        E0 = 0
+                        F0 = 1
+
+
+        while(R0):
+            clock.tick()
+            img = sensor.snapshot()
+            blobs =  img.find_blobs([b_thresholds], pixels_threshold=2000, area_threshold=3000)  # 蓝球输出2
+            if blobs:
+                img.draw_rectangle(b[0:4])  ##在图像上绘制一个矩形。
+                img.draw_cross(b[5], b[6])  ##画十字交叉
+                print('blue')
+                BLUE = BLUE + 1  # 蓝球标志位
+                RED = 0  # 红球标志位
+                time.sleep_ms(235)
+                bense()
+
+                if(BLUE==2):
+                    uart.write('5')
+                    print('you send:5')
+                    RED = 0
+                    BLUE = 0
+                    R0 = 0
+                    F0 = 1
+
+
+
+        while (F0):  # F0
+            if (uart.any()):
+                B = uart.read()
+                print(B)
+                if B == b'4':
+                    print("4")
+                    F0 = 0
+                    G0 = 1
+
+        while (G0 == 1):
+            blobs =  img.find_blobs([r_thresholds], pixels_threshold=600, area_threshold=800)  # 红积木输出1
+            if blobs:
+              for b in blobs:
+               # statistics = img.get_statistics(roi=ROI)
+                img.draw_rectangle(b[0:4])  ##在图像上绘制一个矩形。
+                img.draw_cross(b[5], b[6])  ##画十字交叉
+                data = "1"
+                BLUE = 0  # 蓝球标志位
+                RED = RED + 1  # 红球标志位
+                if data == "1":
+                    data_out = json.dumps(set(data))
+                    uart.write('1')
+                    print('you send:', data_out)
+                    F0 = 1
+                    time.sleep_ms(10)
+
+            blobs = img.find_blobs([b_thresholds], pixels_threshold=600, area_threshold=800)  # 蓝积木输出2
+            if blobs:
+              for b in blobs:
+               # statistics = img.get_statistics(roi=ROI)
+                img.draw_rectangle(b[0:4])
+                img.draw_cross(b[5],b[6])
+                data = "2"
+                BLUE = BLUE + 1  # 蓝球标志位
+                RED = 0  # 红球标志位
+                if data == "2":
+                    data_out = json.dumps(set(data))
+                    uart.write('2')
+                    print('you send:', data_out)
+                    F0 = 1
+                    time.sleep_ms(10)
+
+            res =  img.find_qrcodes()                                                      # 二维码小块输出3
+            if len(res) > 0:  # 在图片和终端显示二维码信息
+                    img.draw_rectangle(res[0].rect())
+                    img.draw_string(2, 2, res[0].payload(), color=(0, 128, 0), scale=2)
+                    print(res[0].payload())
+                    data = "3"
+                    if data == "3":
+                        data_out = json.dumps(set(data))
+                        uart.write('3')
+                        print('you send:', data_out)
+                        F0 = 1
+                        time.sleep_ms(10)
+
+            circles = img.find_circles(threshold=3500, x_margin=10, y_margin=10, r_margin=10,  # 红色圆环输出4
+                                      r_min=2, r_max=100, r_step=2)
+            if circles:
+                for c in circles:
+                    img.draw_circle(c.x(), c.y(), c.r(),color(0,0,0))
+                    img.draw_cross(c.x(),c.y(),color(0,0,0))
+                    data = "4"
+                    if data == "4":
+                        data_out = json.dumps(set(data))
+                        uart.write('4')
+                        print('you send:', data_out)
+                        F0 = 1
+                        time.sleep_ms(10)
+
+            circles = img.find_circles(roi=ROI,threshold=3500, x_margin=10, y_margin=10, r_margin=10,  # 蓝色圆环输出5
+                                      r_min=2, r_max=100, r_step=2)
+            if circles:
+                for c in circles:
+                    img.draw_circle(c.x(), c.y(), c.r(),color(0,0,0))
+                    img.draw_cross(c.x(), c.y(),color(0,0,0))
+        # 获取圆环中心坐标
+                x = c.cx()
+                y = c.cy()
+
+                # 将坐标转换为字符串
+                coordinates = str(x) + "," + str(y)
+                data = "5"
+                if data == "5":
+                    data_out = json.dumps(set(data))
+                    uart.write('5')
+                    print('you send:', data_out)
+                    F0 = 1
+                    time.sleep_ms(10)
+            C3 = C3 + 1
+            if C3 > 150:
+                uart.write('3')
+                print('3')
+                B0 = 0
+                C0 = 0
+                D0 = 0
+                E0 = 0
+                F0 = 0
+                G0 = 0
+                time.sleep_ms(10)
+
+    print(clock.fps())
+
+
+

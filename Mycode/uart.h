@@ -19,6 +19,7 @@
 #define UART2_TxLengthMax 200               //串口2发送数据的最大数据长度
 #define UART3_RxLength 2                    //串口3接收数据包的真实数据长度
 #define UART3_TxLengthMax 200               //串口3发送数据的最大数据长度
+#define UART4_TxLengthMax 200               //串口4(备用串口)发送数据的最大数据长度
 #define UART5_RxLength 255                  //串口5接收数据包的真实数据长度（开启DMA接收时，则为最大接收长度）
 #define UART5_TxLengthMax 200               //串口5发送数据的最大数据长度
 
@@ -39,6 +40,7 @@ extern __IO uint8_t UART5_RxFlag;                //串口5接收完成标志位�
 void UART1_Printf(char *fmt, ...);
 void UART2_Printf(char *fmt, ...);
 void UART3_Printf(char *fmt, ...);
+void UART4_Printf(char *fmt, ...);
 
 
 /******************当串口1开启DMA接收时启用下面的宏定义********************/
