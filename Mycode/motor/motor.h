@@ -57,7 +57,7 @@
 #define Perimeter            (Pi * WHEEL_DIAMETE)         // 轮子周长 (cm)
 
 #define MY_CURRENT_MAX       (3.0f)  // 电流限幅 (未启用电流环)
-#define MY_PWM_MAX           (1000)  // PWM 限幅 (对应 TIM1: PSC=167, ARR=999, duty 0~1000)
+#define MY_PWM_MAX           (800)   // PWM 限幅 (对应 TIM1: PSC=21, ARR=800, ~10kHz, duty 0~800)
 
 #define HAVE_PID_INTEGRAL
 
@@ -154,6 +154,9 @@ typedef struct{
 /*-------------------------------外部变量-------------------------------------*/
 extern Car my_car;
 extern volatile uint8_t w_set_flag; // 1: 跳过 yaw 环,直接使用 my_car.w
+extern volatile uint32_t motor_loop_count; // 10ms控制环运行计数(诊断用,每10ms+1)
+extern volatile uint8_t motor_openloop; // 1: 开环测试模式(跳过PID,直接用 motor_x.PWM 驱动)
+extern volatile uint8_t motor_pwm_status; // TIM1 PWM启动状态: 0=未启动 1=成功 2=失败(诊断用)
 
 /*-------------------------------函数声明-------------------------------------*/
 void motor_init(void);                   // 总初始化: TIM1 PWM + TB6612方向引脚 + 编码器启动 + car_init

@@ -10,6 +10,17 @@
                 "isDefault": true
             },
             "problemMatcher": []
+        },
+        {
+            "label": "Flash 无线DAPLink (快,只烧录)",
+            "type": "shell",
+            "command": "${workspaceFolder}/flash_wireless.bat",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            }
         }
     ]
 }

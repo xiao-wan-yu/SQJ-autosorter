@@ -11,9 +11,9 @@
 #include <math.h>
 
 /*-------------------------------PID 参数------------------------------------*/
-#define speed_p 0.00f   // 速度环 Kp（原5.20）
-#define speed_i 0.00f  // 速度环 Ki（原0.03）
-#define speed_d 0.00f   // 速度环 Kd（原0.00）
+#define speed_p 5.2f    // 速度环 Kp（F103原值5.2）
+#define speed_i 0.0f   // 速度环 Ki（F103原值0.03）
+#define speed_d 0.0f    // 速度环 Kd（暂不用微分）
 
 #define yaw_p -0.02f   // 角度环 Kp（原）
 #define yaw_i -0.0f    // 角度环 Ki（原）
@@ -46,6 +46,9 @@ Car my_car;
 volatile uint8_t w_set_flag = 0;  // 1: 跳过 yaw 环,直接使用 my_car.w
 float temp_err = 0.0f;            // yaw 环中间变量 (F103 定义在 bsp_pid.c)
 float temp_yaw = 0.0f;
+volatile uint32_t motor_loop_count = 0;  // 10ms控制环运行计数(诊断用)
+volatile uint8_t motor_openloop = 0;     // 1: 开环测试模式(跳过PID,直接用PWM驱动)
+volatile uint8_t motor_pwm_status = 0;   // TIM1 PWM启动状态: 0=未启动 1=成功 2=失败(诊断用)
 
 /*-------------------------------工具函数------------------------------------*/
 float abs_f(float num)
@@ -120,36 +123,27 @@ void PositionPID_clear(Position_PID *pid)
  * 硬件初始化
  *====================================================================*/
 /**
-  * @brief TIM1 四路 PWM 初始化 (F103 TIM8 -> F407 TIM1)
-  * CubeMX 生成的是 OC 输出模式(TIM_OCMODE_TIMING),这里重配为 PWM1 模式。
-  * 同时把 ARR 改为 999 (PSC=167 -> 定时器 1MHz -> 1kHz PWM, duty 0~1000),
-  * 与 F103 (Period 999 / MY_PWM_MAX 1000) 的占空比量程保持一致。
+  * @brief TIM1 四路 PWM 启动 (F103 TIM8 -> F407 TIM1)
+  * 说明: PWM1 模式 + 四路通道配置已由 CubeMX (tim.c MX_TIM1_Init + HAL_TIM_MspPostInit)
+  *       生成完毕, 这里不再重复配置, 只做两件事:
+  *  1) 把 ARR 从 CubeMX 默认 99 覆盖为 800 (对应 MY_PWM_MAX=800, 占空比量程 0~800);
+  *  2) 启动四路 PWM 输出 (高级定时器需启动主输出 MOE, 并置 CCxE)。
   */
 static void motor_pwm_init(void)
 {
-    TIM_OC_InitTypeDef sConfigOC = {0};
-
-    /* 改时基: 168MHz / (167+1) = 1MHz, ARR=999 -> 1kHz, 占空比 0~1000 */
-    __HAL_TIM_SET_PRESCALER(&htim1, 167);
-    __HAL_TIM_SET_AUTORELOAD(&htim1, 1000 - 1);
+    /* 时基: 168MHz/(21+1)=7.636MHz, ARR=800 -> ~9.5kHz PWM (提高精度,占空比0~800) */
+    __HAL_TIM_SET_PRESCALER(&htim1, 21);
+    __HAL_TIM_SET_AUTORELOAD(&htim1, 800);
     __HAL_TIM_SET_COUNTER(&htim1, 0);
     htim1.Instance->EGR = TIM_EGR_UG;   // 立即装载 ARR/PSC
 
-    /* 四路通道重配为 PWM1 */
-    sConfigOC.OCMode     = TIM_OCMODE_PWM1;
-    sConfigOC.Pulse      = 0;
-    sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-    sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-    HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_1);
-    HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_2);
-    HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_3);
-    HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_4);
-
-    /* 启动 PWM 输出 (高级定时器需启动主输出 MOE) */
-    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
-    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
-    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
-    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
+    /* 启动 PWM 输出 (高级定时器需启动主输出 MOE)
+       捕获返回值到 motor_pwm_status 用于OLED诊断: 1=成功 2=失败 */
+    motor_pwm_status = 1;
+    if(HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1) != HAL_OK) motor_pwm_status = 2;
+    if(HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2) != HAL_OK) motor_pwm_status = 2;
+    if(HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3) != HAL_OK) motor_pwm_status = 2;
+    if(HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4) != HAL_OK) motor_pwm_status = 2;
 }
 
 /**
@@ -204,6 +198,52 @@ static void motor_encoder_start(void)
     __HAL_TIM_SET_COUNTER(&htim3, 0);
     __HAL_TIM_SET_COUNTER(&htim4, 0);
     __HAL_TIM_SET_COUNTER(&htim5, 0);
+
+    /* 加大编码器输入滤波(ICFilter=15, 同F103原值)：
+     * CubeMX 生成的是 IC1Filter=0(无滤波), 编码器引脚悬空/有噪声时
+     * 计数器会以极高速度乱计数, 导致 v 值出现巨大的正负乱数 */
+    TIM_IC_InitTypeDef sIC = {0};
+    sIC.ICPolarity  = TIM_ICPOLARITY_RISING;
+    sIC.ICSelection = TIM_ICSELECTION_DIRECTTI;
+    sIC.ICPrescaler = TIM_ICPSC_DIV1;
+    sIC.ICFilter    = 15;
+    HAL_TIM_IC_ConfigChannel(&htim2, &sIC, TIM_CHANNEL_1);
+    HAL_TIM_IC_ConfigChannel(&htim2, &sIC, TIM_CHANNEL_2);
+    HAL_TIM_IC_ConfigChannel(&htim3, &sIC, TIM_CHANNEL_1);
+    HAL_TIM_IC_ConfigChannel(&htim3, &sIC, TIM_CHANNEL_2);
+    HAL_TIM_IC_ConfigChannel(&htim4, &sIC, TIM_CHANNEL_1);
+    HAL_TIM_IC_ConfigChannel(&htim4, &sIC, TIM_CHANNEL_2);
+    HAL_TIM_IC_ConfigChannel(&htim5, &sIC, TIM_CHANNEL_1);
+    HAL_TIM_IC_ConfigChannel(&htim5, &sIC, TIM_CHANNEL_2);
+
+    /* 编码器输入引脚加上拉(CubeMX 生成的是 GPIO_NOPULL 悬空):
+     * 很多电机编码器输出是开漏/集电极开路, 悬空时电平不定, 计数器乱计数
+     * (现象: e 一会0一会65535, v 出现巨大负值). 加上拉后读数才干净. */
+    GPIO_InitTypeDef gpio = {0};
+    gpio.Mode  = GPIO_MODE_AF_PP;
+    gpio.Pull  = GPIO_PULLUP;
+    gpio.Speed = GPIO_SPEED_FREQ_LOW;
+
+    gpio.Alternate = GPIO_AF1_TIM2;
+    gpio.Pin = GPIO_PIN_5;  HAL_GPIO_Init(GPIOA, &gpio);   // TIM2_CH1 编码器1A
+    gpio.Pin = GPIO_PIN_3;  HAL_GPIO_Init(GPIOB, &gpio);   // TIM2_CH2 编码器1B
+
+    gpio.Alternate = GPIO_AF2_TIM3;
+    gpio.Pin = GPIO_PIN_6;  HAL_GPIO_Init(GPIOA, &gpio);   // TIM3_CH1 编码器2A
+    gpio.Pin = GPIO_PIN_7;  HAL_GPIO_Init(GPIOA, &gpio);   // TIM3_CH2 编码器2B
+
+    gpio.Alternate = GPIO_AF2_TIM4;
+    gpio.Pin = GPIO_PIN_12; HAL_GPIO_Init(GPIOD, &gpio);   // TIM4_CH1 编码器3A
+    gpio.Pin = GPIO_PIN_13; HAL_GPIO_Init(GPIOD, &gpio);   // TIM4_CH2 编码器3B
+
+    gpio.Alternate = GPIO_AF2_TIM5;
+    gpio.Pin = GPIO_PIN_0;  HAL_GPIO_Init(GPIOA, &gpio);   // TIM5_CH1 编码器4A
+    gpio.Pin = GPIO_PIN_1;  HAL_GPIO_Init(GPIOA, &gpio);   // TIM5_CH2 编码器4B
+
+    __HAL_TIM_SET_COUNTER(&htim2, 0);
+    __HAL_TIM_SET_COUNTER(&htim3, 0);
+    __HAL_TIM_SET_COUNTER(&htim4, 0);
+    __HAL_TIM_SET_COUNTER(&htim5, 0);
 }
 
 /*=====================================================================
@@ -230,9 +270,9 @@ void car_init(void)
     my_car.motor_1.dir_GPIO_Pin  = AIN1_Pin;
     my_car.motor_1.dir2_GPIOx = GPIOA;
     my_car.motor_1.dir2_GPIO_Pin = AIN2_Pin;
-    my_car.motor_1.pwm_ch  = 1;
-    my_car.motor_1.motor_dir   = 1;
-    my_car.motor_1.encoder_dir = -1;
+    my_car.motor_1.pwm_ch  = 1;//PWM 通道号
+    my_car.motor_1.motor_dir   = -1;//电机方向矫正（±1）//原1***********改成现在这样是正常的了
+    my_car.motor_1.encoder_dir = 1;//编码器方向矫正（±1）//原-1
     my_car.motor_1.PWM = 0;
     my_car.motor_1.target_speed = 0.0f;
 
@@ -242,8 +282,8 @@ void car_init(void)
     my_car.motor_2.dir2_GPIOx = GPIOC;
     my_car.motor_2.dir2_GPIO_Pin = BIN2_Pin;
     my_car.motor_2.pwm_ch  = 2;
-    my_car.motor_2.motor_dir   = -1;
-    my_car.motor_2.encoder_dir = 1;
+    my_car.motor_2.motor_dir   = 1;//原-1*************-1，1没反应；1，1反转；-1，-1没反应；1，-1反转
+    my_car.motor_2.encoder_dir = -1;//原1
     my_car.motor_2.PWM = 0;
     my_car.motor_2.target_speed = 0.0f;
 
@@ -253,8 +293,8 @@ void car_init(void)
     my_car.motor_3.dir2_GPIOx = GPIOB;
     my_car.motor_3.dir2_GPIO_Pin = CIN2_Pin;
     my_car.motor_3.pwm_ch  = 3;
-    my_car.motor_3.motor_dir   = 1;
-    my_car.motor_3.encoder_dir = -1;
+    my_car.motor_3.motor_dir   = 1;//原1*****************11没反应；1，-1蜂鸣；-1，-1蜂鸣；1，-1没反应
+    my_car.motor_3.encoder_dir = -1;//原-1
     my_car.motor_3.PWM = 0;
     my_car.motor_3.target_speed = 0.0f;
 
@@ -264,8 +304,8 @@ void car_init(void)
     my_car.motor_4.dir2_GPIOx = GPIOE;
     my_car.motor_4.dir2_GPIO_Pin = DIN2_Pin;
     my_car.motor_4.pwm_ch  = 4;
-    my_car.motor_4.motor_dir   = -1;
-    my_car.motor_4.encoder_dir = 1;
+    my_car.motor_4.motor_dir   = 1;     //1，-1反转；-1，-1没反应；-1，1没反应；11没反应
+    my_car.motor_4.encoder_dir = -1;    
     my_car.motor_4.PWM = 0;
     my_car.motor_4.target_speed = 0.0f;
 
@@ -573,6 +613,8 @@ void stop_car(void)
   */
 void time_period_fun(void)
 {
+    motor_loop_count++;   // 诊断: 控制环每运行一次 +1 (OLED上能看到数字在涨)
+
     encoder_count_get();
 
     speed_translation(&my_car.motor_1);
@@ -586,7 +628,22 @@ void time_period_fun(void)
 
     mecanum(my_car.v_y, my_car.v_x, my_car.w);  // 逆运动学 -> 目标轮速
 
-    if(!my_car.stop_flag)
+    if(motor_openloop)
+    {
+        /* ============ 开环测试模式：跳过PID，直接用 motor_x.PWM 驱动 ============
+         * 目的：验证电机硬件(驱动板/接线/供电)是否正常
+         * 用法：main里置 motor_openloop=1 并给 motor_x.PWM 赋固定值
+         * 现象判断：
+         *   轮子转 + v有值  -> 硬件OK, 问题在闭环(编码器方向)
+         *   轮子不转 + P=200 -> 硬件问题(该轮线/驱动/供电/卡死)
+         *   轮子转 + v=0    -> 编码器没计数(编码器线/接口)
+         * ================================================================ */
+        motor_control(&my_car.motor_1);
+        motor_control(&my_car.motor_2);
+        motor_control(&my_car.motor_3);
+        motor_control(&my_car.motor_4);
+    }
+    else if(!my_car.stop_flag)
     {
         motor_pid(&my_car.motor_1);
         motor_pid(&my_car.motor_2);
