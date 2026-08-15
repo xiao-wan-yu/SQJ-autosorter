@@ -64,7 +64,9 @@ void TB6612_Control(uint8_t MOTOR_Num, int8_t Motor_Speed)
       break;
 
     case MOTOR_C:  /* C电机：PWMC=PE13(TIM1_CH3)，CIN1=PB0，CIN2=PB1
-                      实测: CIN1=0,CIN2=1 才能转（本通道唯一能转方向）。
+                      实测: CIN1=1,CIN2=0 才能转（本通道唯一能转方向）。
+                      但是CIN1 = 1时蜂鸣器会响，所以只能在主控这边设置为CIN1=0,CIN2=1，然后在接到驱动板时交叉N1和N2。
+                      既能避免蜂鸣，又能驱动电机。
                       注意: CIN1=PB0 同时驱动核心板蜂鸣器，CIN1 = 1时蜂鸣器会响。 */
       HAL_GPIO_WritePin(CIN1_GPIO_Port, CIN1_Pin, (Motor_Speed >= 0) ? GPIO_PIN_RESET   : GPIO_PIN_SET);
       HAL_GPIO_WritePin(CIN2_GPIO_Port, CIN2_Pin, (Motor_Speed >= 0) ? GPIO_PIN_SET : GPIO_PIN_RESET);
