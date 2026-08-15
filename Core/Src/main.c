@@ -205,10 +205,10 @@ int main(void)
    *       若某电机转向相反，对调该路电机两根线即可。
    */
   TB6612_Init();                    // STBY=1 退出待机 + 启动 TIM1 四路 PWM
-  TB6612_Control(MOTOR_A, 60);      // A电机 20% 占空比
-  TB6612_Control(MOTOR_B, 60);      // B电机 20% 占空比
-  TB6612_Control(MOTOR_C, 60);      // C电机 20% 占空比（走CIN2，蜂鸣器不响）
-  TB6612_Control(MOTOR_D, 60);      // D电机 20% 占空比
+  TB6612_Control(MOTOR_A, 80);      // A电机 20% 占空比
+  TB6612_Control(MOTOR_B, 80);      // B电机 20% 占空比
+  TB6612_Control(MOTOR_C, 80);      // C电机 20% 占空比（走CIN2，蜂鸣器不响）
+  TB6612_Control(MOTOR_D, 80);      // D电机 20% 占空比
 
 
   /*注意：更改了serialplot文件中的函数和内容，但是由于没来得及测试，所以暂时不知道有没有bug*/

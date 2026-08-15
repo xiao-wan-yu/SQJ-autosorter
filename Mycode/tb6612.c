@@ -49,30 +49,32 @@ void TB6612_Control(uint8_t MOTOR_Num, int8_t Motor_Speed)
 
   switch (MOTOR_Num)
   {
-    case MOTOR_A:  /* A电机：PWMA=PE9(TIM1_CH1)，AIN1=PA3，AIN2=PA4 */
+    case MOTOR_A:  /* A电机：PWMA=PE9(TIM1_CH1)，AIN1=PA3，AIN2=PA4
+                      实测: AIN1=1,AIN2=0 能转（本通道唯一能转方向） */
       HAL_GPIO_WritePin(AIN1_GPIO_Port, AIN1_Pin, (Motor_Speed >= 0) ? GPIO_PIN_SET   : GPIO_PIN_RESET);
       HAL_GPIO_WritePin(AIN2_GPIO_Port, AIN2_Pin, (Motor_Speed >= 0) ? GPIO_PIN_RESET : GPIO_PIN_SET);
       __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, cmp);
       break;
 
-    case MOTOR_B:  /* B电机：PWMB=PE11(TIM1_CH2)，BIN1=PC4，BIN2=PC5 */
-      HAL_GPIO_WritePin(BIN1_GPIO_Port, BIN1_Pin, (Motor_Speed >= 0) ? GPIO_PIN_SET   : GPIO_PIN_RESET);
-      HAL_GPIO_WritePin(BIN2_GPIO_Port, BIN2_Pin, (Motor_Speed >= 0) ? GPIO_PIN_RESET : GPIO_PIN_SET);
+    case MOTOR_B:  /* B电机：PWMB=PE11(TIM1_CH2)，BIN1=PC4，BIN2=PC5
+                      实测: BIN1=0,BIN2=1 才能转（本通道唯一能转方向） */
+      HAL_GPIO_WritePin(BIN1_GPIO_Port, BIN1_Pin, (Motor_Speed >= 0) ? GPIO_PIN_RESET : GPIO_PIN_SET);
+      HAL_GPIO_WritePin(BIN2_GPIO_Port, BIN2_Pin, (Motor_Speed >= 0) ? GPIO_PIN_SET   : GPIO_PIN_RESET);
       __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, cmp);
       break;
 
-    case MOTOR_C:  /* C电机：PWMC=PE13(TIM1_CH3)，CIN1=PB0，CIN2=PB1 */
-      /* 注意：核心板蜂鸣器由 PB0(=CIN1) 驱动，PB0 拉高时蜂鸣器响。
-         为避免测试时蜂鸣器一直响，电机C"正转"改为 CIN2 拉高（CIN1 保持低）。
-         若电机C转向与其他电机相反，把 C 电机两根线对调即可。 */
-      HAL_GPIO_WritePin(CIN1_GPIO_Port, CIN1_Pin, (Motor_Speed >= 0) ? GPIO_PIN_RESET : GPIO_PIN_SET);
-      HAL_GPIO_WritePin(CIN2_GPIO_Port, CIN2_Pin, (Motor_Speed >= 0) ? GPIO_PIN_SET   : GPIO_PIN_RESET);
+    case MOTOR_C:  /* C电机：PWMC=PE13(TIM1_CH3)，CIN1=PB0，CIN2=PB1
+                      实测: CIN1=0,CIN2=1 才能转（本通道唯一能转方向）。
+                      注意: CIN1=PB0 同时驱动核心板蜂鸣器，CIN1 = 1时蜂鸣器会响。 */
+      HAL_GPIO_WritePin(CIN1_GPIO_Port, CIN1_Pin, (Motor_Speed >= 0) ? GPIO_PIN_RESET   : GPIO_PIN_SET);
+      HAL_GPIO_WritePin(CIN2_GPIO_Port, CIN2_Pin, (Motor_Speed >= 0) ? GPIO_PIN_SET : GPIO_PIN_RESET);
       __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, cmp);
       break;
 
-    case MOTOR_D:  /* D电机：PWMD=PE14(TIM1_CH4)，DIN1=PB2，DIN2=PE7 */
-      HAL_GPIO_WritePin(DIN1_GPIO_Port, DIN1_Pin, (Motor_Speed >= 0) ? GPIO_PIN_SET   : GPIO_PIN_RESET);
-      HAL_GPIO_WritePin(DIN2_GPIO_Port, DIN2_Pin, (Motor_Speed >= 0) ? GPIO_PIN_RESET : GPIO_PIN_SET);
+    case MOTOR_D:  /* D电机：PWMD=PE14(TIM1_CH4)，DIN1=PB2，DIN2=PE7
+                      实测: DIN1=0,DIN2=1 才能转（本通道唯一能转方向） */
+      HAL_GPIO_WritePin(DIN1_GPIO_Port, DIN1_Pin, (Motor_Speed >= 0) ? GPIO_PIN_RESET : GPIO_PIN_SET);
+      HAL_GPIO_WritePin(DIN2_GPIO_Port, DIN2_Pin, (Motor_Speed >= 0) ? GPIO_PIN_SET   : GPIO_PIN_RESET);
       __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, cmp);
       break;
 
