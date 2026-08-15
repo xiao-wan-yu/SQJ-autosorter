@@ -242,6 +242,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 
 
 
+/* ========== DMA 句柄定义(补: CubeMX 重新生成后丢失定义,未配置DMA时仅占位) ========== */
+DMA_HandleTypeDef hdma_usart1_rx;
+DMA_HandleTypeDef hdma_uart5_rx;
+
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size){
   if(huart == &huart1){//调试串口
     /*此处进行数据处理*/

@@ -42,6 +42,7 @@
 #include "./../../Mycode/ultrasonic.h"
 #include "./../../Mycode/servo.h"
 #include "./../../Mycode/tb6612.h"
+#include "./../../Mycode/car.h"
 #include "./../../Mycode/encoder.h"
 #include "./../../Mycode/emm_v5.h"
 #include "./../../Mycode/serialplot.h"
@@ -103,13 +104,13 @@ void SystemClock_Config(void);
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 
-  if(htim == &htim7){ //1ms产生一次中断--主要应用于PID计时
+  if(htim == &htim7){ //1ms产生一次中断
 
-    // static uint8_t count1 = 0;
-    // if(++count1 >= 5){
-    //   count1 = 0;
-    //   ICM42688Mahony_Update();
-    // }
+    static uint16_t ms_cnt = 0;
+    if(++ms_cnt >= 10){          // 每10ms执行一次车体控制周期
+      ms_cnt = 0;
+      CAR_Control_Loop();        // PID速度闭环 + 麦轮运动学 + 里程计
+    }
 
   }
 
@@ -199,16 +200,19 @@ int main(void)
   OLED_Init();
   // uint8_t a = 'n';
 
-  /* ========== 四轮开环正转：20% 占空比，一直转 ==========
-   * 速度值即占空比百分比：20 -> 20%（TIM1 ARR=799，比较值 = 20*800/100 = 160）
-   * 注意：核心板蜂鸣器在 PB0(=CIN1)，C 电机正转走 CIN2 故蜂鸣器不响；
-   *       若某电机转向相反，对调该路电机两根线即可。
+  /* ========== 麦轮小车驱动(移植自去年F103代码) ==========
+   * CAR_Init(): TB6612驱动 + 编码器(TIM2/3/4/5) + TIM7 1ms控制中断 + PID参数
+   * 10ms 控制周期在 TIM7 中断里自动运行(CAR_Control_Loop)
+   *
+   * 前进演示(取消下面注释): 车以 30cm/s 前进
+   *   y_set_speed_flag=1 表示直接用 v_y; 若用速度规划则走 tp_y
    */
-  TB6612_Init();                    // STBY=1 退出待机 + 启动 TIM1 四路 PWM
-  TB6612_Control(MOTOR_A, 80);      // A电机 20% 占空比
-  TB6612_Control(MOTOR_B, 80);      // B电机 20% 占空比
-  TB6612_Control(MOTOR_C, 80);      // C电机 20% 占空比（走CIN2，蜂鸣器不响）
-  TB6612_Control(MOTOR_D, 80);      // D电机 20% 占空比
+  CAR_Init();
+
+  /* 前进演示(需要时取消注释) */
+  y_set_speed_flag = 1;
+  my_car.v_y = 30.0f;
+
 
 
   /*注意：更改了serialplot文件中的函数和内容，但是由于没来得及测试，所以暂时不知道有没有bug*/

@@ -40,6 +40,12 @@ add_link_options(
     -Wl,--gc-sections
     -Wl,--print-memory-usage
 )
+# 修复:工具链文件里的 -T/--specs 未进入链接命令(实测缺失),
+# 在这里补上,保证链接脚本生效(_estack/_Min_Stack_Size 等符号)
+add_link_options(
+    -T ${CMAKE_SOURCE_DIR}/STM32F407xx_FLASH.ld
+    --specs=nano.specs
+)
 #为解决支持%f问题添加--结束
 
 
@@ -103,6 +109,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Mycode/ultrasonic.c
     ${CMAKE_SOURCE_DIR}/Mycode/servo.c
     ${CMAKE_SOURCE_DIR}/Mycode/tb6612.c
+    ${CMAKE_SOURCE_DIR}/Mycode/car.c
+    ${CMAKE_SOURCE_DIR}/Mycode/velocityProfile.c
     ${CMAKE_SOURCE_DIR}/Mycode/encoder.c
     ${CMAKE_SOURCE_DIR}/Mycode/emm_v5.c
     ${CMAKE_SOURCE_DIR}/Mycode/serialplot.c
