@@ -11,9 +11,9 @@
  * ===================================================================== */
 
 /* ---------------------- 车体参数(按实际车体修改) ---------------------- */
-#define MECANUM_CAR_length   21.0f   // 前后轮轴距 cm
-#define MECANUM_CAR_width    31.0f   // 左右轮距 cm
-#define WHEEL_DIAMETE        6.5f    // 轮径 cm
+#define MECANUM_CAR_length   22.5f   // 前后轮轴距 cm
+#define MECANUM_CAR_width    35.0f   // 左右轮距 cm
+#define WHEEL_DIAMETE        13.0f    // 轮径 cm
 #define Pi                   3.14159265359f
 
 /* ---------------------- 编码器/速度换算参数 ---------------------- */
