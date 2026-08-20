@@ -54,7 +54,7 @@ void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOE, LED0_Pin|LED1_Pin|LED2_Pin|LED3_Pin
-                          |DIN2_Pin, GPIO_PIN_RESET);
+                          |DIN2_Pin|CIN1_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, AIN1_Pin|AIN2_Pin, GPIO_PIN_RESET);
@@ -63,16 +63,15 @@ void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOC, BIN1_Pin|BIN2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, CIN1_Pin|CIN2_Pin|DIN1_Pin|OLED_SCL_Pin
-                          |OLED_SDA_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, CIN2_Pin|DIN1_Pin|OLED_SCL_Pin|OLED_SDA_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(TB6612_STBY_GPIO_Port, TB6612_STBY_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pins : LED0_Pin LED1_Pin LED2_Pin LED3_Pin
-                           DIN2_Pin TB6612_STBY_Pin */
+                           DIN2_Pin TB6612_STBY_Pin CIN1_Pin */
   GPIO_InitStruct.Pin = LED0_Pin|LED1_Pin|LED2_Pin|LED3_Pin
-                          |DIN2_Pin|TB6612_STBY_Pin;
+                          |DIN2_Pin|TB6612_STBY_Pin|CIN1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -100,10 +99,8 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : CIN1_Pin CIN2_Pin DIN1_Pin OLED_SCL_Pin
-                           OLED_SDA_Pin */
-  GPIO_InitStruct.Pin = CIN1_Pin|CIN2_Pin|DIN1_Pin|OLED_SCL_Pin
-                          |OLED_SDA_Pin;
+  /*Configure GPIO pins : CIN2_Pin DIN1_Pin OLED_SCL_Pin OLED_SDA_Pin */
+  GPIO_InitStruct.Pin = CIN2_Pin|DIN1_Pin|OLED_SCL_Pin|OLED_SDA_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;

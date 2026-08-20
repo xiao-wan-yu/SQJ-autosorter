@@ -1,4 +1,0 @@
---c99 -c --cpu Cortex-M3 -D__MICROLIB -g -O2 --apcs=interwork -I ..\..\Libraries\CMSIS -I ..\..\User -I ..\..\Libraries\FWlib\inc -I ..\..\FreeRTOS\include -I ..\..\FreeRTOS\port\RVDS\ARM_CM3 -I ..\..\User\drivers\include -I ..\..\User\Oled_u8g2 -I ..\..\User -I ..\..\User\Oled_u8g2\u8g2 -I ..\..\User\task
--IE:\new_app\keil\Keil\STM32F1xx_DFP\2.4.1\Device\Include
--D__UVISION_VERSION="539" -DSTM32F10X_HD -DSTM32F10X_HD -DUSE_STDPERIPH_DRIVER
--o ..\..\output\motor.o --omf_browse ..\..\output\motor.crf --depend ..\..\output\motor.d --feedback "..\..\Output\Fire_FreeRTOS.fed" "..\..\User\drivers\src\motor.c"

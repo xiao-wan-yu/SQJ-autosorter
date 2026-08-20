@@ -200,6 +200,7 @@ int main(void)
   OLED_Init();
   // uint8_t a = 'n';
 
+
   /* ========== 麦轮小车驱动(移植自去年F103代码) ==========
    * CAR_Init(): TB6612驱动 + 编码器(TIM2/3/4/5) + TIM7 1ms控制中断 + PID参数
    * 10ms 控制周期在 TIM7 中断里自动运行(CAR_Control_Loop)
@@ -207,12 +208,16 @@ int main(void)
    * 前进演示(取消下面注释): 车以 30cm/s 前进
    *   y_set_speed_flag=1 表示直接用 v_y; 若用速度规划则走 tp_y
    */
-  CAR_Init();
+  /* ===== 临时测试：暂时不启动电机控制 =====
+   * CAR_Init() 内部会启动 TIM7 中断，中断里每 10ms 调用 CAR_Control_Loop()
+   * 重写 PB1(CIN2)，会把下方"激光->PB1"的信号覆盖掉，所以测试期间先注释掉。
+   * 测试完把 while 循环里的临时代码删掉，再取消本行注释即可恢复正常功能。
+   */
+  // CAR_Init();
 
   /* 前进演示(需要时取消注释) */
-  y_set_speed_flag = 1;
-  my_car.v_y = 30.0f;
-
+  //y_set_speed_flag = 1;
+  //my_car.v_y = 30.0f;
 
 
   /*注意：更改了serialplot文件中的函数和内容，但是由于没来得及测试，所以暂时不知道有没有bug*/
@@ -263,10 +268,16 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* 四路电机已在初始化后以 20% 占空比开环正转，主循环保持运行即可 */
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    /* ===== 临时测试：GY53_1(PC7)测距, 距离<=100mm -> PB1(CIN2)拉高 ===== */
+    uint16_t dist = GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin); // 阻塞式测距, 返回mm
+    if(dist <= 100){
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);   // 距离在100mm内: PB1拉高
+    }else{
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET); // 超过100mm: PB1拉低
+    }
   }
   /* USER CODE END 3 */
 }

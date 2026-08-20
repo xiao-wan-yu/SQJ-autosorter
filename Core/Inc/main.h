@@ -81,8 +81,6 @@ void Error_Handler(void);
 #define BIN1_GPIO_Port GPIOC
 #define BIN2_Pin GPIO_PIN_5
 #define BIN2_GPIO_Port GPIOC
-#define CIN1_Pin GPIO_PIN_0
-#define CIN1_GPIO_Port GPIOB
 #define CIN2_Pin GPIO_PIN_1
 #define CIN2_GPIO_Port GPIOB
 #define DIN1_Pin GPIO_PIN_2
@@ -103,6 +101,8 @@ void Error_Handler(void);
 #define LASER2_GPIO_Port GPIOC
 #define LASER1_Pin GPIO_PIN_9
 #define LASER1_GPIO_Port GPIOC
+#define CIN1_Pin GPIO_PIN_1
+#define CIN1_GPIO_Port GPIOE
 
 /* USER CODE BEGIN Private defines */
 /* ========== 临时：旧板引脚宏（仅为让旧 Mycode 编译通过，未接入新板，后续适配后删除）========== */
