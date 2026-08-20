@@ -1,0 +1,75 @@
+{
+    // 使用 IntelliSense 了解相关属性。
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        // ==================== 烧录选项 1：无线烧录（成品无线 DAP-Link 套装）====================
+        {
+            "name": "无线烧录 DAPLink F407",
+            "type": "cortex-debug",
+            "request": "launch",
+            "cwd": "${workspaceRoot}",
+            // TODO 移植时改工程名：xxx.elf = 新工程的 CMake 工程名
+            "executable": "${workspaceRoot}/build/Debug/7_AutomatedSortingRobot_26.elf",
+            "preLaunchTask": "Build STM32 Project",
+            "servertype": "openocd",
+            "serverpath": "D:/STM32CubeIde/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.externaltools.openocd.win32_2.4.500.202604080855/tools/bin/openocd.exe",
+            "configFiles": [
+                "daplink_wireless.cfg",
+                "target/stm32f4x.cfg"
+            ],
+            "gdbPath": "D:/STM32CubeIde/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.14.3.rel1.win32_1.0.100.202602081740/tools/bin/arm-none-eabi-gdb.exe",
+            "searchDir": [
+                "${workspaceRoot}",
+                "D:/STM32CubeIde/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.debug.openocd_2.3.400.202606220929/resources/openocd/st_scripts"
+            ],
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "none"
+        },
+        // ==================== 烧录选项 2：有线烧录（ST-Link）====================
+        {
+            "name": "有线烧录 ST-Link F407",
+            "type": "cortex-debug",
+            "request": "launch",
+            "cwd": "${workspaceRoot}",
+            "executable": "${workspaceRoot}/build/Debug/7_AutomatedSortingRobot_26.elf",
+            "preLaunchTask": "Build STM32 Project",
+            "servertype": "openocd",
+            "serverpath": "D:/STM32CubeIde/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.externaltools.openocd.win32_2.4.500.202604080855/tools/bin/openocd.exe",
+            "configFiles": [
+                // 注意：必须用 stlink-dap.cfg（新版 st-link 驱动）。
+                // 不要用 stlink.cfg，它用的旧版 hla 驱动在这版 OpenOCD 里会无限递归报错。
+                "interface/stlink-dap.cfg",
+                "target/stm32f4x.cfg"
+            ],
+            "gdbPath": "D:/STM32CubeIde/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.14.3.rel1.win32_1.0.100.202602081740/tools/bin/arm-none-eabi-gdb.exe",
+            "searchDir": [
+                "D:/STM32CubeIde/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.debug.openocd_2.3.400.202606220929/resources/openocd/st_scripts"
+            ],
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "none"
+        },
+        // ==================== 烧录选项 3：有线烧录（DAP-Link）====================
+        {
+            "name": "有线烧录 DAPLink F407",
+            "type": "cortex-debug",
+            "request": "launch",
+            "cwd": "${workspaceRoot}",
+            "executable": "${workspaceRoot}/build/Debug/7_AutomatedSortingRobot_26.elf",
+            "preLaunchTask": "Build STM32 Project",
+            "servertype": "openocd",
+            "serverpath": "D:/STM32CubeIde/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.externaltools.openocd.win32_2.4.500.202604080855/tools/bin/openocd.exe",
+            "configFiles": [
+                "interface/cmsis-dap.cfg",
+                "target/stm32f4x.cfg"
+            ],
+            "gdbPath": "D:/STM32CubeIde/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.14.3.rel1.win32_1.0.100.202602081740/tools/bin/arm-none-eabi-gdb.exe",
+            "searchDir": [
+                "D:/STM32CubeIde/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.debug.openocd_2.3.400.202606220929/resources/openocd/st_scripts"
+            ],
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "none"
+        }
+    ]
+}
