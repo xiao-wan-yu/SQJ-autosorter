@@ -1,8 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"G:/STM32/7_AutomatedSortingRobot_26/build/Debug/cmake_install.cmake",
-		"G:/STM32/7_AutomatedSortingRobot_26/build/Debug/cmake/stm32cubemx/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

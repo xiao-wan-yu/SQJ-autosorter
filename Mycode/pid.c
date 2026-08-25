@@ -3,8 +3,8 @@
 #include "pid.h"
 #include "serialplot.h"
 #include "tb6612.h"
-#include "gray.h"       //应用于PID循迹环
-#include "icm42688.h"   //应用于PID角度环
+// #include "gray.h"       //应用于PID循迹环
+#include "hwt101ct.h"   //应用于PID角度环（HWT101CT 0~360°，逆时针/顺时针以实测为准）
 #include "encoder.h"    //应用于PID速度环
 #include <math.h>
 
@@ -37,6 +37,10 @@ void PID_PosUpdate(PID_POS *pid){
   }else{
     pid->errorint = 0;
   }
+  //积分限幅：防止误差长时间存在导致积分进入深度饱和
+  if(pid->integral_max > 0.001f){
+    PID_Limit(&pid->errorint, pid->integral_max, -pid->integral_max);
+  }
   //进行PID运算
   pid->out = pid->kp*pid->error0 + pid->ki*pid->errorint + pid->kd*(pid->error0-pid->error1);
   //输出限幅
@@ -44,89 +48,96 @@ void PID_PosUpdate(PID_POS *pid){
 }
 
 /**
-  * @brief PID循迹环--采用位置式PD控制器，加入了不完全微分（不过效果好像不大）
-  * @note 循迹环PID参数参考值：kp=0.8 kd=0.02 target=0 out_max=100 out_min=-100 执行周期=2ms?
-  * @attention 实际值的获取已封装在了函数中；调用该函数后，应利用pid->out控制执行器运动或传输给下一级PID
+  * @brief 增量式PID更新（执行逻辑照搬旧代码 IncrementalPID_Calculate，仅命名/结构清晰化）
+  * @param pid 包含某一环PID信息的变量指针
+  * @attention 调用前更新 pid->actual；调用后利用 pid->out 控制执行器
+  *            魔法数 10.0/0.1/0.2 为去年现场调好的手感值，勿改
   */
-void PID_Line(PID_POS *pid){
-  static float gray_weight[9] = {0.0, -40.0, -30.0, -15.0, -30.0,
-                                  30.0, 15.0, 30.0, 40.0};//灰度传感器每个输出所占权值,第一个元素为空
-  static float difout;  //微分项输出
+void PID_IncUpdate(PID_INC *pid){
+  //计算误差
+  pid->err = pid->target - pid->actual;
 
-  /*获取实际值*/
-  GRAY_ALL();
-  pid->actual = gray_weight[1]*GRAY_Data[1] + gray_weight[2]*GRAY_Data[2] + 
-          gray_weight[3]*GRAY_Data[3] + gray_weight[4]*GRAY_Data[4] + 
-          gray_weight[5]*GRAY_Data[5] + gray_weight[6]*GRAY_Data[6] + 
-          gray_weight[7]*GRAY_Data[7] + gray_weight[8]*GRAY_Data[8] ;
-  /*计算中间变量*/
-  pid->error1 = pid->error0;
-  pid->error0 = pid->target - pid->actual;
-  difout = (1-0.5)*pid->kd*(pid->error0-pid->error1) + 0.5*difout; //不完全微分--尝试解决实际值不断变化造成输出抖动问题
-  /*PID计算*/
-  pid->out = pid->kp*pid->error0 + pid->ki*pid->errorint + difout;
-  /*输出限幅*/
-  if(pid->out > pid->out_max) pid->out = pid->out_max;
-  else if(pid->out < pid->out_min) pid->out = pid->out_min;
+  //比例项增量
+  pid->p_out = pid->kp * (pid->err - pid->last_err);
+  //微分项增量
+  pid->d_out = pid->kd * (pid->err - 2.0f*pid->last_err + pid->prev_err);
+
+  //积分项累计 + 限幅±10（防止误差长时间存在导致积分深度饱和）
+  pid->i_out += pid->ki * pid->err;
+  if(pid->i_out > 10.0f)  pid->i_out =  10.0f;
+  if(pid->i_out < -10.0f) pid->i_out = -10.0f;
+
+  //防积死：误差微小时把积分项压缩到±0.2（避免低速时积分缓慢堆积、启动过冲）
+  if(pid->ki*pid->err > -0.1f && pid->ki*pid->err < 0.1f){
+    if(pid->i_out > 0.2f)       pid->i_out =  0.2f;
+    else if(pid->i_out < -0.2f) pid->i_out = -0.2f;
+  }
+
+  //增量累加输出 + 限幅
+  pid->out += pid->p_out + pid->i_out + pid->d_out;
+  PID_Limit(&pid->out, pid->out_max, -pid->out_max);
+
+  //误差递推
+  pid->prev_err = pid->last_err;
+  pid->last_err = pid->err;
 }
 
 /**
-  * @brief PID角度环--采用位置式P控制器
-  * @note 角度环PID参数参考值：kp=2.3 target=0 out_max=100 out_min=-100 执行周期=10ms
-  * @attention 实际值的获取已封装在了函数中；调用该函数后，应利用pid->out控制执行器运动或传输给下一级PID
+  * @brief PID角度环--采用位置式P(PD)控制器
+  * @note 实际值的获取已封装在了函数中（读 HWT101CT_Data.yaw）；调用该函数后，利用 pid->out 作为整车角速度 w
+  *       角度环PID参数（chassis 侧初始化）：kp=0.02 ki=0 kd=0.02 out_max=2.8 out_min=-2.8 执行周期=10ms
+  *       Kp 符号以实测为准：本版按 w 逆时针为正、target>yaw 需逆时针转取正，方向反了取负
   */
 void PID_Angle(PID_POS *pid){
-  /*获取实际值，并对实际值加以优化，使小车可以选择角度更小的方向到达目标值*/
-  ICM42688Mahony_GetAngle();
-  if(ICM42688_Data.yaw > pid->target + 180) pid->actual = ICM42688_Data.yaw - 360;
-  else if(ICM42688_Data.yaw < pid->target - 180) pid->actual = ICM42688_Data.yaw + 360;
-  else pid->actual = ICM42688_Data.yaw;
+  /*获取实际值，并对实际值加以优化，使小车可以选择角度更小的方向到达目标值（HWT101CT yaw 为 0~360°）*/
+  if(HWT101CT_Data.yaw > pid->target + 180) pid->actual = HWT101CT_Data.yaw - 360;
+  else if(HWT101CT_Data.yaw < pid->target - 180) pid->actual = HWT101CT_Data.yaw + 360;
+  else pid->actual = HWT101CT_Data.yaw;
   /*计算中间变量*/
   pid->error1 = pid->error0;
   pid->error0 = pid->target - pid->actual;
   if(fabs(pid->ki) > 0.001) pid->errorint += pid->error0;
   else pid->errorint = 0;
-  // if(fabs(pid->error0) < 5) pid->errorint += pid->error0;//积分分离
-  // else pid->errorint = 0;
-  // if(pid->errorint > 600) pid->errorint = 600;  //积分限幅
-  // else if(pid->errorint < -600) pid->errorint = -600;
+  /*积分限幅：防止误差长时间存在导致积分进入深度饱和*/
+  if(pid->integral_max > 0.001f){
+    PID_Limit(&pid->errorint, pid->integral_max, -pid->integral_max);
+  }
   /*pid运算*/
   pid->out = pid->kp*pid->error0 + pid->ki*pid->errorint + pid->kd*(pid->error0-pid->error1);
   /*输出限幅*/
-  if(pid->out > pid->out_max) pid->out = pid->out_max;
-  else if(pid->out < pid->out_min) pid->out = pid->out_min;
-}
-
-/**
-  * @brief PID速度环--采用位置式PI控制器，加入了积分限幅
-  * @note 速度环PID参数参考值：kp=0.3 ki=0.03 target=？ out_max=100 out_min=-100 执行周期=2ms
-  * @attention 实际速度值范围约为-300~+300RPM；实际值的获取已封装在了函数中；调用该函数后，应利用pid->out控制执行器运动或传输给下一级PID
-  */
-void PID_Speed(PID_POS *pid){
-  /*电机参数配置*/
-  const float reduction_ratio = 28.0; //电机减速比
-  const uint8_t number_of_wires = 13; //电机线数
-  const uint8_t period = 2; //定时周期，单位：ms
-  const uint8_t encoder_multiple = 2; //编码器倍数，即一个脉冲周期被计数encoder_multiple次
-  extern PID_POS speed_left;
-  extern PID_POS speed_right;
-  //转速计算参考：pid->actual = (ENCODER_GetPulse(ENCODER_Right )/(float)(reduction_ratio*number_of_wires)) / (encoder_multiple*period/(1000*60.0));
-  static float speed_constant = (1000*60.0) / (float)((reduction_ratio*number_of_wires) * encoder_multiple*period);//转速常数--提前计算好系数，避免浪费时间重复计算
-  /*获取实际值--单位:RPM，计算公式：转数/分钟数*/
-  if(pid == &speed_right) 
-    pid->actual = ENCODER_GetPulse(ENCODER_Right ) * speed_constant;
-  else if(pid == &speed_left) 
-    pid->actual = ENCODER_GetPulse(ENCODER_Left ) * speed_constant;
-  //计算中间变量
-  pid->error1 = pid->error0;
-  pid->error0 = pid->target - pid->actual; 
-  pid->errorint += pid->error0;
-  PID_Limit(&pid->errorint, 4200, -4200);//积分限幅
-  //进行PID运算
-  pid->out = pid->kp*pid->error0 + pid->ki*pid->errorint + pid->kd*(pid->error0-pid->error1);
-  //输出限幅
   PID_Limit(&pid->out, pid->out_max, pid->out_min);
 }
+
+// /**
+//   * @brief PID速度环--采用位置式PI控制器，加入了积分限幅
+//   * @note 速度环PID参数参考值：kp=0.3 ki=0.03 target=？ out_max=100 out_min=-100 执行周期=2ms
+//   * @attention 实际速度值范围约为-300~+300RPM；实际值的获取已封装在了函数中；调用该函数后，应利用pid->out控制执行器运动或传输给下一级PID
+//   */
+// void PID_Speed(PID_POS *pid){
+//   /*电机参数配置*/
+//   const float reduction_ratio = 28.0; //电机减速比
+//   const uint8_t number_of_wires = 13; //电机线数
+//   const uint8_t period = 2; //定时周期，单位：ms
+//   const uint8_t encoder_multiple = 2; //编码器倍数，即一个脉冲周期被计数encoder_multiple次
+//   extern PID_POS speed_left;
+//   extern PID_POS speed_right;
+//   //转速计算参考：pid->actual = (ENCODER_GetPulse(ENCODER_Right )/(float)(reduction_ratio*number_of_wires)) / (encoder_multiple*period/(1000*60.0));
+//   static float speed_constant = (1000*60.0) / (float)((reduction_ratio*number_of_wires) * encoder_multiple*period);//转速常数--提前计算好系数，避免浪费时间重复计算
+//   /*获取实际值--单位:RPM，计算公式：转数/分钟数*/
+//   if(pid == &speed_right) 
+//     pid->actual = ENCODER_GetPulse(ENCODER_Right ) * speed_constant;
+//   else if(pid == &speed_left) 
+//     pid->actual = ENCODER_GetPulse(ENCODER_Left ) * speed_constant;
+//   //计算中间变量
+//   pid->error1 = pid->error0;
+//   pid->error0 = pid->target - pid->actual; 
+//   pid->errorint += pid->error0;
+//   PID_Limit(&pid->errorint, 4200, -4200);//积分限幅
+//   //进行PID运算
+//   pid->out = pid->kp*pid->error0 + pid->ki*pid->errorint + pid->kd*(pid->error0-pid->error1);
+//   //输出限幅
+//   PID_Limit(&pid->out, pid->out_max, pid->out_min);
+// }
 
 
 

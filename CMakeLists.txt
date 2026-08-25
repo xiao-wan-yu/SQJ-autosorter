@@ -40,12 +40,6 @@ add_link_options(
     -Wl,--gc-sections
     -Wl,--print-memory-usage
 )
-# 修复:工具链文件里的 -T/--specs 未进入链接命令(实测缺失),
-# 在这里补上,保证链接脚本生效(_estack/_Min_Stack_Size 等符号)
-add_link_options(
-    -T ${CMAKE_SOURCE_DIR}/STM32F407xx_FLASH.ld
-    --specs=nano.specs
-)
 #为解决支持%f问题添加--结束
 
 
@@ -100,45 +94,30 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Mycode/uart.c
     ${CMAKE_SOURCE_DIR}/Mycode/delay.c
     ${CMAKE_SOURCE_DIR}/Mycode/key.c
-    ${CMAKE_SOURCE_DIR}/Mycode/mpu6050.c
-    ${CMAKE_SOURCE_DIR}/Mycode/gray.c
     ${CMAKE_SOURCE_DIR}/Mycode/buzzer.c
     ${CMAKE_SOURCE_DIR}/Mycode/laser.c
-    ${CMAKE_SOURCE_DIR}/Mycode/infrared.c
     ${CMAKE_SOURCE_DIR}/Mycode/gy53.c
-    ${CMAKE_SOURCE_DIR}/Mycode/ultrasonic.c
-    ${CMAKE_SOURCE_DIR}/Mycode/servo.c
     ${CMAKE_SOURCE_DIR}/Mycode/tb6612.c
-    ${CMAKE_SOURCE_DIR}/Mycode/car.c
-    ${CMAKE_SOURCE_DIR}/Mycode/velocityProfile.c
     ${CMAKE_SOURCE_DIR}/Mycode/encoder.c
-    ${CMAKE_SOURCE_DIR}/Mycode/emm_v5.c
+    ${CMAKE_SOURCE_DIR}/Mycode/chassis.c
     ${CMAKE_SOURCE_DIR}/Mycode/serialplot.c
     ${CMAKE_SOURCE_DIR}/Mycode/pid.c
-    ${CMAKE_SOURCE_DIR}/Mycode/icm42688.c
     ${CMAKE_SOURCE_DIR}/Mycode/myflash.c
     ${CMAKE_SOURCE_DIR}/Mycode/storage.c
-    ${CMAKE_SOURCE_DIR}/Mycode/nmos.c
-
-    ${CMAKE_SOURCE_DIR}/Mycode/mpu6050/mpu.c
-    ${CMAKE_SOURCE_DIR}/Mycode/mpu6050/inv_mpu.c
-    ${CMAKE_SOURCE_DIR}/Mycode/mpu6050/iic.c
-    ${CMAKE_SOURCE_DIR}/Mycode/mpu6050/inv_mpu_dmp_motion_driver.c
-    ${CMAKE_SOURCE_DIR}/Mycode/icm42688/icm42688.c
-    ${CMAKE_SOURCE_DIR}/Mycode/icm42688/quaternion.c
-    # ${CMAKE_SOURCE_DIR}/Mycode/icm42688/ak09911c.c
-    # ${CMAKE_SOURCE_DIR}/Mycode/icm42688/ak09911c_myiic.c
+    # ${CMAKE_SOURCE_DIR}/Mycode/car.c
+    ${CMAKE_SOURCE_DIR}/Mycode/velocityProfile.c
+    ${CMAKE_SOURCE_DIR}/Mycode/hwt101ct.c
+    ${CMAKE_SOURCE_DIR}/Mycode/robot.c
 
     
     #根据选择的oled文件做相应修改
-    # ${CMAKE_SOURCE_DIR}/Mycode/oled_ui/oled_driver.c
-    # ${CMAKE_SOURCE_DIR}/Mycode/oled_ui/oled_fonts.c
-    # ${CMAKE_SOURCE_DIR}/Mycode/oled_ui/oled_ui_driver.c
-    # ${CMAKE_SOURCE_DIR}/Mycode/oled_ui/oled_ui_menudata.c
-    # ${CMAKE_SOURCE_DIR}/Mycode/oled_ui/oled_ui.c
-    # ${CMAKE_SOURCE_DIR}/Mycode/oled_ui/oled.c
-    ${CMAKE_SOURCE_DIR}/Mycode/oled_jiangkeda/oled.c
-    ${CMAKE_SOURCE_DIR}/Mycode/oled_jiangkeda/oled_data.c
+    ${CMAKE_SOURCE_DIR}/Mycode/oled_ui/oled_driver.c
+    ${CMAKE_SOURCE_DIR}/Mycode/oled_ui/oled_fonts.c
+    ${CMAKE_SOURCE_DIR}/Mycode/oled_ui/oled_ui_driver.c
+    ${CMAKE_SOURCE_DIR}/Mycode/oled_ui/oled_ui_menudata.c
+    ${CMAKE_SOURCE_DIR}/Mycode/oled_ui/oled_ui.c
+    ${CMAKE_SOURCE_DIR}/Mycode/oled_ui/oled.c
+
 )
 
 # Add include paths

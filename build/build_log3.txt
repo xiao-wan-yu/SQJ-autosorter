@@ -1,6 +1,0 @@
-﻿[1/2] Building C object CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tb6612.c.obj
-[2/2] Linking C executable 7_AutomatedSortingRobot_26.elf
-Memory region         Used Size  Region Size  %age Used
-             RAM:        4344 B       128 KB      3.31%
-          CCMRAM:           0 B        64 KB      0.00%
-           FLASH:       34256 B       512 KB      6.53%

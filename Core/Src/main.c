@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "dma.h"
 #include "i2c.h"
 #include "tim.h"
 #include "usart.h"
@@ -33,31 +34,25 @@
 #include "./../../Mycode/uart.h"
 #include "./../../Mycode/delay.h"
 #include "./../../Mycode/key.h"
-#include "./../../Mycode/mpu6050.h"
-#include "./../../Mycode/gray.h"
 #include "./../../Mycode/buzzer.h"
 #include "./../../Mycode/laser.h"
-#include "./../../Mycode/infrared.h"
 #include "./../../Mycode/gy53.h"
-#include "./../../Mycode/ultrasonic.h"
-#include "./../../Mycode/servo.h"
 #include "./../../Mycode/tb6612.h"
-#include "./../../Mycode/car.h"
+#include "./../../Mycode/chassis.h"
 #include "./../../Mycode/encoder.h"
-#include "./../../Mycode/emm_v5.h"
 #include "./../../Mycode/serialplot.h"
 #include "./../../Mycode/pid.h"
-#include "./../../Mycode/icm42688.h"
 #include "./../../Mycode/myflash.h"
 #include "./../../Mycode/storage.h"
-#include "./../../Mycode/nmos.h"
+#include "./../../Mycode/gw_grayscale.h"
+#include "./../../Mycode/hwt101ct.h"
+#include "./../../Mycode/robot.h"
 
 #include <math.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include "oled.h"
 #include "stm32f407xx.h"
 #include "stm32f4xx_hal_def.h"
 #include "stm32f4xx_hal_dma.h"
@@ -73,6 +68,7 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+/* FLAG 结构体定义已移至 Mycode/chassis.h（main.c 定义变量、chassis.c 等模块引用） */
 
 /* USER CODE END PTD */
 
@@ -89,6 +85,11 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+FLAG flag;
+
+int16_t data_encoder = 0;
+
+
 
 /* USER CODE END PV */
 
@@ -106,49 +107,41 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 
   if(htim == &htim7){ //1ms产生一次中断
 
-    static uint16_t ms_cnt = 0;
-    if(++ms_cnt >= 10){          // 每10ms执行一次车体控制周期
-      ms_cnt = 0;
-      CAR_Control_Loop();        // PID速度闭环 + 麦轮运动学 + 里程计
+    // static uint8_t count1 = 0;
+    // if(++count1 >= 5){
+    //   count1 = 0;
+    //   ICM42688Mahony_Update();
+    // }
+
+    // static uint16_t ms_cnt = 0;
+    // if(++ms_cnt >= 10){          // 每10ms执行一次车体控制周期
+    //   ms_cnt = 0;
+    //   CAR_Control_Loop();        // PID速度闭环 + 麦轮运动学 + 里程计
+    // }
+
+
+    //hwt101ct陀螺仪数据更新
+    static uint8_t count1 = 0;
+    if(flag.hwt101ct && ++count1 >= 5){
+      count1 = 0;
+      if(HWT101CT_RxFlag){
+        HWT101CT_RxFlag = 0;
+        HWT101CT_Update();
+      }
+    }
+
+
+    //车体10ms控制周期：速度闭环（第一阶段）
+    static uint16_t count2 = 0;
+    if(flag.chassis && ++count2 >= 10){
+      count2 = 0;
+      CHASSIS_Control_Loop();      // 4轮速度环（PID + 编码器 + PWM）
     }
 
   }
+  /* 清零法无需编码器溢出中断（TIM3/TIM4），故无 htim3/htim4 分支 */
 
 }
-
-//w25q64测试--失败 可能是模块本身有问题
-// void W25Q64_Save(uint8_t byte){
-//   //写使能
-//   uint8_t WriteEnableCmd[] = {0x06};
-//   HAL_GPIO_WritePin(SPI3_CS_GPIO_Port, SPI3_CS_Pin, GPIO_PIN_RESET);
-//   HAL_SPI_Transmit(&hspi3, WriteEnableCmd, 1, HAL_MAX_DELAY);
-//   HAL_GPIO_WritePin(SPI3_CS_GPIO_Port, SPI3_CS_Pin, GPIO_PIN_SET);
-//   //扇区擦除
-//   uint8_t EraseSectorCmd[] = {0x20, 0x00, 0x00, 0x00};
-//   HAL_GPIO_WritePin(SPI3_CS_GPIO_Port, SPI3_CS_Pin, GPIO_PIN_RESET);
-//   HAL_SPI_Transmit(&hspi3, EraseSectorCmd, 4, HAL_MAX_DELAY);
-//   HAL_GPIO_WritePin(SPI3_CS_GPIO_Port, SPI3_CS_Pin, GPIO_PIN_SET);
-//   delay_ms(100);
-//   //写使能
-//   HAL_GPIO_WritePin(SPI3_CS_GPIO_Port, SPI3_CS_Pin, GPIO_PIN_RESET);
-//   HAL_SPI_Transmit(&hspi3, WriteEnableCmd, 1, HAL_MAX_DELAY);
-//   HAL_GPIO_WritePin(SPI3_CS_GPIO_Port, SPI3_CS_Pin, GPIO_PIN_SET);
-//   //页编程
-//   uint8_t PageProgramCmd[] = {0x02, 0x00, 0x00, 0x00, byte};
-//   HAL_GPIO_WritePin(SPI3_CS_GPIO_Port, SPI3_CS_Pin, GPIO_PIN_RESET);
-//   HAL_SPI_Transmit(&hspi3, PageProgramCmd, 5, HAL_MAX_DELAY);
-//   HAL_GPIO_WritePin(SPI3_CS_GPIO_Port, SPI3_CS_Pin, GPIO_PIN_SET);
-//   delay_ms(10);
-// }
-// uint8_t W25Q64_Read(void){
-//   uint8_t Read_DataCmd[] = {0x03, 0x00, 0x00, 0x00};
-//   uint8_t data = 0xff;
-//   HAL_GPIO_WritePin(SPI3_CS_GPIO_Port, SPI3_CS_Pin, GPIO_PIN_RESET);
-//   HAL_SPI_Transmit(&hspi3, Read_DataCmd, 4, HAL_MAX_DELAY);
-//   HAL_SPI_Receive(&hspi3, &data, 1, HAL_MAX_DELAY); 
-//   HAL_GPIO_WritePin(SPI3_CS_GPIO_Port, SPI3_CS_Pin, GPIO_PIN_SET);
-//   return data;
-// }
 
 
 
@@ -183,6 +176,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USART1_UART_Init();
   MX_USART3_UART_Init();
   MX_USART2_UART_Init();
@@ -197,70 +191,154 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
+
+
   OLED_Init();
-  // uint8_t a = 'n';
 
 
-  /* ========== 麦轮小车驱动(移植自去年F103代码) ==========
-   * CAR_Init(): TB6612驱动 + 编码器(TIM2/3/4/5) + TIM7 1ms控制中断 + PID参数
-   * 10ms 控制周期在 TIM7 中断里自动运行(CAR_Control_Loop)
-   *
-   * 前进演示(取消下面注释): 车以 30cm/s 前进
-   *   y_set_speed_flag=1 表示直接用 v_y; 若用速度规划则走 tp_y
-   */
-  /* ===== 临时测试：暂时不启动电机控制 =====
-   * CAR_Init() 内部会启动 TIM7 中断，中断里每 10ms 调用 CAR_Control_Loop()
-   * 重写 PB1(CIN2)，会把下方"激光->PB1"的信号覆盖掉，所以测试期间先注释掉。
-   * 测试完把 while 循环里的临时代码删掉，再取消本行注释即可恢复正常功能。
-   */
-  // CAR_Init();
+  /*外设启动区域*/
+  HAL_TIM_Base_Start_IT(&htim7);//开启1ms中断
 
-  /* 前进演示(需要时取消注释) */
-  //y_set_speed_flag = 1;
-  //my_car.v_y = 30.0f;
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);//开启车轮的PWM
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
+  HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_1);//开启车轮的encoder
+  HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_2);
+  HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_1);
+  HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_2);
+  HAL_TIM_Encoder_Start(&htim4, TIM_CHANNEL_1);
+  HAL_TIM_Encoder_Start(&htim4, TIM_CHANNEL_2);
+  HAL_TIM_Encoder_Start(&htim5, TIM_CHANNEL_1);
+  HAL_TIM_Encoder_Start(&htim5, TIM_CHANNEL_2);
+  /* 编码器采用清零法：每10ms读CNT后清零，计数器不会溢出，无需开启溢出中断（之前开中断但缺处理函数会导致卡死） */
+  HAL_GPIO_WritePin(TB6612_STBY_GPIO_Port, TB6612_STBY_Pin, GPIO_PIN_SET);//TB6612使能
+
+  HAL_UARTEx_ReceiveToIdle_DMA(&huart1, UART1_RxBuf, UART1_RxLength);//调试串口
+  __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);    //使用DMA+UART时，会开启传输过半中断，需手动关闭
+  // HAL_UARTEx_ReceiveToIdle_DMA(&huart2, UART2_RxBuf, UART2_RxLength);//无线串口
+  // __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);    //使用DMA+UART时，会开启传输过半中断，需手动关闭
+  // HAL_UARTEx_ReceiveToIdle_DMA(&huart5, UART5_RxBuf, UART5_RxLength);//步进电机串口
+  // __HAL_DMA_DISABLE_IT(&hdma_uart5_rx, DMA_IT_HT);    //使用DMA+UART5时，会开启传输过半中断，需手动关闭
+
+  HAL_Delay(300);
+
+  HWT101CT_Init();//陀螺仪初始化
+  HAL_UARTEx_ReceiveToIdle_DMA(&huart3, UART3_RxBuf, UART3_RxLength);//陀螺仪串口
+  __HAL_DMA_DISABLE_IT(&hdma_usart3_rx, DMA_IT_HT);    //使用DMA+UART时，会开启传输过半中断，需手动关闭
+  flag.hwt101ct = 1;
+
+  CHASSIS_Init();//底盘初始化：配置4轮速度环PID参数 + 航向环(角度环)参数
+  flag.chassis = 1;
+  flag.angle   = 1;   // 航向环（角度环）默认开启：上电锁定当前朝向，串口 tyaw 可遥控转向
 
 
-  /*注意：更改了serialplot文件中的函数和内容，但是由于没来得及测试，所以暂时不知道有没有bug*/
-  #if 0
-  HAL_UARTEx_ReceiveToIdle_DMA(&huart5, STEP_RxBuf, STEP_RxLength);
-  HAL_Delay(500);   //等待系统稳定
-  Emm_V5_Origin_Set_O(1, 1);  //设置当前位置为零点
-  HAL_Delay(10);
-  Emm_V5_Origin_Set_O(2, 1);  //设置当前位置为零点
-  HAL_Delay(10);
-  Emm_V5_Synchronous_motion(0);
-  HAL_Delay(10);
-  HAL_Delay(500);
 
-  Emm_V5_Pos_Control(1, 0, 2000, 0, 1600, 0, 1);  //设置位置
-  HAL_Delay(10);
-  Emm_V5_Pos_Control(2, 0, 2000, 0, 1600, 0, 1);  //设置位置
-  HAL_Delay(10);
-  Emm_V5_Synchronous_motion(0);
-  HAL_Delay(10);
-  HAL_Delay(1000);
 
-  Emm_V5_Vel_Control(1, 0, 2000, 200, 1); //设置为速度模式
-  HAL_Delay(10);
-  Emm_V5_Synchronous_motion(0);
-  HAL_Delay(10);
-  HAL_Delay(500);
-  
-  Emm_V5_Vel_Control(1, 0, 2000, 100, 1); //设置为速度模式
-  HAL_Delay(10);
-  Emm_V5_Vel_Control(2, 0, 1000, 200, 1); //设置为速度模式
-  HAL_Delay(10);
-  Emm_V5_Synchronous_motion(0);
-  HAL_Delay(10);
-  HAL_Delay(500);
+  while(1){
+    if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)){
+      ROBOT_Move(-50, 390, 100, 100, 100, 100);
 
-  Emm_V5_Stop_Now(1, 1);  //设置为立即停止
-  HAL_Delay(10);
-  Emm_V5_Stop_Now(2, 1);  //设置为立即停止
-  HAL_Delay(10);
-  Emm_V5_Synchronous_motion(0);
-  HAL_Delay(500);
-  #endif
+
+      ROBOT_Angle(270);
+    }
+
+    /* 串口打印角度环数据（目标/实际/输出w + 里程计位置x/y），SerialPlot 观察走直线纠偏/转向收敛
+       并解析串口调参指令：kp/ki/kd/target 角度环、vx/vy 手动、mx/my 走距、mv/mvacc 规划速度 */
+    UART1_Printf("%f %f %f %f %f\r\n",
+                 chassis.target_yaw,
+                 HWT101CT_Data.yaw,
+                 chassis.yaw_pid.out,
+                 chassis.pos_x,
+                 chassis.pos_y);
+    if(UART1_RxFlag){
+      UART1_RxFlag = 0;
+      SERIALPLOT_ChangeParam((char *)UART1_RxBuf);
+    }
+    HAL_Delay(10);
+  }
+
+
+
+
+
+
+
+
+  /*速度环调参测试（临时注释：先跑下方编码器裸测标定 ACCURACY，测完恢复）*/
+  // while(1){
+  //   OLED_Printf(0, 0, OLED_8X16_HALF, "kp:%06.2f", chassis.speed_pid[1].kp);
+  //   OLED_Printf(0, 16, OLED_8X16_HALF, "ki:%06.2f", chassis.speed_pid[1].ki);
+  //   OLED_Printf(0, 32, OLED_8X16_HALF, "kd:%06.2f", chassis.speed_pid[1].kd);
+  //   OLED_Printf(0, 48, OLED_8X16_HALF, "tar:%06.2f", chassis.speed_pid[1].target);
+  //   OLED_Update();
+  //   UART1_Printf("%f %f %f %f\r\n", chassis.speed_pid[1].target, chassis.speed_pid[1].actual, chassis.speed_pid[1].out, chassis.speed_pid[1].errorint);
+  //   if(UART1_RxFlag){
+  //     UART1_RxFlag = 0;
+  //     SERIALPLOT_ChangeParam((char *)UART1_RxBuf);
+  //   }
+  // }
+  // /*激光传感器测试--通过*/
+  // while(1){
+  //   OLED_Printf(0, 0, OLED_8X16, "barrier:%1d", LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin));
+  //   OLED_Update();
+  // }
+  // /*测距传感器--通过*/
+  // while(1){
+  //   OLED_Printf(0, 0, OLED_8X16, "distance:%4d", GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin));
+  //   OLED_Update();
+  // }
+  // /*灰度传感器--通过*/
+  // HAL_Delay(1000);
+  // /* 感为灰度传感器(I2C1)在线检测 */
+  // if (GW_Gray_Init() == 0) {
+  //   UART1_Printf("GW Gray online\r\n");
+  // } else {
+  //   UART1_Printf("GW Gray offline\r\n");
+  // }
+  // while(1){
+  //   /* 灰度传感器：读8路模拟量并通过串口1打印 */
+  //   {
+  //     static uint8_t gval[8];
+  //     GW_Gray_GetAnalog(gval, 8);
+  //     UART1_Printf("Gray %d %d %d %d %d %d %d %d\r\n",
+  //                  gval[0], gval[1], gval[2], gval[3],
+  //                  gval[4], gval[5], gval[6], gval[7]);
+  //     HAL_Delay(1000);
+  //   }
+  // }
+  // /*陀螺仪测试--通过*/
+  // HWT101CT_Init();
+  // HAL_UARTEx_ReceiveToIdle_DMA(&huart3, UART3_RxBuf, UART3_RxLength);//陀螺仪串口
+  // __HAL_DMA_DISABLE_IT(&hdma_usart3_rx, DMA_IT_HT);    //使用DMA+UART时，会开启传输过半中断，需手动关闭
+  // flag.hwt101ct = 1;
+  // while(1){
+  //   OLED_Printf(0, 0, OLED_8X16_HALF, "yaw:%6.2f", HWT101CT_Data.yaw);
+  //   OLED_Update();
+  // }
+  // /*电机PWM、encoder测试--通过*/
+  // int i = 0;
+  // while(1){
+  //   if(KEY_ONE(KEY3_GPIO_Port, KEY3_Pin)){
+  //     i++;
+  //     if(i > 10) i = -10;
+  //     TB6612_Control(MOTOR_Left_Front, i*100);
+  //     TB6612_Control(MOTOR_Left_Back, i*100);
+  //     TB6612_Control(MOTOR_Right_Back, i*100);
+  //     TB6612_Control(MOTOR_Right_Front, i*100);
+  //     OLED_Printf(0, 0, OLED_8X16_HALF, "PWM: %+4d", i * 100);
+  //     OLED_Update();
+  //   }
+  //   OLED_Printf(0, 16, OLED_8X16_HALF, "L_F:%+3d L_B:%+3d", ENCODER_GetPulse(ENCODER_LeftFront), ENCODER_GetPulse(ENCODER_LeftBack));
+  //   OLED_Update();
+  //   HAL_Delay(10);
+  // }
+  // /* 临时调参：SerialPlot 串口画图 + 在线改PID（调好即删，改回正常逻辑） */
+  // SERIALPLOT_PIDAdjustParam();
+
+
+
+
 
   /* USER CODE END 2 */
 
@@ -271,13 +349,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    /* ===== 临时测试：GY53_1(PC7)测距, 距离<=100mm -> PB1(CIN2)拉高 ===== */
-    uint16_t dist = GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin); // 阻塞式测距, 返回mm
-    if(dist <= 100){
-      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);   // 距离在100mm内: PB1拉高
-    }else{
-      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET); // 超过100mm: PB1拉低
-    }
   }
   /* USER CODE END 3 */
 }

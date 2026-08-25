@@ -36,6 +36,10 @@ uint8_t UART1_RxRealLength;              //串口1每次接收指令的实际长
 uint16_t GY53_Distance = 0;             //GY53模块返回的测量距离，单位：mm
 #endif
 
+#if UART3_USE_HWT101CT
+uint8_t UART3_RxRealLength;              //串口3每次接收指令的实际长度
+#endif
+
 #if UART5_USE_SteppingMotor
 uint8_t STEP_RxRealLength;              //步进电机每次接收指令的实际长度
 #endif
@@ -156,29 +160,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 
   if(huart == &huart3){//普通串口/蓝牙模块通信串口
     /*此处放置状态机*/
-    /*模板状态机：接收包头为0xFF 包尾为0xFE的数据包*/
-    switch(UART3_RxState){//接收包头包尾
-      case 0://寻找包头
-        if(UART3_RxNewData == 0xFF){//找到包头
-          UART3_RxBufIdxNow = 0;
-          UART3_RxState = 1;  
-        }
-        break;
-      case 1://采集数据
-        UART3_RxBuf[UART3_RxBufIdxNow++] = UART3_RxNewData;
-        if(UART3_RxBufIdxNow >= UART3_RxLength){//已经接收了UART1_RxLength个数据
-          UART3_RxState = 2;
-        }
-        break;
-      case 2://寻找包尾
-        if(UART3_RxNewData == 0xFE){//找到包尾
-          UART3_RxState = 0;
-          UART3_RxFlag = 1;
-        }
-        break;
-      default:
-        break;
-    }
     /*再次开启中断接收数据*/
     HAL_UART_Receive_IT(&huart3, &UART3_RxNewData, 1);
   }
@@ -243,7 +224,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 
 
 /* ========== DMA 句柄定义(补: CubeMX 重新生成后丢失定义,未配置DMA时仅占位) ========== */
-DMA_HandleTypeDef hdma_usart1_rx;
+// DMA_HandleTypeDef hdma_usart1_rx;
 DMA_HandleTypeDef hdma_uart5_rx;
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size){
@@ -257,6 +238,17 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size){
     __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);    //使用DMA+UART时，会开启传输过半中断，需手动关闭
   }
   
+
+  if(huart == &huart3){//陀螺仪串口
+    /*此处进行数据处理*/
+    /*对陀螺仪串口返回的数据进行处理*/
+    UART3_RxRealLength = Size;
+    UART3_RxFlag = 1;
+
+    HAL_UARTEx_ReceiveToIdle_DMA(&huart3, UART3_RxBuf, UART3_RxLength);
+    __HAL_DMA_DISABLE_IT(&hdma_usart3_rx, DMA_IT_HT);    //使用DMA+UART时，会开启传输过半中断，需手动关闭
+  }
+
   if(huart == &huart5){//普通串口/步进电机串口
     /*此处进行数据处理*/
     /*对步进电机返回的数据进行处理*/

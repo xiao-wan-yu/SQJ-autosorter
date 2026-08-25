@@ -1,0 +1,49 @@
+# ============================================
+# 合作仓库白名单 .gitignore
+# 只跟踪：源码 + 构建必需文件
+# 忽略：build 输出、参考文档、待移植等杂物
+#
+# 用法：把本文件内容 复制/替换 为"合作仓库"里的 .gitignore
+#       （注意：只对新克隆的仓库有效；已经在仓库里的旧文件
+#        要用 git rm --cached 清理一次，见说明文档）
+# ============================================
+
+# 1. 先忽略根目录下所有内容
+/*
+
+# 2. 放行根级文件
+!/.gitignore
+!/*.ioc
+!/CMakeLists.txt
+!/CMakePresets.json
+!/build.bat
+!/daplink_wireless.cfg
+!/esp32_remote_bitbang.cfg
+!/STM32F407xx_FLASH.ld
+!/startup_stm32f407xx.s
+!/.clangd
+!/.mxproject
+
+# 3. 放行源码目录
+!/Core/
+!/Core/**
+!/Mycode/
+!/Mycode/**
+!/Drivers/
+!/Drivers/**
+!/Middlewares/
+!/Middlewares/**
+
+# 4. 放行构建配置
+!/cmake/
+!/cmake/**
+
+# 5. 放行 IDE 配置
+!/.vscode/
+!/.vscode/**
+!/.settings/
+!/.settings/**
+
+# 6. 保险：再次明确忽略常见构建产物
+build/
+Output/

@@ -1,13 +1,17 @@
 #ifndef __ENCODER_H
 #define __ENCODER_H
 
-#define ENCODER_Left    1
-#define ENCODER_Right   2
+#include <stm32f4xx_hal.h>
+
+#define ENCODER_LeftFront    1
+#define ENCODER_LeftBack   2
+#define ENCODER_RightBack   3
+#define ENCODER_RightFront   4
 
 //编码器开启左车轮计数总和时置1
-#define ENCODER_USE_LeftTotal 1
+#define ENCODER_USE_LeftTotal 0
 //编码器开启右车轮计数总和时置1
-#define ENCODER_USE_RightTotal 1
+#define ENCODER_USE_RightTotal 0
 
 int16_t ENCODER_GetPulse(uint8_t ENCODER_Num);
 

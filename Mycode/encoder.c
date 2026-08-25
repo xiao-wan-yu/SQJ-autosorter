@@ -2,43 +2,29 @@
 #include "encoder.h"
 #include "stm32f4xx_hal_tim.h"
 
-extern TIM_HandleTypeDef htim2; //左车轮编码器
-extern TIM_HandleTypeDef htim3; //右车轮编码器
-
-#if ENCODER_USE_LeftTotal
-int32_t encoder_lefttotal = 0;
-#endif
-
-#if ENCODER_USE_RightTotal
-int32_t encoder_righttotal = 0;
-#endif
+extern TIM_HandleTypeDef htim2; //左前车轮编码器
+extern TIM_HandleTypeDef htim3; //左后轮编码器
+extern TIM_HandleTypeDef htim4; //右后轮编码器
+extern TIM_HandleTypeDef htim5; //右前车轮编码器
 
 /**
-  * @brief 获取某个时间段内的编码器脉冲数并清零
-  * @param ENCODER_Num 编码器号码 可选择：ENCODER_Left或ENCODER_Right
-  * @retval 返回某个时间段内的编码器脉冲数，可正可负
-  * @attention 在电赛中一般是定时获取单位时间脉冲数，如定时10ms获取一次
+  * @brief 获取单位时间内的编码器脉冲数（清零法：读 CNT 后立即清零）
+  * @param ENCODER_Num 编码器号码 可选择：ENCODER_LeftFront ENCODER_LeftBack ENCODER_RightBack ENCODER_RightFront
+  * @retval 返回自上次读取至今的脉冲增量，可正可负
+  * @note  清零法优点：无需 16 位定时器(TIM3/TIM4)溢出中断。控制周期 10ms 内最高速累计也只有几十个脉冲，
+  *        计数器永远不会溢出(65535)，因此读取后清零安全且不依赖任何中断，杜绝了中断函数缺失导致的卡死。
+  *        取 (int16_t) 低16位即可得到带符号增量（10ms 内 |增量| << 32768，正反方向都正确）。
   */
 int16_t ENCODER_GetPulse(uint8_t ENCODER_Num){
-  int16_t cnt = 0;
+  TIM_HandleTypeDef *htim;
   switch(ENCODER_Num){
-    case ENCODER_Left:
-      cnt = __HAL_TIM_GET_COUNTER(&htim2);
-      __HAL_TIM_SET_COUNTER(&htim2, 0);
-      #if ENCODER_USE_LeftTotal //左车轮编码器计数总和
-      encoder_lefttotal += cnt;
-      #endif
-      break;
-    case ENCODER_Right:
-      cnt = __HAL_TIM_GET_COUNTER(&htim3);
-      __HAL_TIM_SET_COUNTER(&htim3, 0);
-      #if ENCODER_USE_RightTotal //右车轮编码器计数总和
-      encoder_righttotal += cnt;
-      #endif
-      break;
-    default:
-      break;
+    case ENCODER_LeftFront:  htim = &htim2; break;
+    case ENCODER_LeftBack:   htim = &htim3; break;
+    case ENCODER_RightBack:  htim = &htim4; break;
+    case ENCODER_RightFront: htim = &htim5; break;
+    default: return 0;
   }
-  return cnt;
+  int16_t pulse = (int16_t)__HAL_TIM_GET_COUNTER(htim);  //读 CNT（低16位即带符号增量）
+  __HAL_TIM_SET_COUNTER(htim, 0);                        //读后清零
+  return pulse;
 }
-

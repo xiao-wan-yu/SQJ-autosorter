@@ -7,8 +7,8 @@
 #define UART1_USE_DMA               1
 //使用测距模块GY53时置1 不使用测距模块GY53时置0（连续模式+串口中断接收）
 #define UART2_USE_GY53              0
-//使用蓝牙模块时置1 不使用蓝牙模块时置0
-#define UART3_USE_BlueTeeth         0
+//使用HWT101CT陀螺仪时置1 不使用陀螺仪时置0（DMA）
+#define UART3_USE_HWT101CT          1
 //使用步进电机时置1 不使用步进电机时置0
 #define UART5_USE_SteppingMotor     1
 
@@ -17,7 +17,7 @@
 #define UART1_TxLengthMax 200               //串口1发送数据的最大数据长度
 #define UART2_RxLength 6                    //串口2接收数据包的真实数据长度
 #define UART2_TxLengthMax 200               //串口2发送数据的最大数据长度
-#define UART3_RxLength 2                    //串口3接收数据包的真实数据长度
+#define UART3_RxLength 200                    //串口3接收数据包的真实数据长度
 #define UART3_TxLengthMax 200               //串口3发送数据的最大数据长度
 #define UART4_TxLengthMax 200               //串口4(备用串口)发送数据的最大数据长度
 #define UART5_RxLength 255                  //串口5接收数据包的真实数据长度（开启DMA接收时，则为最大接收长度）
@@ -65,14 +65,17 @@ extern uint16_t GY53_Distance;                  //GY53模块返回的测量距�
 #endif
 /***********************************************************************/
 
-/*****************当串口3接到蓝牙模块时启用下面的宏定义********************/
-#if UART3_USE_BlueTeeth
-#define BT_RxNewData        UART3_RxNewData
-#define BT_RxBuf            UART3_RxBuf
-#define BT_RxFlag           UART3_RxFlag
-#define BT_RxLength         UART3_RxLength
-#define BT_TxLengthMax      UART3_TxLengthMax
-#define BT_Printf           UART3_Printf
+/*****************当串口3接到HWT101CT陀螺仪时启用下面的宏定义********************/
+#if UART3_USE_HWT101CT
+#define HWT101CT_RxNewData        UART3_RxNewData
+#define HWT101CT_RxBuf            UART3_RxBuf
+#define HWT101CT_RxFlag           UART3_RxFlag
+#define HWT101CT_RxLength         UART3_RxLength
+#define HWT101CT_TxLengthMax      UART3_TxLengthMax
+#define HWT101CT_Printf           UART3_Printf
+extern DMA_HandleTypeDef hdma_usart3_rx;
+extern DMA_HandleTypeDef hdma_usart3_tx;
+extern uint8_t UART3_RxRealLength;              //串口3每次接收指令的实际长度
 #endif
 /***********************************************************************/
 

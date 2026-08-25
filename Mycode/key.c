@@ -10,15 +10,40 @@
   */
 uint8_t KEY_ONE(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin){
 	uint8_t a = 0;
-	if(HAL_GPIO_ReadPin(GPIOx,GPIO_Pin)==GPIO_PIN_RESET){
-		delay_us(20000);//延时去抖动
-		if(HAL_GPIO_ReadPin(GPIOx,GPIO_Pin)==GPIO_PIN_RESET){
-			a=1;//进入按键处理，返回1
+
+	/*快速初检：未按下时立即返回，保持零开销*/
+	if(HAL_GPIO_ReadPin(GPIOx,GPIO_Pin) != GPIO_PIN_RESET){
+		return 0;
+	}
+
+	/*初检为按下：连续采样，需连续3次(间隔5ms)读到低电平才确认按下
+	  消除机械按键弹跳导致的误判（弹跳期间的偶发高电平会重置计数）*/
+	uint8_t stable = 0;
+	for(uint8_t i = 0; i < 6; i++){  //最多采样6次（30ms窗口）
+		delay_us(5000);
+		if(HAL_GPIO_ReadPin(GPIOx,GPIO_Pin) == GPIO_PIN_RESET){
+			if(++stable >= 3){  //连续3次低电平 → 确认按下
+				a = 1;
+				break;
+			}
+		}else{
+			stable = 0;  //读到高电平（弹跳），重置连续计数
 		}
 	}
-	while(HAL_GPIO_ReadPin(GPIOx,GPIO_Pin)==GPIO_PIN_RESET); //等待按键松开
+
+	if(a == 1){
+		/*等待按键松开*/
+		while(HAL_GPIO_ReadPin(GPIOx,GPIO_Pin) == GPIO_PIN_RESET);
+		/*松手消抖，防止松手弹跳被误判为新一次按下*/
+		delay_us(20000);
+	}
+
 	return a;
 }
+
+
+
+
 
 
 /**
