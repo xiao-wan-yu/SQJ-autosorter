@@ -194,6 +194,10 @@ void CHASSIS_Control_Loop(void){
     }
     chassis.yaw = HWT101CT_Data.yaw;
     chassis.yaw_pid.target = chassis.target_yaw;
+    /* 角度环 kp 按车速分段：合速度≤40cm/s 用 -0.019（低速走直线纠偏更柔、防来回猛纠），高速用默认 -0.028
+       判速用整车目标速度 v_x/v_y（与速度环按 target 分段一致；静止 v≈0 落低速段，转向也因此更稳不过冲） */
+    float move_spd = sqrtf(chassis.v_x * chassis.v_x + chassis.v_y * chassis.v_y);
+    chassis.yaw_pid.kp = (move_spd <= YAW_KP_LOW_SPEED_BOUND) ? YAW_PID_KP_LOW : YAW_PID_KP;
     PID_Angle(&chassis.yaw_pid);                   // 输出 w（rad/s，逆时针为正）；error0 已做最短路径归一化(±180)
     /* 死区：误差进入死区 → 角度环w=0（纯旋转时清速度环彻底停转）
        两套死区按是否平移自动切换：静止旋转(无平移)用 TURN=1.0° 防静摩擦来回飘；

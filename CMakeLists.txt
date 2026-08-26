@@ -106,8 +106,10 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Mycode/storage.c
     # ${CMAKE_SOURCE_DIR}/Mycode/car.c
     ${CMAKE_SOURCE_DIR}/Mycode/velocityProfile.c
+    ${CMAKE_SOURCE_DIR}/Mycode/gw_grayscale.c
     ${CMAKE_SOURCE_DIR}/Mycode/hwt101ct.c
     ${CMAKE_SOURCE_DIR}/Mycode/robot.c
+    ${CMAKE_SOURCE_DIR}/Mycode/gw_grayscale.c
 
     
     #根据选择的oled文件做相应修改

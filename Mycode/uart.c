@@ -32,8 +32,8 @@ __IO uint8_t UART5_RxFlag;                   //串口5接收完成标志位（�
 uint8_t UART1_RxRealLength;              //串口1每次接收指令的实际长度
 #endif
 
-#if UART2_USE_GY53
-uint16_t GY53_Distance = 0;             //GY53模块返回的测量距离，单位：mm
+#if UART2_USE_DMA
+uint8_t UART2_RxRealLength;              //串口2每次接收指令的实际长度
 #endif
 
 #if UART3_USE_HWT101CT
@@ -238,6 +238,15 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size){
     __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);    //使用DMA+UART时，会开启传输过半中断，需手动关闭
   }
   
+  if(huart == &huart2){//主视觉串口
+    /*此处进行数据处理*/
+    /*对主视觉串口返回的数据进行处理*/
+    UART2_RxRealLength = Size;
+    UART2_RxFlag = 1;
+
+    HAL_UARTEx_ReceiveToIdle_DMA(&huart2, UART2_RxBuf, UART2_RxLength);
+    __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);    //使用DMA+UART时，会开启传输过半中断，需手动关闭
+  }
 
   if(huart == &huart3){//陀螺仪串口
     /*此处进行数据处理*/

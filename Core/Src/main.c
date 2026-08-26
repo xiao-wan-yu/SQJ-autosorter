@@ -19,7 +19,8 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "dma.h"
-#include "i2c.h"
+#include "oled_ui/oled.h"
+#include "oled_ui/oled_driver.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
@@ -47,6 +48,7 @@
 #include "./../../Mycode/gw_grayscale.h"
 #include "./../../Mycode/hwt101ct.h"
 #include "./../../Mycode/robot.h"
+#include "./../../Mycode/vision.h"
 
 #include <math.h>
 #include <stdint.h>
@@ -74,7 +76,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+/* UART1 接收模板：帧格式 S;A;B;C;D;E;F;G（8个32位整数，分号分隔） */
+#define UART1_DATA_NUM 8                     // 每帧数据个数，按需修改
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -88,6 +91,8 @@
 FLAG flag;
 
 int16_t data_encoder = 0;
+
+int32_t UART1_Data[UART1_DATA_NUM] = {0};    // 存放解析后的8个32位整数
 
 
 
@@ -145,6 +150,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 
 
 
+
+
 /* USER CODE END 0 */
 
 /**
@@ -185,7 +192,6 @@ int main(void)
   MX_TIM1_Init();
   MX_UART5_Init();
   MX_TIM7_Init();
-  MX_I2C1_Init();
   MX_UART4_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
@@ -216,8 +222,8 @@ int main(void)
 
   HAL_UARTEx_ReceiveToIdle_DMA(&huart1, UART1_RxBuf, UART1_RxLength);//调试串口
   __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);    //使用DMA+UART时，会开启传输过半中断，需手动关闭
-  // HAL_UARTEx_ReceiveToIdle_DMA(&huart2, UART2_RxBuf, UART2_RxLength);//无线串口
-  // __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);    //使用DMA+UART时，会开启传输过半中断，需手动关闭
+  HAL_UARTEx_ReceiveToIdle_DMA(&huart2, UART2_RxBuf, UART2_RxLength);//主视觉串口
+  __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);    //使用DMA+UART时，会开启传输过半中断，需手动关闭
   // HAL_UARTEx_ReceiveToIdle_DMA(&huart5, UART5_RxBuf, UART5_RxLength);//步进电机串口
   // __HAL_DMA_DISABLE_IT(&hdma_uart5_rx, DMA_IT_HT);    //使用DMA+UART5时，会开启传输过半中断，需手动关闭
 
@@ -233,30 +239,42 @@ int main(void)
   flag.angle   = 1;   // 航向环（角度环）默认开启：上电锁定当前朝向，串口 tyaw 可遥控转向
 
 
+  // /*主视觉测试（临时注释：先验证灰度，测完恢复）*/
+  // while(1){
+  //   if(VISION1_RxFlag){
+  //     VISION1_RxFlag = 0;
+  //     VISION_ReceiveData(VISION1_RxBuf, VISION1_RxRealLength);
+  //     OLED_Printf(0, 0, OLED_8X16_HALF, "suc:%1d peri:%1d", VISION_Data.success, VISION_Data.period);
+  //     OLED_Printf(0, 16, OLED_8X16_HALF, "tar:%1d", VISION_Data.target);
+  //     OLED_Printf(0, 32, OLED_8X16_HALF, "x:%3d y:%3d", VISION_Data.x, VISION_Data.y);
+  //     OLED_Printf(0, 48, OLED_8X16_HALF, "dis%4d", VISION_Data.distance);
+  //     OLED_Update();
+  //   }
+  // }
 
 
-  while(1){
-    if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)){
-      ROBOT_Move(-50, 390, 100, 100, 100, 100);
+  // while(1){
+  //   if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)){
+  //     ROBOT_Move(-50, 390, 100, 100, 100, 100);
 
 
-      ROBOT_Angle(270);
-    }
+  //     ROBOT_Angle(270);
+  //   }
 
-    /* 串口打印角度环数据（目标/实际/输出w + 里程计位置x/y），SerialPlot 观察走直线纠偏/转向收敛
-       并解析串口调参指令：kp/ki/kd/target 角度环、vx/vy 手动、mx/my 走距、mv/mvacc 规划速度 */
-    UART1_Printf("%f %f %f %f %f\r\n",
-                 chassis.target_yaw,
-                 HWT101CT_Data.yaw,
-                 chassis.yaw_pid.out,
-                 chassis.pos_x,
-                 chassis.pos_y);
-    if(UART1_RxFlag){
-      UART1_RxFlag = 0;
-      SERIALPLOT_ChangeParam((char *)UART1_RxBuf);
-    }
-    HAL_Delay(10);
-  }
+  //   /* 串口打印角度环数据（目标/实际/输出w + 里程计位置x/y），SerialPlot 观察走直线纠偏/转向收敛
+  //      并解析串口调参指令：kp/ki/kd/target 角度环、vx/vy 手动、mx/my 走距、mv/mvacc 规划速度 */
+  //   UART1_Printf("%f %f %f %f %f\r\n",
+  //                chassis.target_yaw,
+  //                HWT101CT_Data.yaw,
+  //                chassis.yaw_pid.out,
+  //                chassis.pos_x,
+  //                chassis.pos_y);
+  //   if(UART1_RxFlag){
+  //     UART1_RxFlag = 0;
+  //     SERIALPLOT_ChangeParam((char *)UART1_RxBuf);
+  //   }
+  //   HAL_Delay(10);
+  // }
 
 
 
@@ -289,24 +307,11 @@ int main(void)
   //   OLED_Update();
   // }
   // /*灰度传感器--通过*/
-  // HAL_Delay(1000);
-  // /* 感为灰度传感器(I2C1)在线检测 */
-  // if (GW_Gray_Init() == 0) {
-  //   UART1_Printf("GW Gray online\r\n");
-  // } else {
-  //   UART1_Printf("GW Gray offline\r\n");
-  // }
-  // while(1){
-  //   /* 灰度传感器：读8路模拟量并通过串口1打印 */
-  //   {
-  //     static uint8_t gval[8];
-  //     GW_Gray_GetAnalog(gval, 8);
-  //     UART1_Printf("Gray %d %d %d %d %d %d %d %d\r\n",
-  //                  gval[0], gval[1], gval[2], gval[3],
-  //                  gval[4], gval[5], gval[6], gval[7]);
-  //     HAL_Delay(1000);
-  //   }
-  // }
+  HAL_Delay(1000);
+  /* 灰度传感器读取：GRAY1/GRAY3 都走串行 IO 接口（GPIO 模拟时钟），读 8 路数字量（0=深、1=浅）
+     引脚（CubeMX 配置）：GRAY1=PB4(DAT)/PB9(CLK)、GRAY3=PB6(DAT)/PB7(CLK)
+     OLED 第一行(y=0)显示 GRAY1 八通道，第三行(y=32)显示 GRAY3 八通道 */
+  
   // /*陀螺仪测试--通过*/
   // HWT101CT_Init();
   // HAL_UARTEx_ReceiveToIdle_DMA(&huart3, UART3_RxBuf, UART3_RxLength);//陀螺仪串口
@@ -344,8 +349,188 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  
+
+  //   HAL_Delay(2000);
+  //   if (GW_Gray_Init() == 0) {
+  //   UART1_Printf("GW Gray online\r\n");
+  // } else {
+  //   UART1_Printf("GW Gray offline\r\n");
+  // }
+  // ROBOT_MoveSpeed(0,30);
+  // HAL_Delay(2000);
+  // ROBOT_MoveSpeed(0,0);
+  // ROBOT_Move(0, 200, 30, 30, 30, 30);
   while (1)
   {
+    GRAY_Update();
+    OLED_Printf(0, 0,  OLED_8X16_HALF, "G3:%1d%1d%1d%1d%1d%1d%1d%1d",
+                GRAY_Data[GRAY3][0],GRAY_Data[GRAY3][1],GRAY_Data[GRAY3][2],GRAY_Data[GRAY3][3],
+                GRAY_Data[GRAY3][4],GRAY_Data[GRAY3][5],GRAY_Data[GRAY3][6],GRAY_Data[GRAY3][7]);
+    // OLED_Printf(0, 32, OLED_8X16_HALF, "G3:%1d%1d%1d%1d%1d%1d%1d%1d",
+    //             GRAY_Data[GRAY3][0],GRAY_Data[GRAY3][1],GRAY_Data[GRAY3][2],GRAY_Data[GRAY3][3],
+    //             GRAY_Data[GRAY3][4],GRAY_Data[GRAY3][5],GRAY_Data[GRAY3][6],GRAY_Data[GRAY3][7]);
+    HAL_Delay(50);
+    //测距
+    OLED_Printf(0,16 , OLED_8X16_HALF, "dis_1:%4d", GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin));
+    OLED_Printf(0,32 , OLED_8X16_HALF, "dis_2:%4d", GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin));
+    //激光
+    OLED_Printf(0, 48 ,OLED_8X16_HALF, "ba_3:%1d", LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin));
+    OLED_Printf(64, 48, OLED_8X16_HALF, "ba_2:%1d", LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin));
+    // OLED_Printf(32, 32, OLED_8X16_HALF, "bar_3:%1d", LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin));
+    OLED_Update();
+
+
+    /* ===== UART1 数据接收模板：收到 "S,A,B,C,D,E,F,G" 一帧后解析到 UART1_Data[0..7] ===== */
+    if(UART1_RxFlag){                                // DMA空闲中断收到一帧后置1
+      UART1_RxFlag = 0;                              // 必须立即清零
+      char line[UART1_RxLength + 1];                 // 拷贝一份并补'\0'（DMA缓冲末尾没有结束符）
+      uint16_t len = UART1_RxRealLength;
+      if(len > UART1_RxLength) len = UART1_RxLength; // 防越界
+      memcpy(line, UART1_RxBuf, len);
+      line[len] = '\0';
+      uint8_t i = 0;
+      char *p = strtok(line, ",");                   // 按分号切段
+      while(p && i < UART1_DATA_NUM){                // 逐段转成32位整数，支持负数
+        UART1_Data[i++] = (int32_t)strtol(p, NULL, 10);
+        p = strtok(NULL, ",");
+      }
+      /* 回显验证（测试用，实际使用可删） */
+      UART1_Printf("S=%d A=%d B=%d C=%d D=%d E=%d F=%d G=%d\r\n",
+                   UART1_Data[0], UART1_Data[1], UART1_Data[2], UART1_Data[3],
+                   UART1_Data[4], UART1_Data[5], UART1_Data[6], UART1_Data[7]);
+    }
+
+    //1;-50;390;100;100;100;100;270
+    if(UART1_Data[0]==3){
+    ROBOT_Move(UART1_Data[1], UART1_Data[2], UART1_Data[3], UART1_Data[4], UART1_Data[5], UART1_Data[6]);
+    ROBOT_Angle(UART1_Data[7]);
+    UART1_Data[0]=0;
+    }
+    
+    //完整走
+    if(UART1_Data[0]==4)
+    {
+      //先盲走到圆盘机中心+面向
+      ROBOT_Move(-60,408,100,120,100,120);
+      HAL_Delay(100);
+      UART1_Printf("1");
+      ROBOT_Angle(270);
+      UART1_Printf("2");
+
+      
+      //向前慢走，直到灰度传感器边缘的两个传感器有感应到白线
+      GRAY_Update();
+      ROBOT_MoveSpeed(0, 15);
+      while(GRAY_Data[GRAY3][0]!=1)
+      {
+        GRAY_Update();
+      }
+      ROBOT_MoveSpeed(0, 0);
+      // ROBOT_Move(0, -5, 0, 20, 0, 20);
+
+      /*
+        执行扫球动作
+      */
+
+      if(1)//结束扫球信号
+      {
+        //退后固定距离
+        ROBOT_Move(0,-25,50,50,50,50);
+        //向左平行到仓库
+        ROBOT_Move(-185,0,100,0,100,0);
+        //转身
+        HAL_Delay(100);
+        ROBOT_Angle(90);
+        
+        //往后慢退，直到测距测得合适距离（适合倒球的距离）
+        UART1_Printf("3");
+        ROBOT_MoveSpeed(0, -10);
+        while(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>100);
+        ROBOT_MoveSpeed(0,0);
+        
+        //定位操作：向左慢平移到左后光电感应到无障碍物，之后再往右走固定距离（刚到对上仓库的距离）
+        UART1_Printf("4");
+        ROBOT_MoveSpeed(-20, 0);
+        while (LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1);
+        ROBOT_MoveSpeed(0,0);
+
+        ROBOT_Move(20, 0, 20, 0, 50, 0);
+
+        if(1)//结束倒球信号
+        {
+          UART1_Printf("5");
+          //右+前，移动到阶梯附近
+          ROBOT_Move(60, 160, 100, 100, 100, 100);
+          // ROBOT_Move(0,160,0,100,0,100);
+          UART1_Printf("6");
+          //向左慢走，直到前面的两个光电都感应到障碍物，开始测距，然后向前走到合适的距离（适合识别的距离）
+          ROBOT_MoveSpeed(-10, 0);
+          while(LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin)==0);
+          ROBOT_MoveSpeed(0, 10);
+          UART1_Printf("7");
+          while(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin)>100);
+          ROBOT_MoveSpeed(0, 0);
+
+          //向左走到字母处
+          ROBOT_Move(-30, 0, 50, 0, 50, 0);
+          /*
+            这里放识别的代码
+          */
+          ROBOT_MoveSpeed(-20, 0);
+          HAL_Delay(1000);//避免路上识别到字母然后停下来
+          while(LASER_Barrier(LASER3_GPIO_Port,LASER3_Pin)==1);//这里容易识别到字母上的黑，然后停下来
+          ROBOT_MoveSpeed(0, 0);
+          UART1_Printf("8");
+
+          //左前光电无障碍物就开始从左往右走
+          ROBOT_MoveSpeed(20, 0);
+          /*
+            这里放抓取的代码
+          */
+          HAL_Delay(3000);
+          while(LASER_Barrier(LASER2_GPIO_Port,LASER2_Pin)==1);//这里容易识别到字母上的黑，然后停下来
+          ROBOT_MoveSpeed(0, 0);
+          //右前光电无障碍物，就开始向左走固定距离（走到阶梯平面中间）
+          ROBOT_Move(-45, -45, 50, 50, 50, 50);
+          if(1)//开始执行圆柱任务的信号
+          {
+            ROBOT_Angle(270);
+
+          }
+        }
+
+      }
+
+      UART1_Data[0]=0;
+    }
+    
+
+    if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)){
+      ROBOT_Move(-50, 390, 100, 100, 100, 100);
+
+      ROBOT_Angle(270);
+    }
+
+    // /* 串口打印角度环数据（目标/实际/输出w + 里程计位置x/y），SerialPlot 观察走直线纠偏/转向收敛
+    //    并解析串口调参指令：kp/ki/kd/target 角度环、vx/vy 手动、mx/my 走距、mv/mvacc 规划速度 */
+    // UART1_Printf("%f %f %f %f %f\r\n",
+    //              chassis.target_yaw,
+    //              HWT101CT_Data.yaw,
+    //              chassis.yaw_pid.out,
+    //              chassis.pos_x,
+    //              chassis.pos_y);
+    // if(UART1_RxFlag){
+    //   UART1_RxFlag = 0;
+    //   SERIALPLOT_ChangeParam((char *)UART1_RxBuf);
+    // }
+   
+    // UART1_Printf("GY1:%d  GY2:%d\r\n",GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin),GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin));
+    // OLED_Printf(0, 0, OLED_8X16_HALF, "ni%d %d",GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin),GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin));
+    // OLED_Update();
+    // HAL_Delay(10);
+
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

@@ -41,7 +41,9 @@ typedef enum {
 #define SPEED_SEG_BOUND_3  120.0f   // 段3上边界（80-120）
 #define SPEED_TARGET_MAX   160.0f   // 4轮目标速度限幅（实测最大车速~160cm/s），防止麦轮解算出超限目标
 /* ==================== 航向环（角度环）PID 参数 ==================== */
-#define YAW_PID_KP       -0.028f  // 实测标定：kp 负（HWT101CT yaw 顺时针为正，与 w 定义镜像）
+#define YAW_PID_KP       -0.028f  // 实测标定：kp 负（HWT101CT yaw 顺时针为正，与 w 定义镜像）；高速(>40cm/s)段用
+#define YAW_PID_KP_LOW   (-0.019f)  // 低速(合速度≤40cm/s)段角度环 kp：实测低速走直线纠偏更柔、防来回猛纠（-0.028 在低速段偏猛）
+#define YAW_KP_LOW_SPEED_BOUND  40.0f // 角度环 kp 低速分段阈值 cm/s：整车合速度 ≤ 该值用 YAW_PID_KP_LOW
 #define YAW_PID_KI       0.0f     // 实测：积分不需要（锁向纠偏靠 P 即可）
 #define YAW_PID_KD       0.0f     // 实测：微分不需要（速度环自身已提供阻尼，加 D 反而抖）
 #define YAW_PID_OUT_MAX  2.8f    // w 输出上限 rad/s

@@ -7,6 +7,11 @@
     "cmake.preferredGenerators": [
         "Ninja"
     ],
+    // CMake Tools 配置时用到的工具链路径（arm-none-eabi-gcc + ninja，来自 STM32CubeIDE 1.19.0）
+    // 这样点「生成」时就不会只扫到 Visual Studio，而能正确使用 GCC ARM 交叉编译器
+    "cmake.configureEnvironment": {
+        "PATH": "D:/STM32CubeIde/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.14.3.rel1.win32_1.0.100.202602081740/tools/bin;D:/STM32CubeIde/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.externaltools.ninja.win32_1.1.200.202606260906/tools/bin;${env:PATH}"
+    },
     "files.saveConflictResolution": "overwriteFileOnDisk",
     "stm32cube-ide-clangd.path": "cube",
     "stm32cube-ide-clangd.arguments": [

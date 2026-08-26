@@ -1,100 +1,74 @@
 /**
-  * @brief 感为灰度传感器（硬件I2C）驱动实现
-  * @note  移植自感为官方例程 HardWare_IIC/hardware_iic.c
-  *        复用工程 I2C1 (hi2c1, PB6=SCL / PB7=SDA)，纯 HAL 阻塞式接口
+  * @brief 感为灰度传感器（串行 IO 接口）驱动实现
+  * @note  两个灰度（GRAY1/GRAY3）都走感为官方例程的"IO 模式"（GPIO 模拟时钟）：
+  *        CLK 下降沿采样 DAT，上升沿让模块刷新下一位，循环 8 次读回 8 路数字量（bit0~bit7 = 探头1~8）
+  *        GPIO 由 CubeMX 配置（main.h/gpio.c）：GRAY1=PB4(DAT)/PB9(CLK)、GRAY3=PB6(DAT)/PB7(CLK)
+  *        曾用 I2C1 读取（GRAY3 模拟量），因两个模块同挂 I2C 总线时 0x4C 读失败，
+  *        CubeMX 已禁用 I2C1，全部改用串行接口
   */
 
 #include "gw_grayscale.h"
-#include "i2c.h"     // 提供 extern hi2c1
+#include "main.h"                    // GRAY1_DATA_Pin / GRAY1_CLK_Pin 等（CubeMX 生成）
+#include "stm32f4xx_hal.h"           // HAL_GPIO
+#include "delay.h"                   // delay_us：CLK 翻转微秒级延时
 
-/* 从机地址：HAL 的 DevAddress 需要 8 位左对齐地址（7位地址左移1位） */
-#define GW_GRAY_DEV_ADDR  (GW_GRAY_ADDR_DEF << 1)
-
-/**
-  * @brief  I2C 读：带寄存器地址连续读（寄存器宽度 8bit，阻塞式）
-  * @retval 1=成功，0=失败
-  */
-static uint8_t GW_IIC_ReadBytes(uint8_t dev_addr, uint8_t reg_addr, uint8_t *dst, uint8_t len)
-{
-  return HAL_I2C_Mem_Read(&hi2c1, dev_addr, reg_addr, I2C_MEMADD_SIZE_8BIT, dst, len, 1000) == HAL_OK;
-}
+/* ==================== 灰度数据（GRAY1/GRAY3 走串行 IO 接口） ==================== */
+uint8_t GRAY_Data[4][8] = {0};       // GRAY_Data[GRAYx][0~7] 对应探头1~8，0=深（黑）、1=浅（白）；第0号灰度废弃
 
 /**
-  * @brief  I2C 写：带寄存器地址连续写（寄存器宽度 8bit，阻塞式）
-  * @retval 1=成功，0=失败
+  * @brief  串行读 8 路数字量（IO 模式：CLK 下降沿采样 DAT，上升沿让模块刷新下一位）
+  * @param  clk_port/clk_pin  CLK 引脚（主控输出，CubeMX 配成推挽输出，空闲拉低）
+  * @param  dat_port/dat_pin  DAT 引脚（模块输出，CubeMX 配成输入上拉）
+  * @retval 8bit，bit0~bit7 对应探头1~8；1=浅（白）、0=深（黑）
+  * @note   时序移植自感为官方 Serial 例程：CLK 低延时 2us 读 DAT、拉高延时 5us
   */
-static uint8_t GW_IIC_WriteBytes(uint8_t dev_addr, uint8_t reg_addr, uint8_t *src, uint8_t len)
+static uint8_t GW_Serial_ReadBits(GPIO_TypeDef *clk_port, uint16_t clk_pin,
+                                  GPIO_TypeDef *dat_port, uint16_t dat_pin)
 {
-  return HAL_I2C_Mem_Write(&hi2c1, dev_addr, reg_addr, I2C_MEMADD_SIZE_8BIT, src, len, 1000) == HAL_OK;
-}
-
-/**
-  * @brief  在线检测（Ping）：读 0xAA 寄存器，返回 0x66 表示传感器在线
-  * @retval 0=在线，1=离线
-  */
-uint8_t GW_Gray_Init(void)
-{
-  uint8_t dat = 0;
-  GW_IIC_ReadBytes(GW_GRAY_DEV_ADDR, GW_GRAY_PING, &dat, 1);
-  if (dat == GW_GRAY_PING_OK)
-  {
-    return 0;
+  uint8_t ret = 0;
+  for(uint8_t i = 0; i < 8; i++){
+    HAL_GPIO_WritePin(clk_port, clk_pin, GPIO_PIN_RESET);            // 下降沿
+    delay_us(2);
+    ret |= (uint8_t)HAL_GPIO_ReadPin(dat_port, dat_pin) << i;         // 采样 DAT
+    HAL_GPIO_WritePin(clk_port, clk_pin, GPIO_PIN_SET);              // 上升沿
+    delay_us(5);
   }
-  return 1;
+  return ret;
 }
 
 /**
-  * @brief  读 8 路数字量（开关量）
-  * @retval 8bit，bit0 对应探头1，bit7 对应探头8
+  * @brief  单独刷新 GRAY1：串行读 8 路数字量（0/1）存 GRAY_Data[GRAY1][0~7]
+  * @note   若实测深浅极性相反（深显示成 1），把存储语句对调即可
   */
-uint8_t GW_Gray_GetDigital(void)
+void GRAY1_Serial_Update(void)
 {
-  uint8_t dat = 0;
-  GW_IIC_ReadBytes(GW_GRAY_DEV_ADDR, GW_GRAY_DIGITAL_MODE, &dat, 1);
-  return dat;
+  uint8_t bits = GW_Serial_ReadBits(GRAY1_CLK_GPIO_Port, GRAY1_CLK_Pin,
+                                    GRAY1_DATA_GPIO_Port, GRAY1_DATA_Pin);
+  for(uint8_t i = 0; i < 8; i++){
+    GRAY_Data[GRAY1][i] = (bits >> i) & 0x01;
+  }
 }
 
 /**
-  * @brief  连续读多路模拟量（从 0xB0 起，len 个字节）
-  * @param  buf  存放数据的数组
-  * @param  len  读取路数（最多 8）
-  * @retval 1=成功，0=失败
+  * @brief  单独刷新 GRAY3：串行读 8 路数字量（0/1）存 GRAY_Data[GRAY3][0~7]
   */
-uint8_t GW_Gray_GetAnalog(uint8_t *buf, uint8_t len)
+void GRAY3_Serial_Update(void)
 {
-  return GW_IIC_ReadBytes(GW_GRAY_DEV_ADDR, GW_GRAY_ANALOG_BASE_, buf, len);
+  uint8_t bits = GW_Serial_ReadBits(GRAY3_CLK_GPIO_Port, GRAY3_CLK_Pin,
+                                    GRAY3_DATA_GPIO_Port, GRAY3_DATA_Pin);
+  for(uint8_t i = 0; i < 8; i++){
+    GRAY_Data[GRAY3][i] = (bits >> i) & 0x01;
+  }
 }
 
 /**
-  * @brief  读单路模拟量
-  * @param  ch  通道号，从 1 开始（1~8）
-  * @retval 该通道灰度值（0~255）
+  * @brief  一次刷新 GRAY_Data（深/浅判断由调用方做）
+  * @note   GRAY1/GRAY3 都走串行接口读 8 路数字量（0=深、1=浅）
+  *         GRAY2 暂不使用（启用时加一行 GRAY2_Serial_Update() 即可，需先配好引脚）
   */
-uint8_t GW_Gray_GetSingleAnalog(uint8_t ch)
+void GRAY_Update(void)
 {
-  uint8_t dat = 0;
-  GW_IIC_ReadBytes(GW_GRAY_DEV_ADDR, GW_GRAY_ANALOG(ch), &dat, 1);
-  return dat;
-}
-
-/**
-  * @brief  归一化开关
-  * @param  ch  0xFF=打开全部通道归一化，0x00=关闭
-  * @note   写入后需 HAL_Delay(10) 等待传感器刷新数据，再读取归一化值
-  * @retval 1=成功，0=失败
-  */
-uint8_t GW_Gray_Normalize(uint8_t ch)
-{
-  return GW_IIC_WriteBytes(GW_GRAY_DEV_ADDR, GW_GRAY_ANALOG_NORMALIZE, &ch, 1);
-}
-
-/**
-  * @brief  读偏移量（2 字节，小端序）
-  * @retval 偏移量
-  */
-uint16_t GW_Gray_GetOffset(void)
-{
-  uint8_t dat[2] = {0};
-  GW_IIC_ReadBytes(GW_GRAY_DEV_ADDR, GW_GRAY_OFFSET, dat, 2);
-  return (uint16_t)dat[0] | (uint16_t)dat[1] << 8;
+  GRAY1_Serial_Update();
+  /* GRAY2 暂不使用 */
+  GRAY3_Serial_Update();
 }

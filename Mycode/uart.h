@@ -5,8 +5,8 @@
 
 //串口1开启DMA接收时置1
 #define UART1_USE_DMA               1
-//使用测距模块GY53时置1 不使用测距模块GY53时置0（连续模式+串口中断接收）
-#define UART2_USE_GY53              0
+//串口2开启DMA接收时置1
+#define UART2_USE_DMA               1
 //使用HWT101CT陀螺仪时置1 不使用陀螺仪时置0（DMA）
 #define UART3_USE_HWT101CT          1
 //使用步进电机时置1 不使用步进电机时置0
@@ -15,7 +15,7 @@
 
 #define UART1_RxLength 200                  //串口1接收数据包的真实数据长度（开启DMA接收时，则为最大接收长度）
 #define UART1_TxLengthMax 200               //串口1发送数据的最大数据长度
-#define UART2_RxLength 6                    //串口2接收数据包的真实数据长度
+#define UART2_RxLength 200                    //串口2接收数据包的真实数据长度
 #define UART2_TxLengthMax 200               //串口2发送数据的最大数据长度
 #define UART3_RxLength 200                    //串口3接收数据包的真实数据长度
 #define UART3_TxLengthMax 200               //串口3发送数据的最大数据长度
@@ -51,19 +51,21 @@ extern uint8_t UART1_RxRealLength;              //串口1每次接收指令的�
 #endif
 /***********************************************************************/
 
-/***************当串口2接到测距模块GY53时启用下面的宏定义*******************/
-#if UART2_USE_GY53
-#define GY53_RxNewData          UART2_RxNewData
-#define GY53_RxBuf              UART2_RxBuf
-#define GY53_RxFlag             UART2_RxFlag
-#define GY53_RxLength           UART2_RxLength
-#define GY53_TxLengthMax        UART2_TxLengthMax
-#define GY53_Printf             UART2_Printf
-#define GY53_RxState            UART2_RxState
-#define GY53_RxBufIdxNow        UART2_RxBufIdxNow
-extern uint16_t GY53_Distance;                  //GY53模块返回的测量距离，单位：mm
+/******************当串口2开启DMA接收时启用下面的宏定义********************/
+#if UART2_USE_DMA
+#define VISION1_RxNewData        UART2_RxNewData
+#define VISION1_RxBuf            UART2_RxBuf
+#define VISION1_RxFlag           UART2_RxFlag
+#define VISION1_RxLength         UART2_RxLength
+#define VISION1_RxRealLength     UART2_RxRealLength
+#define VISION1_TxLengthMax      UART2_TxLengthMax
+#define VISION1_Printf           UART2_Printf
+extern DMA_HandleTypeDef hdma_usart2_rx;
+extern DMA_HandleTypeDef hdma_usart2_tx;
+extern uint8_t UART2_RxRealLength;              //串口2每次接收指令的实际长度
 #endif
 /***********************************************************************/
+
 
 /*****************当串口3接到HWT101CT陀螺仪时启用下面的宏定义********************/
 #if UART3_USE_HWT101CT
