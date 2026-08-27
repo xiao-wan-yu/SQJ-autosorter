@@ -277,12 +277,6 @@ int main(void)
   // }
 
 
-
-
-
-
-
-
   /*速度环调参测试（临时注释：先跑下方编码器裸测标定 ACCURACY，测完恢复）*/
   // while(1){
   //   OLED_Printf(0, 0, OLED_8X16_HALF, "kp:%06.2f", chassis.speed_pid[1].kp);
@@ -307,7 +301,6 @@ int main(void)
   //   OLED_Update();
   // }
   // /*灰度传感器--通过*/
-  HAL_Delay(1000);
   /* 灰度传感器读取：GRAY1/GRAY3 都走串行 IO 接口（GPIO 模拟时钟），读 8 路数字量（0=深、1=浅）
      引脚（CubeMX 配置）：GRAY1=PB4(DAT)/PB9(CLK)、GRAY3=PB6(DAT)/PB7(CLK)
      OLED 第一行(y=0)显示 GRAY1 八通道，第三行(y=32)显示 GRAY3 八通道 */
@@ -342,9 +335,6 @@ int main(void)
   // SERIALPLOT_PIDAdjustParam();
 
 
-
-
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -364,19 +354,19 @@ int main(void)
   while (1)
   {
     GRAY_Update();
-    OLED_Printf(0, 0,  OLED_8X16_HALF, "G3:%1d%1d%1d%1d%1d%1d%1d%1d",
-                GRAY_Data[GRAY3][0],GRAY_Data[GRAY3][1],GRAY_Data[GRAY3][2],GRAY_Data[GRAY3][3],
-                GRAY_Data[GRAY3][4],GRAY_Data[GRAY3][5],GRAY_Data[GRAY3][6],GRAY_Data[GRAY3][7]);
-    // OLED_Printf(0, 32, OLED_8X16_HALF, "G3:%1d%1d%1d%1d%1d%1d%1d%1d",
-    //             GRAY_Data[GRAY3][0],GRAY_Data[GRAY3][1],GRAY_Data[GRAY3][2],GRAY_Data[GRAY3][3],
-    //             GRAY_Data[GRAY3][4],GRAY_Data[GRAY3][5],GRAY_Data[GRAY3][6],GRAY_Data[GRAY3][7]);
+    OLED_Printf(0, 0,  OLED_8X16_HALF, "G1:%1d%1d%1d%1d%1d%1d%1d%1d",
+                GRAY_Data[GRAY1][0],GRAY_Data[GRAY1][1],GRAY_Data[GRAY1][2],GRAY_Data[GRAY1][3],
+                GRAY_Data[GRAY1][4],GRAY_Data[GRAY1][5],GRAY_Data[GRAY1][6],GRAY_Data[GRAY1][7]);
+     OLED_Printf(0, 32, OLED_8X16_HALF, "G3:%1d%1d%1d%1d%1d%1d%1d%1d",
+                 GRAY_Data[GRAY3][0],GRAY_Data[GRAY3][1],GRAY_Data[GRAY3][2],GRAY_Data[GRAY3][3],
+                 GRAY_Data[GRAY3][4],GRAY_Data[GRAY3][5],GRAY_Data[GRAY3][6],GRAY_Data[GRAY3][7]);
     HAL_Delay(50);
     //测距
-    OLED_Printf(0,16 , OLED_8X16_HALF, "dis_1:%4d", GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin));
-    OLED_Printf(0,32 , OLED_8X16_HALF, "dis_2:%4d", GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin));
+    //OLED_Printf(0,16 , OLED_8X16_HALF, "dis_1:%4d", GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin));
+    //OLED_Printf(0,32 , OLED_8X16_HALF, "dis_2:%4d", GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin));
     //激光
-    OLED_Printf(0, 48 ,OLED_8X16_HALF, "ba_3:%1d", LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin));
-    OLED_Printf(64, 48, OLED_8X16_HALF, "ba_2:%1d", LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin));
+    //OLED_Printf(0, 48 ,OLED_8X16_HALF, "ba_3:%1d", LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin));
+    //OLED_Printf(64, 48, OLED_8X16_HALF, "ba_2:%1d", LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin));
     // OLED_Printf(32, 32, OLED_8X16_HALF, "bar_3:%1d", LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin));
     OLED_Update();
 
@@ -496,7 +486,43 @@ int main(void)
           if(1)//开始执行圆柱任务的信号
           {
             ROBOT_Angle(270);
+            //这里是转圈函数
 
+            /*
+            这里放识别的代码，如果遇到可以夹的就停下转圈
+            */
+
+            //转完一圈，收起机械臂，然后往左转身走到仓库中间倒方块
+            ROBOT_Move(-60, 0, 100, 100, 100, 100);
+            ROBOT_Angle(90);//车子前面朝右
+            ROBOT_Move(0, -125, 50, 50, 50, 50);
+            ROBOT_Move(-45, 0, 50, 50, 50, 50);
+            UART1_Printf("9");
+
+            //定位操作：向左慢平移到左后光电感应到无障碍物，之后再往右走固定距离（刚到仓库中间的距离）
+            ROBOT_MoveSpeed(-20, 0);
+            while (LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1);
+            ROBOT_MoveSpeed(0,0);
+
+            ROBOT_Move(25, 0, 20, 0, 50, 0);
+
+            //得走远一点才能转身倒方块
+            ROBOT_Move(0, 10, 50, 50, 50, 50);
+            ROBOT_Angle(270);//车子前面朝左
+            UART1_Printf("10");
+            /*
+              这里放倒方块的代码
+            */
+
+            //倒完方块转个身再回家
+            ROBOT_Angle(0);
+            ROBOT_Move(60, -210, 50, 100, 50, 100);
+            UART1_Printf("11");
+
+            /*先校准左右再校准前后，前后都需要盲走了*/
+            //
+            
+          
           }
         }
 
@@ -510,6 +536,12 @@ int main(void)
       ROBOT_Move(-50, 390, 100, 100, 100, 100);
 
       ROBOT_Angle(270);
+    }
+
+    if(KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){
+      ROBOT_Move(-50, 0, 10, 10, 10, 10);
+
+      //ROBOT_Angle(270);
     }
 
     // /* 串口打印角度环数据（目标/实际/输出w + 里程计位置x/y），SerialPlot 观察走直线纠偏/转向收敛
