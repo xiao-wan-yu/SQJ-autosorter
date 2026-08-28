@@ -534,6 +534,7 @@ int main(void)
     //单独测试转圈：围绕外径8cm柱子做圆周运动（测距仅定半径，绕圈全程不读测距 → 不会因测距丢目标狂动）
     if(UART1_Data[0]==5)
     {
+
       UART1_Data[0]=0;                            // 立即清指令，防止循环重复触发
       UART1_Printf("circle start\r\n");
 
@@ -565,7 +566,11 @@ int main(void)
         const float GY53_2_OFFSET_CM = 15.0f;     // 传感器到车中心纵向距离(cm)（实测15.0cm）
         const float PIPE_RADIUS_CM   = 4.0f;      // 柱子外径8cm → 半径4cm
 
-        /* ===== 绕柱闭环 v2（不依赖里程计位置，只用 陀螺仪+实时测距） ===== */
+        /* ===== 闭环绕柱 v4（测距径向闭环 + 陀螺仪航向前馈，完全不用里程计位置） =====
+           反馈(径向):测距 → v_y = KP×(测距-目标) 纠偏保半径（真正的测距闭环）
+           前馈(航向):w = v_t/(测距+偏置+柱半径) → 车头随圈转、始终指向圆心
+           绕圈进度 = 陀螺仪累积转角；测距无效时保持原速绕行等恢复，
+           持续无效超时 → 停车，绝不盲目漂移 */
         flag.angle = 0;                           // 角度环让位，w 由本闭环接管
         chassis.v_x = 0.0f;  chassis.v_y = 0.0f;  chassis.w = 0.0f;
         chassis.x_speed_plan_flag = 0;
@@ -573,49 +578,68 @@ int main(void)
         chassis.x_set_speed_flag  = 1;            // 手动设速，防控制循环归零
         chassis.y_set_speed_flag  = 1;
 
-        float yaw0     = HWT101CT_Data.yaw;       // 起点朝向（车头指向圆心）
-        float yaw_last = yaw0;
-        float yaw_acc  = 0.0f;                    // 陀螺仪累积转角(°)
         float d_ref_cm = (float)d_ref/10.0f;      // 目标测距 cm
-        float d_cm     = d_ref_cm;                // 当前有效测距 cm
-        float d_prev   = d_ref_cm;                // 上次测距（用于阻尼）
+        float d_filt   = d_ref_cm;                // 滤波测距 cm
+        float yaw_last = HWT101CT_Data.yaw;
+        float yaw_acc  = 0.0f;                    // 已绕角度(°)
+        uint32_t t_prt = HAL_GetTick();
         uint8_t  lost      = 0;                   // 连续无效计数
         uint8_t  lost_stop = 0;                   // 丢目标停车标志
-        uint32_t t_prt     = HAL_GetTick();       // 打印节拍
+        
+        /*调参调这四个
+      //切向速度：沿圆周切线方向走多快
+      大：绕圈快但 GY53 采样相对变"稀"、更容易丢目标,`w` 更大,整体更激进
+      小：绕圈慢、更稳,测距采样更密、不易丢目标;但一圈时间变长(8→6 约从 26s 变 35s)
+      v_t    = 8.0f 
+
+      //径向纠偏增益：负责把车拉回目标半径。
+      大：纠偏更"猛",偏离后快速拉回;但容易超调来回振荡,圈不圆
+      小：纠偏柔和、不易振荡;但收敛变慢,抗扰动弱,太小会"追不上"半径
+      KP_R   = 1.0f
+
+      //径向限幅：无论误差多大,径向修正速度不超过 ±VY_MAX
+      大：大误差时能快速大幅径向修正;但车会猛斜插进圈,轨迹波动大
+      小：修正动作柔和、轨迹顺滑;但大误差时拉回慢(若 `KP_R` 又大,会被限幅"卡住"发挥不出来)
+      VY_MAX = 3.0f
+
+      //测距低通系数："新测量"和"历史平滑值"的权重
+      大：跟踪快,真实距离变化立即反映;但 GY53 的跳变噪声也进来,`e`/`v_y`/`w` 会抖,圈不圆
+      小：非常平滑、抗噪声;但响应滞后,车对真实变化"慢半拍",可能追不上半径
+      D_FILT = 0.15f     
+      
+        */
         const float v_t    = 8.0f;                // 切向速度 cm/s（>0逆时针 / <0顺时针）
-        const float KP_R   = 2.0f;                // 径向纠偏增益（小误差时的纠偏力度）
-        const float VY_MAX = 5.0f;                // 径向速度限幅 cm/s
-        const float KD_W   = 0.3f;                // 测距变化率→w 阻尼（防车头越绕越偏）
+        const float KP_R   = 1.0f;                // 测距径向纠偏增益（已从3.0调到1.0：更柔和防来回猛拉）
+        const float VY_MAX = 3.0f;                // 径向速度限幅 cm/s（从5.0降到3.0：防止猛斜插）
+        const float D_FILT  = 0.15f;               // 测距低通滤波系数（从0.3降到0.15：更平滑防噪声）
 
         while(fabsf(yaw_acc) < 355.0f){           // 绕满一整圈
           uint16_t dd = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);
-          if(dd >= 80 && dd <= 220){              // 有效读数
-            d_cm = (float)dd/10.0f;
+          if(dd >= 60 && dd <= 260){              // 有效读数（放宽范围）
+            d_filt += D_FILT * ((float)dd/10.0f - d_filt);  // 有效帧必更新（普通低通压噪）
             lost = 0;
-          }else{                                  // 无效/丢目标：保持上次值，连续20次→停车
-            if(++lost >= 20){ lost_stop = 1; break; }
+          }else{                                  // 无效/丢目标
+            if(++lost >= 100){ lost_stop = 1; break; }   // 持续约3.5s无效才停车
           }
 
-          /* 径向纠偏：远了前进(朝圆心)、近了后退 */
-          float e = d_cm - d_ref_cm;
-          chassis.v_x = v_t;                      // 切向（车身x）
-          chassis.v_y = KP_R * e;                 // 径向（车身y，车头朝圆心）
+          float e     = d_filt - d_ref_cm;        // 测距径向误差（闭环反馈量）
+          float r_est = d_filt + GY53_2_OFFSET_CM + PIPE_RADIUS_CM;
+          if(r_est < 10.0f) r_est = 10.0f;
+
+          chassis.v_x = v_t;                      // 切向恒定
+          chassis.v_y = KP_R * e;                 // 径向：远了前进(朝圆心)、近了后退
           if(chassis.v_y >  VY_MAX) chassis.v_y =  VY_MAX;
           else if(chassis.v_y < -VY_MAX) chassis.v_y = -VY_MAX;
-          /* w = 切向速度/实时半径 前馈 + 测距变化率阻尼 */
-          float r_est = d_cm + GY53_2_OFFSET_CM + PIPE_RADIUS_CM;
-          if(r_est < 10.0f) r_est = 10.0f;        // 防小半径产生过大 w
-          chassis.w = v_t / r_est - KD_W * (d_cm - d_prev);
+          chassis.w = v_t / r_est;                // 航向前馈：车头随圈转，始终指向圆心
           if(chassis.w >  YAW_PID_OUT_MAX) chassis.w =  YAW_PID_OUT_MAX;
           else if(chassis.w < -YAW_PID_OUT_MAX) chassis.w = -YAW_PID_OUT_MAX;
-          d_prev = d_cm;
 
-          /* 实时打印测距与输出（每200ms，整数，避免%f不支持问题） */
+          /* 打印(每200ms)：d=滤波测距 e=径向误差 vx/vy=切向/径向 w=角速度 */
           if(HAL_GetTick() - t_prt >= 200){
-            UART1_Printf("d=%d e=%d vx=%d vy=%d w=%d\r\n",
-                         (int)(d_cm*10.0f), (int)(e*10.0f),
+            UART1_Printf("d=%d e=%d vx=%d vy=%d w=%d l=%d\r\n",
+                         (int)(d_filt*10.0f), (int)(e*10.0f),
                          (int)chassis.v_x, (int)chassis.v_y,
-                         (int)(chassis.w*100.0f));
+                         (int)(chassis.w*100.0f), lost);
             t_prt = HAL_GetTick();
           }
 
