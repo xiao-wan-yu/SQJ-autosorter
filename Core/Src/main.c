@@ -585,6 +585,7 @@ int main(void)
         uint32_t t_prt = HAL_GetTick();
         uint8_t  lost      = 0;                   // 连续无效计数
         uint8_t  lost_stop = 0;                   // 丢目标停车标志
+        float next_align = 90.0f;                 // 下一次摆头校准的绕圈进度(°)：每90°校准一次
         
         /*调参调这四个
       //切向速度：沿圆周切线方向走多快
@@ -649,6 +650,68 @@ int main(void)
           if(ddg > 180.0f)       ddg -= 360.0f;
           else if(ddg < -180.0f) ddg += 360.0f;
           yaw_acc += ddg;
+
+          /* ===== 摆头校准：每绕90°，停车原地左右摆头，找测距最小值方向(=正对水管中间) =====
+             车头正对水管时 GY53 光束垂直打柱面 → 测距最小；偏角越大读数越大。
+             校准后车头回正对水管，d_filt 重置为对准后的真实距离，继续绕圈。 */
+          if(fabsf(yaw_acc) >= next_align){
+            next_align += 90.0f;
+            chassis.v_x = 0.0f; chassis.v_y = 0.0f; chassis.w = 0.0f;  // 停车
+            HAL_Delay(100);
+
+            float yaw_start = HWT101CT_Data.yaw;
+            float yaw_l     = yaw_start;
+            float yaw_min   = yaw_start;
+            uint16_t d_min  = 0xFFFF;
+            float sw        = 0.0f;                // 摆动累积角(°)
+            const float W_SW   = 0.4f;             // 摆动角速度 rad/s（约23°/s）
+            const float SWING  = 12.0f;            // 摆动幅度(°)
+
+            /* ① 向右摆 SWING°（顺时针，yaw 增），期间采样找最小测距 */
+            chassis.w = -W_SW;
+            while(sw < SWING){
+              uint16_t sdd = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);
+              if(sdd >= 40 && sdd <= 300 && sdd < d_min){ d_min = sdd; yaw_min = HWT101CT_Data.yaw; }
+              float dy = HWT101CT_Data.yaw - yaw_l;
+              yaw_l = HWT101CT_Data.yaw;
+              if(dy > 180.0f) dy -= 360.0f; else if(dy < -180.0f) dy += 360.0f;
+              sw += dy;
+              HAL_Delay(10);
+            }
+            /* ② 向左摆回并多摆 SWING°（逆时针，yaw 减，sw 从 +SWING 到 -SWING） */
+            chassis.w = W_SW;
+            while(sw > -SWING){
+              uint16_t sdd = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);
+              if(sdd >= 40 && sdd <= 300 && sdd < d_min){ d_min = sdd; yaw_min = HWT101CT_Data.yaw; }
+              float dy = HWT101CT_Data.yaw - yaw_l;
+              yaw_l = HWT101CT_Data.yaw;
+              if(dy > 180.0f) dy -= 360.0f; else if(dy < -180.0f) dy += 360.0f;
+              sw += dy;
+              HAL_Delay(10);
+            }
+            /* ③ 转回最小测距方向（正对水管中间） */
+            chassis.w = 0.0f;
+            float err = yaw_min - HWT101CT_Data.yaw;
+            if(err > 180.0f) err -= 360.0f; else if(err < -180.0f) err += 360.0f;
+            while(fabsf(err) > 1.0f){
+              chassis.w = (err > 0.0f) ? -0.3f : 0.3f;
+              float dy = HWT101CT_Data.yaw - yaw_l;
+              yaw_l = HWT101CT_Data.yaw;
+              if(dy > 180.0f) dy -= 360.0f; else if(dy < -180.0f) dy += 360.0f;
+              err -= dy;
+              HAL_Delay(10);
+            }
+            chassis.w = 0.0f;
+            HAL_Delay(50);
+            if(d_min != 0xFFFF){
+              d_filt = (float)d_min/10.0f;         // 重置为对准后的真实测距
+              UART1_Printf("align dmin=%d\r\n", d_min);
+            }else{
+              UART1_Printf("align FAIL\r\n");
+            }
+            yaw_last = HWT101CT_Data.yaw;          // 校准后重新累积绕圈进度
+            t_prt    = HAL_GetTick();              // 校准期间不打印
+          }
 
           HAL_Delay(10);                          // 控制周期10ms
         }
