@@ -168,7 +168,7 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+//  HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -354,16 +354,16 @@ int main(void)
   while (1)
   {
     GRAY_Update();
-    OLED_Printf(0, 0,  OLED_8X16_HALF, "G1:%1d%1d%1d%1d%1d%1d%1d%1d",
-                GRAY_Data[GRAY1][0],GRAY_Data[GRAY1][1],GRAY_Data[GRAY1][2],GRAY_Data[GRAY1][3],
-                GRAY_Data[GRAY1][4],GRAY_Data[GRAY1][5],GRAY_Data[GRAY1][6],GRAY_Data[GRAY1][7]);
-     OLED_Printf(0, 32, OLED_8X16_HALF, "G3:%1d%1d%1d%1d%1d%1d%1d%1d",
-                 GRAY_Data[GRAY3][0],GRAY_Data[GRAY3][1],GRAY_Data[GRAY3][2],GRAY_Data[GRAY3][3],
-                 GRAY_Data[GRAY3][4],GRAY_Data[GRAY3][5],GRAY_Data[GRAY3][6],GRAY_Data[GRAY3][7]);
+    //OLED_Printf(0, 0,  OLED_8X16_HALF, "G1:%1d%1d%1d%1d%1d%1d%1d%1d",
+    //            GRAY_Data[GRAY1][0],GRAY_Data[GRAY1][1],GRAY_Data[GRAY1][2],GRAY_Data[GRAY1][3],
+    //            GRAY_Data[GRAY1][4],GRAY_Data[GRAY1][5],GRAY_Data[GRAY1][6],GRAY_Data[GRAY1][7]);
+    // OLED_Printf(0, 32, OLED_8X16_HALF, "G3:%1d%1d%1d%1d%1d%1d%1d%1d",
+    //             GRAY_Data[GRAY3][0],GRAY_Data[GRAY3][1],GRAY_Data[GRAY3][2],GRAY_Data[GRAY3][3],
+    //             GRAY_Data[GRAY3][4],GRAY_Data[GRAY3][5],GRAY_Data[GRAY3][6],GRAY_Data[GRAY3][7]);
     HAL_Delay(50);
-    //测距
+    //测距，2是前面的，1是后面的
     //OLED_Printf(0,16 , OLED_8X16_HALF, "dis_1:%4d", GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin));
-    //OLED_Printf(0,32 , OLED_8X16_HALF, "dis_2:%4d", GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin));
+    OLED_Printf(0,32 , OLED_8X16_HALF, "dis_2:%4d", GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin));
     //激光
     //OLED_Printf(0, 48 ,OLED_8X16_HALF, "ba_3:%1d", LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin));
     //OLED_Printf(64, 48, OLED_8X16_HALF, "ba_2:%1d", LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin));
@@ -451,7 +451,7 @@ int main(void)
         {
           UART1_Printf("5");
           //右+前，移动到阶梯附近
-          ROBOT_Move(60, 160, 100, 100, 100, 100);
+          ROBOT_Move(80, 160, 100, 100, 100, 100);
           // ROBOT_Move(0,160,0,100,0,100);
           UART1_Printf("6");
           //向左慢走，直到前面的两个光电都感应到障碍物，开始测距，然后向前走到合适的距离（适合识别的距离）
@@ -531,6 +531,113 @@ int main(void)
       UART1_Data[0]=0;
     }
     
+    //单独测试转圈：围绕外径8cm柱子做圆周运动（测距仅定半径，绕圈全程不读测距 → 不会因测距丢目标狂动）
+    if(UART1_Data[0]==5)
+    {
+      UART1_Data[0]=0;                            // 立即清指令，防止循环重复触发
+      UART1_Printf("circle start\r\n");
+
+      /* ===== 测距定参考距离：多次采样只收有效值(目标区间10~20cm)，取中值抗杂散 =====
+         前提：车头已正对柱子（GY53_2 读到的是 传感器→柱面 的距离） */
+      uint16_t d_ok[10];                          // 有效采样缓存
+      uint8_t  n = 0;                             // 有效采样个数
+      for(uint8_t i = 0; i < 12; i++){            // 最多采12次
+        uint16_t dd = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);
+        if(dd >= 80 && dd <= 220){                // 只收8~22cm：丢目标返回大值/杂散直接丢弃
+          d_ok[n++] = dd;
+          if(n >= 10) break;
+        }
+        HAL_Delay(30);                            // 采样间隔，避开电机/震动噪声
+      }
+      UART1_Printf("valid=%d\r\n", n);
+      if(n < 3){                                  // 有效采样太少：保护退出，绝不乱转
+        UART1_Printf("no pipe!\r\n");
+      }
+      else
+      {
+        /* 冒泡排序取中值：比平均更抗单次大值/小值 */
+        for(uint8_t i = 0; i < n-1; i++)
+          for(uint8_t j = i+1; j < n; j++)
+            if(d_ok[j] < d_ok[i]){ uint16_t t = d_ok[i]; d_ok[i] = d_ok[j]; d_ok[j] = t; }
+        uint16_t d_ref = d_ok[n/2];               // 目标测距 mm
+        UART1_Printf("ref=%dmm\r\n", d_ref);
+
+        const float GY53_2_OFFSET_CM = 15.0f;     // 传感器到车中心纵向距离(cm)（实测15.0cm）
+        const float PIPE_RADIUS_CM   = 4.0f;      // 柱子外径8cm → 半径4cm
+
+        /* ===== 绕柱闭环 v2（不依赖里程计位置，只用 陀螺仪+实时测距） ===== */
+        flag.angle = 0;                           // 角度环让位，w 由本闭环接管
+        chassis.v_x = 0.0f;  chassis.v_y = 0.0f;  chassis.w = 0.0f;
+        chassis.x_speed_plan_flag = 0;
+        chassis.y_speed_plan_flag = 0;
+        chassis.x_set_speed_flag  = 1;            // 手动设速，防控制循环归零
+        chassis.y_set_speed_flag  = 1;
+
+        float yaw0     = HWT101CT_Data.yaw;       // 起点朝向（车头指向圆心）
+        float yaw_last = yaw0;
+        float yaw_acc  = 0.0f;                    // 陀螺仪累积转角(°)
+        float d_ref_cm = (float)d_ref/10.0f;      // 目标测距 cm
+        float d_cm     = d_ref_cm;                // 当前有效测距 cm
+        float d_prev   = d_ref_cm;                // 上次测距（用于阻尼）
+        uint8_t  lost      = 0;                   // 连续无效计数
+        uint8_t  lost_stop = 0;                   // 丢目标停车标志
+        uint32_t t_prt     = HAL_GetTick();       // 打印节拍
+        const float v_t    = 8.0f;                // 切向速度 cm/s（>0逆时针 / <0顺时针）
+        const float KP_R   = 2.0f;                // 径向纠偏增益（小误差时的纠偏力度）
+        const float VY_MAX = 5.0f;                // 径向速度限幅 cm/s
+        const float KD_W   = 0.3f;                // 测距变化率→w 阻尼（防车头越绕越偏）
+
+        while(fabsf(yaw_acc) < 355.0f){           // 绕满一整圈
+          uint16_t dd = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);
+          if(dd >= 80 && dd <= 220){              // 有效读数
+            d_cm = (float)dd/10.0f;
+            lost = 0;
+          }else{                                  // 无效/丢目标：保持上次值，连续20次→停车
+            if(++lost >= 20){ lost_stop = 1; break; }
+          }
+
+          /* 径向纠偏：远了前进(朝圆心)、近了后退 */
+          float e = d_cm - d_ref_cm;
+          chassis.v_x = v_t;                      // 切向（车身x）
+          chassis.v_y = KP_R * e;                 // 径向（车身y，车头朝圆心）
+          if(chassis.v_y >  VY_MAX) chassis.v_y =  VY_MAX;
+          else if(chassis.v_y < -VY_MAX) chassis.v_y = -VY_MAX;
+          /* w = 切向速度/实时半径 前馈 + 测距变化率阻尼 */
+          float r_est = d_cm + GY53_2_OFFSET_CM + PIPE_RADIUS_CM;
+          if(r_est < 10.0f) r_est = 10.0f;        // 防小半径产生过大 w
+          chassis.w = v_t / r_est - KD_W * (d_cm - d_prev);
+          if(chassis.w >  YAW_PID_OUT_MAX) chassis.w =  YAW_PID_OUT_MAX;
+          else if(chassis.w < -YAW_PID_OUT_MAX) chassis.w = -YAW_PID_OUT_MAX;
+          d_prev = d_cm;
+
+          /* 实时打印测距与输出（每200ms，整数，避免%f不支持问题） */
+          if(HAL_GetTick() - t_prt >= 200){
+            UART1_Printf("d=%d e=%d vx=%d vy=%d w=%d\r\n",
+                         (int)(d_cm*10.0f), (int)(e*10.0f),
+                         (int)chassis.v_x, (int)chassis.v_y,
+                         (int)(chassis.w*100.0f));
+            t_prt = HAL_GetTick();
+          }
+
+          /* 陀螺仪累积转角判断已绕角度 */
+          float ddg = HWT101CT_Data.yaw - yaw_last;
+          yaw_last = HWT101CT_Data.yaw;
+          if(ddg > 180.0f)       ddg -= 360.0f;
+          else if(ddg < -180.0f) ddg += 360.0f;
+          yaw_acc += ddg;
+
+          HAL_Delay(10);                          // 控制周期10ms
+        }
+        /* 停车 + 恢复角度环（重新锁向当前朝向） */
+        chassis.v_x = 0.0f;  chassis.v_y = 0.0f;  chassis.w = 0.0f;
+        chassis.x_set_speed_flag = 0;
+        chassis.y_set_speed_flag = 0;
+        flag.angle = 1;
+        chassis.target_yaw = YAW_TARGET_NONE;
+        if(lost_stop) UART1_Printf("LOST! stop\r\n");
+        else          UART1_Printf("circle done\r\n");
+      }
+    }
 
     if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)){
       ROBOT_Move(-50, 390, 100, 100, 100, 100);

@@ -10,6 +10,14 @@
                 "isDefault": true
             },
             "problemMatcher": []
+        },
+        {
+            "label": "烧录并运行 (Flash & Run)",
+            "type": "shell",
+            "command": "${workspaceFolder}/flash.bat",
+            "dependsOn": "Build STM32 Project",
+            "dependsOrder": "sequence",
+            "problemMatcher": []
         }
     ]
 }

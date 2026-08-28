@@ -17,12 +17,20 @@ extern TIM_HandleTypeDef htim6;
   * @retval 前方障碍物距离（单位：mm）
   */
 uint16_t GY53_GetDistance_PWM(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin){
-  while(HAL_GPIO_ReadPin(GPIOx, GPIO_Pin) == 0); //等待高电平
+  uint32_t t0;
+  /* 等待高电平：超过50ms仍无目标 → 返回超量程2000mm（防阻塞） */
+  t0 = HAL_GetTick();
+  while(HAL_GPIO_ReadPin(GPIOx, GPIO_Pin) == 0){
+    if((HAL_GetTick() - t0) > 50) return 2000;
+  }
   __HAL_TIM_SetCounter(&htim6, 0);
   HAL_TIM_Base_Start(&htim6); //开启定时器6时基单元，开始计时
-  while(HAL_GPIO_ReadPin(GPIOx, GPIO_Pin) == 1); //等待高电平结束
-  HAL_TIM_Base_Stop(
-    &htim6);
+  /* 等待高电平结束：超过25ms(≈2500mm) 视为超量程/无目标（防阻塞） */
+  t0 = HAL_GetTick();
+  while(HAL_GPIO_ReadPin(GPIOx, GPIO_Pin) == 1){
+    if((HAL_GetTick() - t0) > 25) return 2000;
+  }
+  HAL_TIM_Base_Stop(&htim6);
   return  (__HAL_TIM_GetCounter(&htim6) * 1 / 10);  //距离(mm)=高电平时间(ms)*100=高电平时间(us)/10 （单位：mm）
 } 
 
