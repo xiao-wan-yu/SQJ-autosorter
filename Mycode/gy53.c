@@ -33,6 +33,3 @@ uint16_t GY53_GetDistance_PWM(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin){
   HAL_TIM_Base_Stop(&htim6);
   return  (__HAL_TIM_GetCounter(&htim6) * 1 / 10);  //距离(mm)=高电平时间(ms)*100=高电平时间(us)/10 （单位：mm）
 } 
-
-
-

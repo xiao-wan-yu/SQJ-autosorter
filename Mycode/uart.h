@@ -9,7 +9,8 @@
 #define UART2_USE_DMA               1
 //使用HWT101CT陀螺仪时置1 不使用陀螺仪时置0（DMA）
 #define UART3_USE_HWT101CT          1
-//使用步进电机时置1 不使用步进电机时置0
+//UART5 实际接舵机控制板（CN6 接口，波特率9600，见 Mycode/lobot_servo.c）
+//步进电机模板保留备用：使用步进电机时置1 不使用步进电机时置0
 #define UART5_USE_SteppingMotor     1
 
 
@@ -20,7 +21,7 @@
 #define UART3_RxLength 200                    //串口3接收数据包的真实数据长度
 #define UART3_TxLengthMax 200               //串口3发送数据的最大数据长度
 #define UART4_TxLengthMax 200               //串口4(备用串口)发送数据的最大数据长度
-#define UART5_RxLength 255                  //串口5接收数据包的真实数据长度（开启DMA接收时，则为最大接收长度）
+#define UART5_RxLength 255                  //串口5接收数据包的真实数据长度（开启DMA接收时，则为最大接收长度；现接舵机控制板，一般不启用接收）
 #define UART5_TxLengthMax 200               //串口5发送数据的最大数据长度
 
 extern uint8_t UART1_RxNewData;             //串口1最新接收到的数据

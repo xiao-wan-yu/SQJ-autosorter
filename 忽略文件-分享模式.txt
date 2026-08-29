@@ -1,0 +1,27 @@
+# ============================================================
+# 【分享模式】把本文件全部内容复制粘贴到 .gitignore
+# 用途：只上传 Core / Mycode / .ioc 给其他人
+#
+# 粘贴保存后执行：
+#   git remote set-url origin https://github.com/hAPPINESS-ux/7_AutomatedSortingRobot_26.git
+#   git add -A
+#   git commit -m "分享 xxx"
+#   git push -u origin HEAD
+# ============================================================
+
+# 白名单：先忽略根目录下所有内容
+/*
+
+# 放行本文件自身
+!/.gitignore
+
+# 放行 Core 目录及其全部内容
+!/Core/
+!/Core/**
+
+# 放行 Mycode 目录及其全部内容
+!/Mycode/
+!/Mycode/**
+
+# 放行 CubeMX 工程文件 (.ioc)
+!/*.ioc

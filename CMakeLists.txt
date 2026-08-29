@@ -97,6 +97,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Mycode/buzzer.c
     ${CMAKE_SOURCE_DIR}/Mycode/laser.c
     ${CMAKE_SOURCE_DIR}/Mycode/gy53.c
+    ${CMAKE_SOURCE_DIR}/Mycode/lobot_servo.c
     ${CMAKE_SOURCE_DIR}/Mycode/tb6612.c
     ${CMAKE_SOURCE_DIR}/Mycode/encoder.c
     ${CMAKE_SOURCE_DIR}/Mycode/chassis.c
@@ -107,10 +108,10 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # ${CMAKE_SOURCE_DIR}/Mycode/car.c
     ${CMAKE_SOURCE_DIR}/Mycode/velocityProfile.c
     ${CMAKE_SOURCE_DIR}/Mycode/gw_grayscale.c
+    ${CMAKE_SOURCE_DIR}/Mycode/gw_softi2c.c
     ${CMAKE_SOURCE_DIR}/Mycode/hwt101ct.c
     ${CMAKE_SOURCE_DIR}/Mycode/robot.c
     ${CMAKE_SOURCE_DIR}/Mycode/circle.c
-    ${CMAKE_SOURCE_DIR}/Mycode/gw_grayscale.c
 
     
     #根据选择的oled文件做相应修改
