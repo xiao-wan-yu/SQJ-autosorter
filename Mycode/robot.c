@@ -1,6 +1,8 @@
 #include "robot.h"
 #include "chassis.h"
 #include "hwt101ct.h"
+#include "circle.h"
+#include "main.h"
 #include "stm32f4xx_hal.h"
 #include <math.h>
 
@@ -77,74 +79,21 @@ void ROBOT_MoveSpeed(float x_speed, float y_speed){
 
 /**
   * @brief 绕车头前方一点做圆周运动（阻塞式，车头始终面向圆心，车头距圆心距离固定）
-  * @param radius  车中心到圆心的距离 cm（圆心 = 调用时刻车头方向延长 radius 处的点，之后在场地中固定不动）
+  * @param radius  车中心到圆心的距离 cm（= 目标测距 + 传感器偏置8cm + 管半径4cm）
   * @param arc_deg 绕行弧角（°）：绕满该角度自动停（360 = 整圈）
   * @param speed   切向速度 cm/s（>0 逆时针 / <0 顺时针 / 0 不转）
-  * @note  前置条件：底盘控制循环运行（flag.chassis=1），否则规划不执行，本函数直接返回。
-  *        圆心由调用时刻的车头朝向+radius 唯一确定：调用时车头正对圆心，无需先对角度；
-  *        车头在车中心正前方固定距离处，车中心绕圈半径恒定 → 车头到圆心距离同样恒定。
-  *        闭环控制（每 10ms 用里程计位置+陀螺仪航向）：车头朝圆心时车身 x+ 恰为圆周切线方向，
-  *        v_x=切向速度、v_y=径向纠偏(距圆心偏差→向心速度，保距离固定)；
-  *        w = 到圆心方向的转动角速度前馈(speed/半径) + 航向比例纠偏（车头始终瞄向圆心）。
-  *        期间 flag.angle 临时置 0（w 由本函数接管，航向环让位），结束恢复并重新锁向当前朝向。
-  *        弧角按陀螺仪累积转角判断（不受速度波动影响）。速度需满足 |speed| ≤ radius×2.8 cm/s
-  *        （w 限幅 YAW_PID_OUT_MAX=2.8 rad/s，超限时半径会变大）。
+  * @note  前置条件：底盘控制循环运行（flag.chassis=1）且陀螺仪在更新（flag.hwt101ct=1），
+  *        否则直接返回。底层调用 CIRCLE_Run（三层闭环：径向距离环 PID + 航向同步环
+  *        + 切向速度前馈），用 GY53_2 测距实时保半径、陀螺仪做航向同步，并带测距低通
+  *        滤波与极值搜索漂移修正，绕满弧角自动停。调用前请确保车头已正对水管
+  *        （测距读到的是 传感器→管壁 的距离，不是斜距）。
   */
 void ROBOT_Circle(float radius, uint32_t arc_deg, float speed){
-  if(!flag.chassis) return;                      // 前置条件不满足：直接返回
-  if(radius <= 0.0f || arc_deg == 0 || speed == 0.0f) return;   // 非法参数
-
-  const float pi = 3.14159265f;
-  /* 圆心：调用时刻车头方向延长 radius 处（全局系固定） */
-  float cx = chassis.pos_x + radius * cosf(chassis.now_the);
-  float cy = chassis.pos_y + radius * sinf(chassis.now_the);
-
-  uint8_t angle_save = flag.angle;
-  flag.angle = 0;                                // 圆周运动期间 w 由本函数接管（航向环让位）
-  chassis.x_speed_plan_flag = 0;                 // 清掉距离规划，立即切换圆周模式
-  chassis.y_speed_plan_flag = 0;
-  chassis.x_set_speed_flag  = 1;                 // 手动设速：控制循环不再归零 v_x/v_y
-  chassis.y_set_speed_flag  = 1;
-
-  float yaw_acc  = 0.0f;                         // 陀螺仪累积转角（°），决定已绕弧角
-  float yaw_last = HWT101CT_Data.yaw;
-  float v_lim    = fabsf(speed) * 0.5f;          // v_y 径向纠偏限幅：不超过切向速度一半
-
-  while(fabsf(yaw_acc) < (float)arc_deg){
-    /* 车→圆心方向/距离（里程计全局系） */
-    float dx = cx - chassis.pos_x;
-    float dy = cy - chassis.pos_y;
-    float r  = sqrtf(dx*dx + dy*dy);
-    if(r < 1.0f) r = 1.0f;                       // 防除零兜底（正常不会发生）
-    float psi = atan2f(dy, dx);
-    /* 航向误差：车头应指向圆心（归一化 ±π） */
-    float e_h = psi - chassis.now_the;
-    while(e_h >  pi) e_h -= 2.0f*pi;
-    while(e_h < -pi) e_h += 2.0f*pi;
-    /* 切向速度（车身 x+ 即圆周切线方向）+ 径向纠偏保距离 */
-    chassis.v_x = speed;
-    chassis.v_y = ROBOT_CIRCLE_KP_R * (r - radius);
-    if(chassis.v_y >  v_lim) chassis.v_y =  v_lim;
-    else if(chassis.v_y < -v_lim) chassis.v_y = -v_lim;
-    /* 角速度：到圆心方向的转动角速度前馈 speed/r + 航向比例纠偏 */
-    chassis.w = speed / r + ROBOT_CIRCLE_KP_H * e_h;
-    if(chassis.w >  YAW_PID_OUT_MAX) chassis.w =  YAW_PID_OUT_MAX;
-    else if(chassis.w < -YAW_PID_OUT_MAX) chassis.w = -YAW_PID_OUT_MAX;
-    /* 陀螺仪累积转角（yaw 顺时针为正：逆时针绕圈 yaw 递减，取绝对值判断） */
-    float d = HWT101CT_Data.yaw - yaw_last;
-    yaw_last = HWT101CT_Data.yaw;
-    if(d > 180.0f)      d -= 360.0f;
-    else if(d < -180.0f) d += 360.0f;
-    yaw_acc += d;
-
-    HAL_Delay(10);
-  }
-  /* 结束：停车 + 恢复航向环（重新锁向结束时刻朝向） */
-  chassis.v_x = 0.0f;
-  chassis.v_y = 0.0f;
-  chassis.w   = 0.0f;
-  chassis.x_set_speed_flag = 0;
-  chassis.y_set_speed_flag = 0;
-  flag.angle = angle_save;
-  if(flag.angle) chassis.target_yaw = YAW_TARGET_NONE;   // 哨兵：恢复后锁定当前朝向
+  if(!flag.chassis || !flag.hwt101ct) return;                 // 前置条件不满足：直接返回
+  if(radius <= 12.0f || arc_deg == 0 || speed == 0.0f) return;// 非法参数（radius 须 > 传感器偏置+管半径）
+  /* 车中心→圆心距离 radius → 目标测距 mm（传感器→管壁） */
+  uint16_t d_target_mm = (uint16_t)((radius - CIRCLE_SENSOR_OFFSET_CM - CIRCLE_PIPE_RADIUS_CM) * 10.0f + 0.5f);
+  float omega = fabsf(speed) / radius;                         // 切向速度 speed → 公转角速度 rad/s
+  int8_t dir  = (speed > 0) ? 1 : -1;                          // speed>0 逆时针 / <0 顺时针
+  CIRCLE_Run(GY53_2_GPIO_Port, GY53_2_Pin, d_target_mm, omega, arc_deg, dir);
 }

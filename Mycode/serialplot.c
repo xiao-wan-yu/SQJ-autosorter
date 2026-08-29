@@ -8,8 +8,9 @@
 #include "uart.h"
 #include "chassis.h"
 #include "hwt101ct.h"
+#include "circle.h"
 
-#define PARAM_Number 9              //参数个数（航向环 kp/ki/kd/target + 整车速度 vx/vy/w + 规划 mv/mvacc）
+#define PARAM_Number 19             //参数个数（航向环 + 整车速度 + 规划 + 圆周运动参数）
 #define YAW_Loop  chassis.yaw_pid   //要调参的pid环：整车航向环
 /* 死区无需在线调：控制循环按是否平移自动切换 —— 静止旋转 YAW_DEAD_ZONE_TURN(1.0°) 防来回飘，
    走直线(有平移) YAW_DEAD_ZONE_MOVE(0.3°) 让1°内偏航也被纠正 */
@@ -17,18 +18,30 @@
 typedef struct{
   void *p;        //某一个参数变量的地址
   char *name;     //该参数变量的名字
+  uint8_t type;   //数据类型：0=float（默认），1=int（写入 4 字节，仅限 int 型字段！）
 }Param;
 
 Param param[PARAM_Number] = { //可以修改的变量列表（名字匹配后按名字分发）
-  {&YAW_Loop.kp, "kp"},        // 航向环比例（静止旋转-0.028；走直线纠偏可调大如-0.05）
-  {&YAW_Loop.ki, "ki"},        // 航向环积分（实测0即可）
-  {&YAW_Loop.kd, "kd"},        // 航向环微分（实测0即可，速度环自带阻尼）
-  {&chassis.target_yaw, "target"}, // 航向环目标角度（0~360，遥控转向）
-  {&chassis.v_x, "vx"},        // 整车x速度 cm/s（右移为正；手动设速模式，见 ChangeParam）
-  {&chassis.v_y, "vy"},        // 整车y速度 cm/s（前进为正；手动设速模式）
-  {&chassis.w,   "w"},         // 整车角速度 rad/s（航向环开启时被角度环接管，需 flag.angle=0 才直接生效）
-  {&chassis.move_speed, "mv"},   // 梯形规划目标速度 cm/s（mx/my 走固定距离用，默认60）
-  {&chassis.move_acc,   "mvacc"} // 梯形规划加减速 cm/s²（默认100）
+  {&YAW_Loop.kp, "kp", 0},        // 航向环比例（静止旋转-0.028；走直线纠偏可调大如-0.05）
+  {&YAW_Loop.ki, "ki", 0},        // 航向环积分（实测0即可）
+  {&YAW_Loop.kd, "kd", 0},        // 航向环微分（实测0即可，速度环自带阻尼）
+  {&chassis.target_yaw, "target", 0}, // 航向环目标角度（0~360，遥控转向）
+  {&chassis.v_x, "vx", 0},        // 整车x速度 cm/s（右移为正；手动设速模式，见 ChangeParam）
+  {&chassis.v_y, "vy", 0},        // 整车y速度 cm/s（前进为正；手动设速模式）
+  {&chassis.w,   "w", 0},         // 整车角速度 rad/s（航向环开启时被角度环接管，需 flag.angle=0 才直接生效）
+  {&chassis.move_speed, "mv", 0},   // 梯形规划目标速度 cm/s（mx/my 走固定距离用，默认60）
+  {&chassis.move_acc,   "mvacc", 0},// 梯形规划加减速 cm/s²（默认100）
+  /* 圆周运动（CIRCLE_Run）在线调参：绕圈期间通过 UART1 下发，如 "ckp f 0.6" / "cstage i 3" */
+  {&circle_param.stage, "cstage", 1},      // 圆周调试阶段 0~4（0纯开环→4全开，分步调试）
+  {&circle_param.kp, "ckp", 0},       // 圆周距离环比例（1/s，默认0.5）
+  {&circle_param.ki, "cki", 0},       // 圆周距离环积分（1/s，默认0.08）
+  {&circle_param.kd, "ckd", 0},       // 圆周距离环微分（默认0.1）
+  {&circle_param.vy_max, "cvy", 0},   // 圆周径向速度限幅 cm/s（默认8）
+  {&circle_param.yaw_kp, "cyawkp", 0},// 圆周航向同步环比例（负，默认-0.03）
+  {&circle_param.alpha, "calpha", 0}, // 圆周测距低通滤波系数（0~1，默认0.8）
+  {&circle_param.drift_step, "cstep", 0},   // 圆周漂移修正步长 °（默认0.2）
+  {&circle_param.drift_period_ms, "cdriftper", 1}, // 圆周漂移修正周期 ms（默认200）
+  {&circle_param.print_period_ms, "cprint", 1}      // 圆周串口打印周期 ms（默认200，0关闭）
 };
 
 /**
@@ -80,7 +93,11 @@ void SERIALPLOT_ChangeParam(char *string){
 
   for(int i=0; i<= PARAM_Number-1; i++){  //确定接收到的子串名字与哪个变量名字相对应
     if(strcmp(str_name, param[i].name) == 0){
-      *(float*)param[i].p = val;   // 直接写入对应变量（kp/ki/kd/target/w/mv/mvacc；vx/vy 先写值再设标志）
+      if(param[i].type == 1){                    // 整数型参数（如 cstage）：按 int 写入，避免破坏相邻字节
+        *(int*)param[i].p = (int)val;
+      }else{                                     // 浮点型参数（默认）
+        *(float*)param[i].p = val;
+      }
       /* vx/vy 为手动设速模式：置对应轴 set_speed_flag（中断不清零该轴 v_），并取消该轴正在执行的规划 */
       if(strcmp(str_name, "vx") == 0){
         chassis.x_set_speed_flag  = 1;

@@ -49,6 +49,7 @@
 #include "./../../Mycode/hwt101ct.h"
 #include "./../../Mycode/robot.h"
 #include "./../../Mycode/vision.h"
+#include "./../../Mycode/circle.h"
 
 #include <math.h>
 #include <stdint.h>
@@ -531,199 +532,22 @@ int main(void)
       UART1_Data[0]=0;
     }
     
-    //单独测试转圈：围绕外径8cm柱子做圆周运动（测距仅定半径，绕圈全程不读测距 → 不会因测距丢目标狂动）
+    //单独测试转圈：定半径圆周运动（豆包三层闭环方案：径向距离环PID + 航向同步环 + 切向速度前馈）
+    //  目标测距 d_target_mm（传感器→管壁）：150~200mm 范围内都可用；轨迹半径 D=d/10+传感器偏置8+管半径4=27~32cm
+    //  在线调参：串口指令 cstage i N（N=0~4 分步调试：0纯开环→1加测距→2加距离环→3加航向环→4加漂移修正）
+    //            ckp/cki/ckd/cvy/cyawkp/calpha/cstep/cdriftper/cprint 含义见 Mycode/circle_params.h
+    //  前提：调用前车头已正对水管（GY53_2 读到的是 传感器→管壁 的距离，不是斜距）
     if(UART1_Data[0]==5)
     {
-
       UART1_Data[0]=0;                            // 立即清指令，防止循环重复触发
       UART1_Printf("circle start\r\n");
 
-      /* ===== 测距定参考距离：多次采样只收有效值(目标区间10~20cm)，取中值抗杂散 =====
-         前提：车头已正对柱子（GY53_2 读到的是 传感器→柱面 的距离） */
-      uint16_t d_ok[10];                          // 有效采样缓存
-      uint8_t  n = 0;                             // 有效采样个数
-      for(uint8_t i = 0; i < 12; i++){            // 最多采12次
-        uint16_t dd = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);
-        if(dd >= 80 && dd <= 220){                // 只收8~22cm：丢目标返回大值/杂散直接丢弃
-          d_ok[n++] = dd;
-          if(n >= 10) break;
-        }
-        HAL_Delay(30);                            // 采样间隔，避开电机/震动噪声
-      }
-      UART1_Printf("valid=%d\r\n", n);
-      if(n < 3){                                  // 有效采样太少：保护退出，绝不乱转
-        UART1_Printf("no pipe!\r\n");
-      }
-      else
-      {
-        /* 冒泡排序取中值：比平均更抗单次大值/小值 */
-        for(uint8_t i = 0; i < n-1; i++)
-          for(uint8_t j = i+1; j < n; j++)
-            if(d_ok[j] < d_ok[i]){ uint16_t t = d_ok[i]; d_ok[i] = d_ok[j]; d_ok[j] = t; }
-        uint16_t d_ref = d_ok[n/2];               // 目标测距 mm
-        UART1_Printf("ref=%dmm\r\n", d_ref);
+      /* 目标测距 175mm（15~20cm 范围内任取）、公转角速度 0.35rad/s（切向速度≈0.35×30≈10.5cm/s）、
+         绕满整圈、逆时针。CIRCLE_Run 内部：先采测距定初始半径 → 按当前 cstage 分级闭环绕圈 →
+         绕满弧角自动停；期间每 cprint(默认200)ms 串口打印一次状态，SerialPlot 直接看。 */
+      CIRCLE_Run(GY53_2_GPIO_Port, GY53_2_Pin, 175, 0.35f, 360, 1);
 
-        const float GY53_2_OFFSET_CM = 15.0f;     // 传感器到车中心纵向距离(cm)（实测15.0cm）
-        const float PIPE_RADIUS_CM   = 4.0f;      // 柱子外径8cm → 半径4cm
-
-        /* ===== 闭环绕柱 v4（测距径向闭环 + 陀螺仪航向前馈，完全不用里程计位置） =====
-           反馈(径向):测距 → v_y = KP×(测距-目标) 纠偏保半径（真正的测距闭环）
-           前馈(航向):w = v_t/(测距+偏置+柱半径) → 车头随圈转、始终指向圆心
-           绕圈进度 = 陀螺仪累积转角；测距无效时保持原速绕行等恢复，
-           持续无效超时 → 停车，绝不盲目漂移 */
-        flag.angle = 0;                           // 角度环让位，w 由本闭环接管
-        chassis.v_x = 0.0f;  chassis.v_y = 0.0f;  chassis.w = 0.0f;
-        chassis.x_speed_plan_flag = 0;
-        chassis.y_speed_plan_flag = 0;
-        chassis.x_set_speed_flag  = 1;            // 手动设速，防控制循环归零
-        chassis.y_set_speed_flag  = 1;
-
-        float d_ref_cm = (float)d_ref/10.0f;      // 目标测距 cm
-        float d_filt   = d_ref_cm;                // 滤波测距 cm
-        float yaw_last = HWT101CT_Data.yaw;
-        float yaw_acc  = 0.0f;                    // 已绕角度(°)
-        uint32_t t_prt = HAL_GetTick();
-        uint8_t  lost      = 0;                   // 连续无效计数
-        uint8_t  lost_stop = 0;                   // 丢目标停车标志
-        float next_align = 90.0f;                 // 下一次摆头校准的绕圈进度(°)：每90°校准一次
-        
-        /*调参调这四个
-      //切向速度：沿圆周切线方向走多快
-      大：绕圈快但 GY53 采样相对变"稀"、更容易丢目标,`w` 更大,整体更激进
-      小：绕圈慢、更稳,测距采样更密、不易丢目标;但一圈时间变长(8→6 约从 26s 变 35s)
-      v_t    = 8.0f 
-
-      //径向纠偏增益：负责把车拉回目标半径。
-      大：纠偏更"猛",偏离后快速拉回;但容易超调来回振荡,圈不圆
-      小：纠偏柔和、不易振荡;但收敛变慢,抗扰动弱,太小会"追不上"半径
-      KP_R   = 1.0f
-
-      //径向限幅：无论误差多大,径向修正速度不超过 ±VY_MAX
-      大：大误差时能快速大幅径向修正;但车会猛斜插进圈,轨迹波动大
-      小：修正动作柔和、轨迹顺滑;但大误差时拉回慢(若 `KP_R` 又大,会被限幅"卡住"发挥不出来)
-      VY_MAX = 3.0f
-
-      //测距低通系数："新测量"和"历史平滑值"的权重
-      大：跟踪快,真实距离变化立即反映;但 GY53 的跳变噪声也进来,`e`/`v_y`/`w` 会抖,圈不圆
-      小：非常平滑、抗噪声;但响应滞后,车对真实变化"慢半拍",可能追不上半径
-      D_FILT = 0.15f     
-      
-        */
-        const float v_t    = 8.0f;                // 切向速度 cm/s（>0逆时针 / <0顺时针）
-        const float KP_R   = 1.0f;                // 测距径向纠偏增益（已从3.0调到1.0：更柔和防来回猛拉）
-        const float VY_MAX = 3.0f;                // 径向速度限幅 cm/s（从5.0降到3.0：防止猛斜插）
-        const float D_FILT  = 0.15f;               // 测距低通滤波系数（从0.3降到0.15：更平滑防噪声）
-
-        while(fabsf(yaw_acc) < 355.0f){           // 绕满一整圈
-          uint16_t dd = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);
-          if(dd >= 60 && dd <= 260){              // 有效读数（放宽范围）
-            d_filt += D_FILT * ((float)dd/10.0f - d_filt);  // 有效帧必更新（普通低通压噪）
-            lost = 0;
-          }else{                                  // 无效/丢目标
-            if(++lost >= 100){ lost_stop = 1; break; }   // 持续约3.5s无效才停车
-          }
-
-          float e     = d_filt - d_ref_cm;        // 测距径向误差（闭环反馈量）
-          float r_est = d_filt + GY53_2_OFFSET_CM + PIPE_RADIUS_CM;
-          if(r_est < 10.0f) r_est = 10.0f;
-
-          chassis.v_x = v_t;                      // 切向恒定
-          chassis.v_y = KP_R * e;                 // 径向：远了前进(朝圆心)、近了后退
-          if(chassis.v_y >  VY_MAX) chassis.v_y =  VY_MAX;
-          else if(chassis.v_y < -VY_MAX) chassis.v_y = -VY_MAX;
-          chassis.w = v_t / r_est;                // 航向前馈：车头随圈转，始终指向圆心
-          if(chassis.w >  YAW_PID_OUT_MAX) chassis.w =  YAW_PID_OUT_MAX;
-          else if(chassis.w < -YAW_PID_OUT_MAX) chassis.w = -YAW_PID_OUT_MAX;
-
-          /* 打印(每200ms)：d=滤波测距 e=径向误差 vx/vy=切向/径向 w=角速度 */
-          if(HAL_GetTick() - t_prt >= 200){
-            UART1_Printf("d=%d e=%d vx=%d vy=%d w=%d l=%d\r\n",
-                         (int)(d_filt*10.0f), (int)(e*10.0f),
-                         (int)chassis.v_x, (int)chassis.v_y,
-                         (int)(chassis.w*100.0f), lost);
-            t_prt = HAL_GetTick();
-          }
-
-          /* 陀螺仪累积转角判断已绕角度 */
-          float ddg = HWT101CT_Data.yaw - yaw_last;
-          yaw_last = HWT101CT_Data.yaw;
-          if(ddg > 180.0f)       ddg -= 360.0f;
-          else if(ddg < -180.0f) ddg += 360.0f;
-          yaw_acc += ddg;
-
-          /* ===== 摆头校准：每绕90°，停车原地左右摆头，找测距最小值方向(=正对水管中间) =====
-             车头正对水管时 GY53 光束垂直打柱面 → 测距最小；偏角越大读数越大。
-             校准后车头回正对水管，d_filt 重置为对准后的真实距离，继续绕圈。 */
-          if(fabsf(yaw_acc) >= next_align){
-            next_align += 90.0f;
-            chassis.v_x = 0.0f; chassis.v_y = 0.0f; chassis.w = 0.0f;  // 停车
-            HAL_Delay(100);
-
-            float yaw_start = HWT101CT_Data.yaw;
-            float yaw_l     = yaw_start;
-            float yaw_min   = yaw_start;
-            uint16_t d_min  = 0xFFFF;
-            float sw        = 0.0f;                // 摆动累积角(°)
-            const float W_SW   = 0.4f;             // 摆动角速度 rad/s（约23°/s）
-            const float SWING  = 12.0f;            // 摆动幅度(°)
-
-            /* ① 向右摆 SWING°（顺时针，yaw 增），期间采样找最小测距 */
-            chassis.w = -W_SW;
-            while(sw < SWING){
-              uint16_t sdd = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);
-              if(sdd >= 40 && sdd <= 300 && sdd < d_min){ d_min = sdd; yaw_min = HWT101CT_Data.yaw; }
-              float dy = HWT101CT_Data.yaw - yaw_l;
-              yaw_l = HWT101CT_Data.yaw;
-              if(dy > 180.0f) dy -= 360.0f; else if(dy < -180.0f) dy += 360.0f;
-              sw += dy;
-              HAL_Delay(10);
-            }
-            /* ② 向左摆回并多摆 SWING°（逆时针，yaw 减，sw 从 +SWING 到 -SWING） */
-            chassis.w = W_SW;
-            while(sw > -SWING){
-              uint16_t sdd = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);
-              if(sdd >= 40 && sdd <= 300 && sdd < d_min){ d_min = sdd; yaw_min = HWT101CT_Data.yaw; }
-              float dy = HWT101CT_Data.yaw - yaw_l;
-              yaw_l = HWT101CT_Data.yaw;
-              if(dy > 180.0f) dy -= 360.0f; else if(dy < -180.0f) dy += 360.0f;
-              sw += dy;
-              HAL_Delay(10);
-            }
-            /* ③ 转回最小测距方向（正对水管中间） */
-            chassis.w = 0.0f;
-            float err = yaw_min - HWT101CT_Data.yaw;
-            if(err > 180.0f) err -= 360.0f; else if(err < -180.0f) err += 360.0f;
-            while(fabsf(err) > 1.0f){
-              chassis.w = (err > 0.0f) ? -0.3f : 0.3f;
-              float dy = HWT101CT_Data.yaw - yaw_l;
-              yaw_l = HWT101CT_Data.yaw;
-              if(dy > 180.0f) dy -= 360.0f; else if(dy < -180.0f) dy += 360.0f;
-              err -= dy;
-              HAL_Delay(10);
-            }
-            chassis.w = 0.0f;
-            HAL_Delay(50);
-            if(d_min != 0xFFFF){
-              d_filt = (float)d_min/10.0f;         // 重置为对准后的真实测距
-              UART1_Printf("align dmin=%d\r\n", d_min);
-            }else{
-              UART1_Printf("align FAIL\r\n");
-            }
-            yaw_last = HWT101CT_Data.yaw;          // 校准后重新累积绕圈进度
-            t_prt    = HAL_GetTick();              // 校准期间不打印
-          }
-
-          HAL_Delay(10);                          // 控制周期10ms
-        }
-        /* 停车 + 恢复角度环（重新锁向当前朝向） */
-        chassis.v_x = 0.0f;  chassis.v_y = 0.0f;  chassis.w = 0.0f;
-        chassis.x_set_speed_flag = 0;
-        chassis.y_set_speed_flag = 0;
-        flag.angle = 1;
-        chassis.target_yaw = YAW_TARGET_NONE;
-        if(lost_stop) UART1_Printf("LOST! stop\r\n");
-        else          UART1_Printf("circle done\r\n");
-      }
+      UART1_Printf("circle done\r\n");
     }
 
     if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)){
