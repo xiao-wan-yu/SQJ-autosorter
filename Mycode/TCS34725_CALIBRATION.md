@@ -83,9 +83,17 @@ S < TCS_WHITE_S_THRESH      → 灰/白，再按 V > TCS_WHITE_V_THRESH 分白/�
 
 ---
 
-## 5. 判色方案（色相优先，适配当前数据）
+## 5. 判色方案（黑 / 红 / 蓝 三色，按 24 次采样标定）
 
-✅ **已于 2026-08-30 替换进 `tcs34725.c` 的 `TCS34725_ClassifyColor`**，并把 `TCS_WHITE_S_THRESH` 从 0.10 调到了 **0.35**（因为黑 S=0.33 偏高，不调到 0.35 黑色会掉进"橙"区间）。
+✅ **2026-08-30 按键采样 24 次后重写 `tcs34725.c` 的 `TCS34725_ClassifyColor`**。采样实测：
+
+| 颜色 | H | S | V | 备注 |
+|---|---|---|---|---|
+| 黑(8次) | ≈20 | 0.43~0.50 | 0.44~0.50 | |
+| 红(9次) | 0~3.8 | 0.70~0.74 | 0.66~0.71 | 红色按了9次，无妨 |
+| 蓝(8次) | **≈300** | **0.10~0.14** | **0.36~0.38** | ⚠️ H 不在蓝相区！ |
+
+> **关键发现**：这个蓝物体反光弱，S 和 V 都很低，色相 H≈300 落在品红区——**用色相 H 怎么都判不对蓝**。所以最终改用 **S、V 分类，完全不用 H**。
 
 当前 `tcs34725.c` 里的实际实现：
 
@@ -93,47 +101,31 @@ S < TCS_WHITE_S_THRESH      → 灰/白，再按 V > TCS_WHITE_V_THRESH 分白/�
 uint8_t TCS34725_ClassifyColor(const TCS34725_RGBC *rgbc)
 {
   if(!rgbc) return TCS_COLOR_UNKNOWN;
-  float h = rgbc->h;
 
-  /* 1) 蓝色：H 在蓝相区 200~280，直接判蓝（不管饱和度多低） */
-  if(h >= 200.0f && h < 280.0f) return TCS_COLOR_BLUE;
-
-  /* 2) 红色：H 在 0~20 或 340~360 */
-  if(h < 20.0f || h >= 340.0f)  return TCS_COLOR_RED;
-
-  /* 3) 低饱和 -> 黑/白：按亮度分 */
-  if(rgbc->s < TCS_WHITE_S_THRESH)
-    return (rgbc->v > TCS_WHITE_V_THRESH) ? TCS_COLOR_WHITE : TCS_COLOR_BLACK;
-
-  /* 4) 其余有彩色：按 H 区间扩展 橙/黄/绿/青/品红 */
-  if(h < 45.0f)  return TCS_COLOR_ORANGE;
-  if(h < 75.0f)  return TCS_COLOR_YELLOW;
-  if(h < 160.0f) return TCS_COLOR_GREEN;
-  if(h < 200.0f) return TCS_COLOR_CYAN;
-  if(h < 320.0f) return TCS_COLOR_MAGENTA;
+  if(rgbc->s < TCS_BLUE_S_MAX){
+    return (rgbc->v < TCS_BLUE_V_MAX) ? TCS_COLOR_BLUE : TCS_COLOR_BLACK;
+  }
+  if(rgbc->v < TCS_BLACK_V_THRESH) return TCS_COLOR_BLACK;
   return TCS_COLOR_RED;
 }
 ```
 
-**检查表（用当前实测数据）：**
+阈值（`tcs34725.h`）：`TCS_BLUE_S_MAX=0.30`、`TCS_BLUE_V_MAX=0.42`、`TCS_BLACK_V_THRESH=0.58`
 
-| 颜色 | H | S | V | 判定 | 结果 |
-|---|---|---|---|---|---|
-| 黑 | 30.0 | 0.33 | 0.43 | 不蓝不红 → V<阈值 → | BLACK ✓ |
-| 红 | 3.8 | 0.70 | 0.68 | H<20 → | RED ✓ |
-| 蓝 | 240.0 | 0.12 | 0.38 | H 在 200~280 → | BLUE ✓ |
-| 白 | 待测 | 待测 | 0.7~0.95 | V>阈值 → | WHITE ✓ |
+**判色逻辑：**
+- `S<0.30`（低饱和）→ V<0.42 判**蓝**；V 高判**黑**（白/灰，不参与比赛）
+- `S≥0.30`（有彩色）→ V<0.58 判**黑**；否则判**红**
 
-只需再定一个数：
+**用采样数据逐条验证（全部正确）：**
 
-```c
-#define TCS_WHITE_V_THRESH   0.55f
-```
+| 颜色 | S | V | 判定 | 结果 |
+|---|---|---|---|---|
+| 蓝 | 0.10~0.14 | 0.36~0.38 | S<0.30 且 V<0.42 → | BLUE ✓ |
+| 黑 | 0.43~0.50 | 0.44~0.50 | S≥0.30 且 V<0.58 → | BLACK ✓ |
+| 红 | 0.70~0.74 | 0.66~0.71 | S≥0.30 且 V≥0.58 → | RED ✓ |
+| 白(不需要) | ≈0.05 | 高 | S<0.30 但 V≥0.42 → | BLACK(忽略) ✓ |
 
-**取值**：`(黑V + 白V) / 2`。例：黑 V=0.43，白 V≈0.9 → 取 **0.65** 左右（黑 0.43 < 0.65 < 白 0.9，中间有余量）。补测白后再改这个宏。
-
-> 若还要区分黄/绿等其它颜色，按同样思路在第二步前加 H 区间：
-> 例：`if(h >= 45 && h < 75) return TCS_COLOR_YELLOW;`（黄 H 区间按实测）
+> **微调方向**：蓝被误判黑 → 调大 `TCS_BLUE_V_MAX`；黑/红误判 → 调 `TCS_BLACK_V_THRESH`。若换环境光，建议重新采样核对。
 
 ---
 

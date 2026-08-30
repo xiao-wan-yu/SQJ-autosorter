@@ -358,7 +358,7 @@ int main(void)
   /* ==================== TCS34725 颜色识别（替换原 1 号灰度传感器 GRAY1） ====================
      SCL=PB9、SDA=PB4（原 GRAY1 的 CLK/DAT 线位），软件 I2C 100kHz，无需改 CubeMX；
      模块供电 3.3V，LED/INT 悬空。GRAY3 仍走串行接口用于循线（GRAY_Data[GRAY3] 依旧可用）。
-     判色由 TCS34725_ClassifyColor() 完成：黑/白/红/橙/黄/绿/青/蓝/品红，
+     判色由 TCS34725_ClassifyColor() 完成：只分 黑/非黑 两类（红蓝统称非黑），
      串口打印原始 C/R/G/B + HSV，可接 SerialPlot 观察并按实际物体标定阈值（见 tcs34725.h）。 */
   uint8_t tcs_online = TCS34725_Init();
   UART1_Printf("TCS34725 %s, ID=0x%02X\r\n",
@@ -369,19 +369,35 @@ int main(void)
     /* GRAY3 仍走串行更新（循线数据 GRAY_Data[GRAY3] 保持有效） */
     GRAY3_Serial_Update();
 
-    /* TCS34725 读颜色：OLED 显示颜色名 + R/G/B + 亮度，串口打印原始数据 */
+    /* TCS34725 读颜色：OLED 显示颜色名 + R/G/B + 亮度（串口不自动刷新，只在按键采样时打印） */
     static TCS34725_RGBC tcs_rgbc = {0};
     if(TCS34725_GetRawData(&tcs_rgbc)){
       uint8_t tcs_col = TCS34725_ClassifyColor(&tcs_rgbc);
       OLED_Printf(0, 0,  OLED_8X16_HALF, "col:%s", TCS34725_ColorName(tcs_col));
       OLED_Printf(0, 16, OLED_8X16_HALF, "R:%3d G:%3d B:%3d", tcs_rgbc.r, tcs_rgbc.g, tcs_rgbc.b);
       OLED_Printf(0, 48, OLED_8X16_HALF, "C:%4d V:%3d%%", tcs_rgbc.c, (uint8_t)(tcs_rgbc.v * 100));
-      UART1_Printf("TCS C:%4d R:%4d G:%4d B:%4d H:%5.1f S:%0.2f V:%0.2f -> %s\r\n",
-                   tcs_rgbc.c, tcs_rgbc.r, tcs_rgbc.g, tcs_rgbc.b,
-                   tcs_rgbc.h, tcs_rgbc.s, tcs_rgbc.v, TCS34725_ColorName(tcs_col));
       delay_ms(200);
     } else {
       OLED_Printf(0, 0, OLED_8X16_HALF, "TCS OFFLINE");
+    }
+
+    /* ==================== 颜色采样：按一次按钮 = 串口发一条当前值 ====================
+       把黑/红/蓝物体放到传感器下，按对应按钮一次，串口立即打一条 H/S/V：
+         按钮2(KEY1)=黑 -> BLK H=.. S=.. V=..
+         按钮3(KEY2)=红 -> RED H=.. S=.. V=..
+         按钮4(KEY3)=蓝 -> BLU H=.. S=.. V=..
+       每色按 8 次共 24 条，直接复制发回来定阈值。 */
+    if(KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){                 /* 按钮2：黑 */
+      TCS34725_GetRawData(&tcs_rgbc);                     /* 按下瞬间重新采一次 */
+      UART1_Printf("BLK H=%5.1f S=%0.2f V=%0.2f\r\n", tcs_rgbc.h, tcs_rgbc.s, tcs_rgbc.v);
+    }
+    if(KEY_ONE(KEY2_GPIO_Port, KEY2_Pin)){                 /* 按钮3：红 */
+      TCS34725_GetRawData(&tcs_rgbc);
+      UART1_Printf("RED H=%5.1f S=%0.2f V=%0.2f\r\n", tcs_rgbc.h, tcs_rgbc.s, tcs_rgbc.v);
+    }
+    if(KEY_ONE(KEY3_GPIO_Port, KEY3_Pin)){                 /* 按钮4：蓝 */
+      TCS34725_GetRawData(&tcs_rgbc);
+      UART1_Printf("BLU H=%5.1f S=%0.2f V=%0.2f\r\n", tcs_rgbc.h, tcs_rgbc.s, tcs_rgbc.v);
     }
 
     HAL_Delay(50);
@@ -600,10 +616,17 @@ int main(void)
             ROBOT_Move(60, -210, 50, 100, 50, 100);
             UART1_Printf("11");
 
-            /*先校准左右再校准前后，前后都需要盲走了*/
-            //
-            
-          
+            /*先校准左右再校准前后，左右走可能会抖，而且前后比左右的反馈更准
+            注意！！！必须先让颜色传感器在左右移动之后一定能进入红色区域，
+            即前后距离必须能确保在红色区域（在哪里无所谓，后面再校准）
+            */
+            //如果为黑色，往右走，此时左右距离没问题，且传感器在红色区域内
+            ROBOT_Move(10, 0, 50, 50, 50, 50);
+            //往前走，走到颜色传感器一定在黑色区域内
+            ROBOT_Move(0, 50, 50, 50, 50, 50);
+            //颜色传感器校准前后：如果为黑色，往后走，直到为红色
+            ROBOT_Move(0, 50, 50, 50, 50, 50);
+            //识别为红色后停下
           }
         }
 
@@ -630,18 +653,81 @@ int main(void)
       UART1_Printf("circle done\r\n");
     }
 
+    if(UART1_Data[0]==6)
+    {
+      UART1_Data[0]=0;
+      /*先校准左右再校准前后，左右走可能会抖，而且前后比左右的反馈更准
+      注意！！！必须先让颜色传感器在左右移动之后一定能进入红/蓝区域，
+      即前后距离必须能确保在红/蓝区域内（在哪里无所谓，后面再校准）
+      */
+      //如果为黑色，匀速往右走，直到传感器进入红/蓝区域
+      //去抖：连续3次(约150ms)都读到红/蓝才确认，交界处"红黑红黑"抖动不会误停
+      ROBOT_MoveSpeed(10, 0);
+      {
+        uint8_t stable = 0;
+        while(1){
+          TCS34725_GetRawData(&tcs_rgbc);
+          if(TCS34725_ClassifyColor(&tcs_rgbc) != TCS_COLOR_BLACK){
+            if(++stable >= 3) break;
+          } else {
+            stable = 0;
+          }
+          HAL_Delay(50);
+        }
+      }
+      
+      //因为加了消抖，所以会稍微多走一小点，再减少一点盲走的距离
+
+      //进入红/蓝后，继续向右多走12，确保停在红/蓝区域内部（避免停在边缘抖动；距离按区域宽度调整），而且确保车身左右都在红/蓝区域内
+      ROBOT_Move(12, 0, 10, 10, 100, 100);
+      
+      //往前走，走到颜色传感器一定在黑色区域内（同样连续3次确认）
+      ROBOT_MoveSpeed(0, 10);
+      {
+        uint8_t stable = 0;
+        while(1){
+          TCS34725_GetRawData(&tcs_rgbc);
+          if(TCS34725_ClassifyColor(&tcs_rgbc) == TCS_COLOR_BLACK){
+            if(++stable >= 3) break;
+          } else {
+            stable = 0;
+          }
+          HAL_Delay(50);
+        }
+      }
+      
+      //颜色传感器校准前后：如果为黑色，匀速往后走，直到进入红/蓝区域（连续3次确认）
+      ROBOT_MoveSpeed(0, -10);
+      {
+        uint8_t stable = 0;
+        while(1){
+          TCS34725_GetRawData(&tcs_rgbc);
+          if(TCS34725_ClassifyColor(&tcs_rgbc) != TCS_COLOR_BLACK){
+            if(++stable >= 3) break;
+          } else {
+            stable = 0;
+          }
+          HAL_Delay(50);
+        }
+      }
+      
+      //识别为红/蓝后继续向后多走3，确保停在红/蓝区域内部（避免停在边缘抖动；距离按区域宽度调整），而且确保车身前后都在红/蓝区域内
+      ROBOT_Move(0, -3, 10, 10, 100, 100);
+      ROBOT_MoveSpeed(0, 0);
+    }
+
     if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)){
       ROBOT_Move(-50, 390, 100, 100, 100, 100);
 
       ROBOT_Angle(270);
     }
 
-    if(KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){
-      //ROBOT_Move(-50, 0, 10, 10, 10, 10);
-      runActionGroup(50, 1);
+    //if(KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){
+    //  //ROBOT_Move(-50, 0, 10, 10, 10, 10);
+    //  runActionGroup(50, 1);
 
       //ROBOT_Angle(270);
-    }
+    //}
 
     // /* 串口打印角度环数据（目标/实际/输出w + 里程计位置x/y），SerialPlot 观察走直线纠偏/转向收敛
     //    并解析串口调参指令：kp/ki/kd/target 角度环、vx/vy 手动、mx/my 走距、mv/mvacc 规划速度 */

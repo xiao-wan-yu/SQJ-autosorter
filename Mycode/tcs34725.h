@@ -65,6 +65,7 @@
 /* ==================== 颜色分类结果 ==================== */
 #define TCS_COLOR_UNKNOWN   0
 #define TCS_COLOR_BLACK     1
+#define TCS_COLOR_NONBLACK  10
 #define TCS_COLOR_WHITE     2
 #define TCS_COLOR_RED       3
 #define TCS_COLOR_ORANGE    4
@@ -74,17 +75,20 @@
 #define TCS_COLOR_BLUE      8
 #define TCS_COLOR_MAGENTA   9
 
-/* ==================== 颜色分类阈值（按实际物体/环境光标定） ====================
- * 判色采用"色相优先"（见 TCS34725_ClassifyColor）：
- *   蓝相区 H∈[200,280) -> 蓝；红相区 H<20 或 H>=340 -> 红；
- *   低饱和 s<TCS_WHITE_S_THRESH -> 按 v 分黑/白；
- *   其余按 h 区间扩展 橙/黄/绿/青/品红。
- * 2026-08-30 实测：黑 S=0.33 偏高、蓝 S=0.12 偏低、黑 V(0.43) > 蓝 V(0.38)，
- *   所以 TCS_WHITE_S_THRESH 须调到 0.35 左右才能把"黑"收进黑白分支。
- * 白 V 待测：TCS_WHITE_V_THRESH 最终取 (黑V + 白V)/2。 */
-#define TCS_BLACK_V_THRESH   0.06f   /* 备用（色相优先方案当前未直接使用） */
-#define TCS_WHITE_S_THRESH   0.35f   /* 饱和度低于此判灰/白（黑 S=0.33 需略高于 0.33） */
-#define TCS_WHITE_V_THRESH   0.55f   /* 黑白分界：取黑V 与 白V 的中间值，白测后微调 */
+/* ==================== 颜色分类阈值（2026-08-30 按 24 次采样数据标定） ====================
+ * 判色分 黑 / 红 / 蓝 三色，用 S、V 分类（不用 H，实测蓝 H≈300 不在蓝相区）：
+ *   黑 H≈20  S=0.43~0.50 V=0.44~0.50
+ *   红 H≈0~4 S=0.70~0.74 V=0.66~0.71
+ *   蓝 H≈300 S=0.10~0.14 V=0.36~0.38
+ * 规则（见 TCS34725_ClassifyColor）：
+ *   低饱和 s<TCS_BLUE_S_MAX -> V<TCS_BLUE_V_MAX 判蓝；否则判黑（白/灰，不参与比赛）
+ *   其余有彩色          -> V<TCS_BLACK_V_THRESH 判黑；否则判红
+ * 微调：蓝被误判黑 -> 调大 TCS_BLUE_V_MAX；黑/红误判 -> 调 TCS_BLACK_V_THRESH。 */
+#define TCS_BLUE_S_MAX     0.30f   /* 低饱和阈值（蓝 S≤0.14，黑 S≥0.43，取中间） */
+#define TCS_BLUE_V_MAX     0.42f   /* 低饱和时亮度低于此判蓝（蓝 V≤0.38） */
+#define TCS_BLACK_V_THRESH 0.58f   /* 有彩色时亮度低于此判黑（黑 V≤0.50，红 V≥0.66） */
+#define TCS_WHITE_S_THRESH 0.35f   /* 备用 */
+#define TCS_WHITE_V_THRESH 0.55f   /* 备用 */
 
 /* ==================== 一次采样的完整结果 ==================== */
 typedef struct {

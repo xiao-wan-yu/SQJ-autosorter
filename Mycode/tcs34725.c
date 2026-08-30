@@ -266,29 +266,20 @@ uint8_t TCS34725_GetRawData(TCS34725_RGBC *rgbc)
 uint8_t TCS34725_ClassifyColor(const TCS34725_RGBC *rgbc)
 {
   if(!rgbc) return TCS_COLOR_UNKNOWN;
-  float h = rgbc->h;
 
-  /* ===== 色相优先（2026-08-30 按实测标定：蓝 S=0.12 太低、黑 S=0.33 不低、
-            黑 V(0.43) > 蓝 V(0.38)，只能先按色相把蓝/红收走，
-            剩下的低饱和/暗色才判黑/白）===== */
+  /* ===== 三色：黑/红/蓝（2026-08-30 按 24 次采样数据标定）=====
+     采样结果：
+       黑 H≈20  S=0.43~0.50 V=0.44~0.50
+       红 H≈0~4 S=0.70~0.74 V=0.66~0.71
+       蓝 H≈300 S=0.10~0.14 V=0.36~0.38（蓝 S/V 都很低，H 不在蓝相区！）
+     所以用 S、V 分类（不用 H）：
+       低饱和 s<TCS_BLUE_S_MAX -> V<TCS_BLUE_V_MAX 判蓝；否则判黑（白/灰不参与比赛）
+       其余有彩色          -> V<TCS_BLACK_V_THRESH 判黑；否则判红 */
 
-  /* 1) 蓝色：H 在蓝相区 200~280（必须限定下界，否则黑 H=30 会误判成蓝） */
-  if(h >= 200.0f && h < 280.0f) return TCS_COLOR_BLUE;
-
-  /* 2) 红色：H 在 0~20 或 340~360 */
-  if(h < 20.0f || h >= 340.0f)  return TCS_COLOR_RED;
-
-  /* 3) 低饱和/无彩色 -> 黑/白/灰（按亮度 V 分）
-        注意：黑 S=0.33 想判黑，须把 TCS_WHITE_S_THRESH 调到 0.35 左右 */
-  if(rgbc->s < TCS_WHITE_S_THRESH)
-    return (rgbc->v > TCS_WHITE_V_THRESH) ? TCS_COLOR_WHITE : TCS_COLOR_BLACK;
-
-  /* 4) 其余有彩色：按色相区间扩展（橙/黄/绿/青/品红，未标定颜色保持默认区间） */
-  if(h < 45.0f)  return TCS_COLOR_ORANGE;
-  if(h < 75.0f)  return TCS_COLOR_YELLOW;
-  if(h < 160.0f) return TCS_COLOR_GREEN;
-  if(h < 200.0f) return TCS_COLOR_CYAN;
-  if(h < 320.0f) return TCS_COLOR_MAGENTA;
+  if(rgbc->s < TCS_BLUE_S_MAX){
+    return (rgbc->v < TCS_BLUE_V_MAX) ? TCS_COLOR_BLUE : TCS_COLOR_BLACK;
+  }
+  if(rgbc->v < TCS_BLACK_V_THRESH) return TCS_COLOR_BLACK;
   return TCS_COLOR_RED;
 }
 
@@ -296,6 +287,7 @@ const char *TCS34725_ColorName(uint8_t color)
 {
   switch(color){
     case TCS_COLOR_BLACK:   return "BLACK";
+    case TCS_COLOR_NONBLACK: return "NON-BLACK";
     case TCS_COLOR_WHITE:   return "WHITE";
     case TCS_COLOR_RED:     return "RED";
     case TCS_COLOR_ORANGE:  return "ORANGE";
