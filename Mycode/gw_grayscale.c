@@ -63,12 +63,15 @@ void GRAY3_Serial_Update(void)
 
 /**
   * @brief  一次刷新 GRAY_Data（深/浅判断由调用方做）
-  * @note   GRAY1/GRAY3 都走串行接口读 8 路数字量（0=深、1=浅）
+  * @note   GRAY1 已被 TCS34725 颜色传感器替换（PB9/PB4 改作软件 I2C），
+  *         不再走串行读取，见 Mycode/tcs34725.c。若恢复 GRAY1，取消下行注释即可。
+  *         GRAY3 仍走串行接口读 8 路数字量（0=深、1=浅）
   *         GRAY2 暂不使用（启用时加一行 GRAY2_Serial_Update() 即可，需先配好引脚）
   */
 void GRAY_Update(void)
 {
-  GRAY1_Serial_Update();
+  /* GRAY1 已替换为 TCS34725，禁止再驱动 PB9/PB4（会干扰 I2C） */
+  /* GRAY1_Serial_Update(); */
   /* GRAY2 暂不使用 */
   GRAY3_Serial_Update();
 }

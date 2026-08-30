@@ -1,0 +1,6 @@
+[INFO] Building...
+[1/1] Linking C executable 7_AutomatedSortingRobot_26.elf
+Memory region         Used Size  Region Size  %age Used
+             RAM:        6864 B       128 KB      5.24%
+          CCMRAM:           0 B        64 KB      0.00%
+           FLASH:       76924 B       512 KB     14.67%

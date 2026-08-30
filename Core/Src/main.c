@@ -46,6 +46,7 @@
 #include "./../../Mycode/myflash.h"
 #include "./../../Mycode/storage.h"
 #include "./../../Mycode/gw_grayscale.h"
+#include "./../../Mycode/tcs34725.h"
 #include "./../../Mycode/hwt101ct.h"
 #include "./../../Mycode/robot.h"
 #include "./../../Mycode/vision.h"
@@ -354,78 +355,34 @@ int main(void)
   // ROBOT_MoveSpeed(0,0);
   // ROBOT_Move(0, 200, 30, 30, 30, 30);
 
-  /* ==================== 灰度模拟量（颜色识别）演示 ====================
-     GRAY1 切到 I2C 模式（软件 I2C 复用 PB9=SCL/PB4=SDA），读 8 路模拟量 0~255 判色；
-     GRAY3 仍走串行接口用于循线（GRAY_Data[GRAY3] 依旧可用）。
-     注意：GRAY1 进入 I2C 模式后，其串行数字量读取失效（数字量改读 0xDD 寄存器）。
-     地址自动探测 0x4F/0x4C，且循环内首次读取会自动重试初始化，上电时序问题已规避。
-     若要改用 GRAY3 判色：把下面 GRAY1 全部换成 GRAY3，并把 GRAY3 的串行显示删掉。 */
-  /* 先扫描 4 个候选地址的应答情况（诊断用），再正式初始化 */
-  uint8_t hit = 0;
-  uint8_t hit_n = GRAY_ScanAddrs(GRAY1, &hit);
-  UART1_Printf("addr scan: %d hit, first=0x%02X\r\n", hit_n, hit);
-
-  uint8_t gray1_online = GRAY_I2C_Init(GRAY1);
-  UART1_Printf("GRAY1 I2C %s, addr=0x%02X\r\n",
-               gray1_online ? "online" : "OFFLINE", GRAY_GetDevAddr(GRAY1));
-  /* 颜色阈值：占位值，必须按黑/蓝/红/白实物实测标定！
-     经验起点：黑≈10、蓝≈60、红≈120、白≈240
-     -> th_black_blue=35、th_blue_red=90、th_red_white=180 */
-  GRAY_ColorThresholds color_th = {35, 90, 180};
-  uint8_t color_ch = 4;                 /* 判色用的探头号 1~8，按实际摆放改 */
+  /* ==================== TCS34725 颜色识别（替换原 1 号灰度传感器 GRAY1） ====================
+     SCL=PB9、SDA=PB4（原 GRAY1 的 CLK/DAT 线位），软件 I2C 100kHz，无需改 CubeMX；
+     模块供电 3.3V，LED/INT 悬空。GRAY3 仍走串行接口用于循线（GRAY_Data[GRAY3] 依旧可用）。
+     判色由 TCS34725_ClassifyColor() 完成：黑/白/红/橙/黄/绿/青/蓝/品红，
+     串口打印原始 C/R/G/B + HSV，可接 SerialPlot 观察并按实际物体标定阈值（见 tcs34725.h）。 */
+  uint8_t tcs_online = TCS34725_Init();
+  UART1_Printf("TCS34725 %s, ID=0x%02X\r\n",
+               tcs_online ? "ONLINE" : "OFFLINE", TCS34725_GetID());
 
   while (1)
   {
-    GRAY_Update();
-    //OLED_Printf(0, 0,  OLED_8X16_HALF, "G1:%1d%1d%1d%1d%1d%1d%1d%1d",
-    //            GRAY_Data[GRAY1][0],GRAY_Data[GRAY1][1],GRAY_Data[GRAY1][2],GRAY_Data[GRAY1][3],
-    //            GRAY_Data[GRAY1][4],GRAY_Data[GRAY1][5],GRAY_Data[GRAY1][6],GRAY_Data[GRAY1][7]);
-    // OLED_Printf(0, 32, OLED_8X16_HALF, "G3:%1d%1d%1d%1d%1d%1d%1d%1d",
-    //             GRAY_Data[GRAY3][0],GRAY_Data[GRAY3][1],GRAY_Data[GRAY3][2],GRAY_Data[GRAY3][3],
-    //             GRAY_Data[GRAY3][4],GRAY_Data[GRAY3][5],GRAY_Data[GRAY3][6],GRAY_Data[GRAY3][7]);
-
-    /* ===== (merge自 backup_26853eb) 失败的区分红蓝黑白实验代码 2026.8.27 ===== */
-    /* ===== 启动诊断（只打一次）：读绿光款关键寄存器，确认寄存器地址是否与红外款相同 ===== */
-    static uint8_t diag_done = 0;
-    if(!diag_done){
-      diag_done = 1;
-      uint8_t aa = 0, dd = 0, fw = 0, o0 = 0, o1 = 0;
-      uint8_t r_aa = GRAY_ReadReg(GRAY1, 0xAA, &aa);     // 在线寄存器：红外款应回 0x66
-      GRAY_ReadReg(GRAY1, 0xDD, &dd);                    // 数字量寄存器：黑白应能区分
-      GRAY_ReadReg(GRAY1, 0xC1, &fw);                    // 固件版本
-      GRAY_ReadReg(GRAY1, 0x88, &o0);
-      GRAY_ReadReg(GRAY1, 0x89, &o1);
-      UART1_Printf("DIAG 0xAA=%02X(%d) 0xDD=%02X FW=0x%02X OFS=0x%02X%02X\r\n",
-                   aa, r_aa, dd, fw, o1, o0);
-      uint8_t bv[8];
-      for(uint8_t i = 0; i < 8; i++){ uint8_t d = 0; GRAY_ReadReg(GRAY1, 0xB0 + i, &d); bv[i] = d; }
-      UART1_Printf("DIAG B0..B7=%02X %02X %02X %02X %02X %02X %02X %02X\r\n",
-                   bv[0], bv[1], bv[2], bv[3], bv[4], bv[5], bv[6], bv[7]);
-    }
-
-    /* GRAY1 读 8 路模拟量 + 颜色分类（越大越浅：黑<蓝<红<白） */
-    uint8_t an1[8] = {0};
-    uint8_t ok = GRAY_GetAnalogAll(GRAY1, an1);     // 内部自动重试初始化
-    uint8_t col = GRAY_ColorClassify(an1[color_ch - 1], &color_th);
-
-    /* 诊断：SDA空闲电平 + 假地址Ping，验证 I2C 是否真的通
-       （若假地址 0x00/0x7F 也显示1，说明 ACK 是假象，模块未真正进入 I2C） */
-    uint8_t sda_idle = GRAY_ReadSDA(GRAY1);
-    uint8_t p0  = GRAY_PingAny(GRAY1, 0x00);
-    uint8_t p7f = GRAY_PingAny(GRAY1, 0x7F);
-    uint8_t p4c = GRAY_PingAny(GRAY1, 0x4C);
-
-    OLED_Printf(0, 0,  OLED_8X16_HALF, "S:%1d P0:%d P4C:%d", sda_idle, p0, p4c);
-    OLED_Printf(0, 16, OLED_8X16_HALF, "P7F:%d A:%3d %s", p7f, an1[color_ch - 1], ok ? "OK" : "FAIL");
-    OLED_Printf(0, 32, OLED_8X16_HALF, "col:%s", GRAY_ColorName(col));
-    /* OLED 显示前 4 路实际读数，方便直接标定阈值 */
-    OLED_Printf(0, 48, OLED_8X16_HALF, "A:%3d%3d%3d%3d", an1[0], an1[1], an1[2], an1[3]);
-    /* 串口输出全部 8 路模拟量，可接 SerialPlot 观察/标定阈值 */
-    UART1_Printf("G1A:%3d %3d %3d %3d %3d %3d %3d %3d\r\n",
-                 an1[0], an1[1], an1[2], an1[3], an1[4], an1[5], an1[6], an1[7]);
-
     /* GRAY3 仍走串行更新（循线数据 GRAY_Data[GRAY3] 保持有效） */
     GRAY3_Serial_Update();
+
+    /* TCS34725 读颜色：OLED 显示颜色名 + R/G/B + 亮度，串口打印原始数据 */
+    static TCS34725_RGBC tcs_rgbc = {0};
+    if(TCS34725_GetRawData(&tcs_rgbc)){
+      uint8_t tcs_col = TCS34725_ClassifyColor(&tcs_rgbc);
+      OLED_Printf(0, 0,  OLED_8X16_HALF, "col:%s", TCS34725_ColorName(tcs_col));
+      OLED_Printf(0, 16, OLED_8X16_HALF, "R:%3d G:%3d B:%3d", tcs_rgbc.r, tcs_rgbc.g, tcs_rgbc.b);
+      OLED_Printf(0, 48, OLED_8X16_HALF, "C:%4d V:%3d%%", tcs_rgbc.c, (uint8_t)(tcs_rgbc.v * 100));
+      UART1_Printf("TCS C:%4d R:%4d G:%4d B:%4d H:%5.1f S:%0.2f V:%0.2f -> %s\r\n",
+                   tcs_rgbc.c, tcs_rgbc.r, tcs_rgbc.g, tcs_rgbc.b,
+                   tcs_rgbc.h, tcs_rgbc.s, tcs_rgbc.v, TCS34725_ColorName(tcs_col));
+      delay_ms(200);
+    } else {
+      OLED_Printf(0, 0, OLED_8X16_HALF, "TCS OFFLINE");
+    }
 
     HAL_Delay(50);
     //测距，2是前面的，1是后面的

@@ -60,14 +60,14 @@
 				{
 					"directoryIndex" : 0,
 					"id" : "7_AutomatedSortingRobot_26::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-7_AutomatedSortingRobot_26-Debug-8edaef4006158df481d2.json",
+					"jsonFile" : "target-7_AutomatedSortingRobot_26-Debug-7136b266a1eb311838f7.json",
 					"name" : "7_AutomatedSortingRobot_26",
 					"projectIndex" : 0
 				},
 				{
 					"directoryIndex" : 1,
 					"id" : "STM32_Drivers::@768a070a0fe75716b479",
-					"jsonFile" : "target-STM32_Drivers-Debug-5839042376db5657c567.json",
+					"jsonFile" : "target-STM32_Drivers-Debug-33a76f7f1137047d1672.json",
 					"name" : "STM32_Drivers",
 					"projectIndex" : 0
 				}

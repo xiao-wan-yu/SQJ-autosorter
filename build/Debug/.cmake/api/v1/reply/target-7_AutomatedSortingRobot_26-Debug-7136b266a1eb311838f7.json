@@ -31,7 +31,7 @@
 			{
 				"command" : 0,
 				"file" : 0,
-				"line" : 85,
+				"line" : 79,
 				"parent" : 0
 			},
 			{
@@ -41,36 +41,24 @@
 				"parent" : 0
 			},
 			{
-				"command" : 1,
-				"file" : 0,
-				"line" : 45,
-				"parent" : 0
-			},
-			{
 				"file" : 1
 			},
 			{
 				"command" : 2,
 				"file" : 1,
-				"line" : 91,
-				"parent" : 4
-			},
-			{
-				"command" : 2,
-				"file" : 0,
-				"line" : 91,
-				"parent" : 0
+				"line" : 86,
+				"parent" : 3
 			},
 			{
 				"command" : 3,
 				"file" : 1,
-				"line" : 94,
-				"parent" : 4
+				"line" : 89,
+				"parent" : 3
 			},
 			{
 				"command" : 3,
 				"file" : 0,
-				"line" : 164,
+				"line" : 148,
 				"parent" : 0
 			},
 			{
@@ -88,19 +76,19 @@
 			{
 				"command" : 5,
 				"file" : 0,
-				"line" : 145,
+				"line" : 129,
 				"parent" : 0
 			},
 			{
 				"command" : 6,
 				"file" : 1,
-				"line" : 88,
-				"parent" : 4
+				"line" : 83,
+				"parent" : 3
 			},
 			{
 				"command" : 6,
 				"file" : 0,
-				"line" : 97,
+				"line" : 91,
 				"parent" : 0
 			}
 		]
@@ -114,98 +102,98 @@
 					"fragment" : " -mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard  -Wall -Wextra -Wpedantic -fdata-sections -ffunction-sections -O0 -g3 -std=gnu11"
 				},
 				{
-					"backtrace" : 9,
+					"backtrace" : 7,
 					"fragment" : "-u"
 				},
 				{
-					"backtrace" : 9,
+					"backtrace" : 7,
 					"fragment" : "_printf_float"
 				},
 				{
-					"backtrace" : 9,
+					"backtrace" : 7,
 					"fragment" : "-Wl,--wrap,printf"
 				},
 				{
-					"backtrace" : 10,
+					"backtrace" : 8,
 					"fragment" : "-mcpu=cortex-m4"
 				},
 				{
-					"backtrace" : 10,
+					"backtrace" : 8,
 					"fragment" : "-mthumb"
 				},
 				{
-					"backtrace" : 10,
+					"backtrace" : 8,
 					"fragment" : "-mfloat-abi=hard"
 				},
 				{
-					"backtrace" : 10,
+					"backtrace" : 8,
 					"fragment" : "-mfpu=fpv4-sp-d16"
 				}
 			],
 			"defines" : 
 			[
 				{
-					"backtrace" : 7,
+					"backtrace" : 5,
 					"define" : "DEBUG"
 				},
 				{
-					"backtrace" : 7,
+					"backtrace" : 5,
 					"define" : "STM32F407xx"
 				},
 				{
-					"backtrace" : 7,
+					"backtrace" : 5,
 					"define" : "USE_HAL_DRIVER"
 				}
 			],
 			"includes" : 
 			[
 				{
-					"backtrace" : 11,
+					"backtrace" : 9,
 					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Mycode"
 				},
 				{
-					"backtrace" : 11,
+					"backtrace" : 9,
 					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Mycode/mpu6050"
 				},
 				{
-					"backtrace" : 11,
+					"backtrace" : 9,
 					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Mycode/icm42688"
 				},
 				{
-					"backtrace" : 11,
+					"backtrace" : 9,
 					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Drivers/CMSIS/DSP/Include"
 				},
 				{
-					"backtrace" : 11,
+					"backtrace" : 9,
 					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Drivers/CMSIS/DSP/Include/dsp"
 				},
 				{
-					"backtrace" : 11,
+					"backtrace" : 9,
 					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Mycode/oled_jiangkeda"
 				},
 				{
-					"backtrace" : 7,
-					"path" : "G:/STM32/7_AutomatedSortingRobot_26/cmake/stm32cubemx/../../Core/Inc"
+					"backtrace" : 5,
+					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Core/Inc"
 				},
 				{
-					"backtrace" : 7,
-					"path" : "G:/STM32/7_AutomatedSortingRobot_26/cmake/stm32cubemx/../../Drivers/STM32F4xx_HAL_Driver/Inc"
+					"backtrace" : 5,
+					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Drivers/STM32F4xx_HAL_Driver/Inc"
 				},
 				{
-					"backtrace" : 7,
-					"path" : "G:/STM32/7_AutomatedSortingRobot_26/cmake/stm32cubemx/../../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy"
+					"backtrace" : 5,
+					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy"
 				},
 				{
-					"backtrace" : 7,
-					"path" : "G:/STM32/7_AutomatedSortingRobot_26/cmake/stm32cubemx/../../Drivers/CMSIS/Device/ST/STM32F4xx/Include"
+					"backtrace" : 5,
+					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Drivers/CMSIS/Device/ST/STM32F4xx/Include"
 				},
 				{
-					"backtrace" : 7,
-					"path" : "G:/STM32/7_AutomatedSortingRobot_26/cmake/stm32cubemx/../../Drivers/CMSIS/Include"
+					"backtrace" : 5,
+					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Drivers/CMSIS/Include"
 				},
 				{
-					"backtrace" : 7,
-					"path" : "G:/STM32/7_AutomatedSortingRobot_26/cmake/stm32cubemx/../../Middlewares/ST/ARM/DSP/Inc"
+					"backtrace" : 5,
+					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Middlewares/ST/ARM/DSP/Inc"
 				}
 			],
 			"language" : "C",
@@ -255,10 +243,7 @@
 				34,
 				35,
 				36,
-				37,
-				38,
-				39,
-				40
+				37
 			]
 		},
 		{
@@ -268,98 +253,98 @@
 					"fragment" : " -mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard  -x assembler-with-cpp -MMD -MP -g"
 				},
 				{
-					"backtrace" : 9,
+					"backtrace" : 7,
 					"fragment" : "-u"
 				},
 				{
-					"backtrace" : 9,
+					"backtrace" : 7,
 					"fragment" : "_printf_float"
 				},
 				{
-					"backtrace" : 9,
+					"backtrace" : 7,
 					"fragment" : "-Wl,--wrap,printf"
 				},
 				{
-					"backtrace" : 10,
+					"backtrace" : 8,
 					"fragment" : "-mcpu=cortex-m4"
 				},
 				{
-					"backtrace" : 10,
+					"backtrace" : 8,
 					"fragment" : "-mthumb"
 				},
 				{
-					"backtrace" : 10,
+					"backtrace" : 8,
 					"fragment" : "-mfloat-abi=hard"
 				},
 				{
-					"backtrace" : 10,
+					"backtrace" : 8,
 					"fragment" : "-mfpu=fpv4-sp-d16"
 				}
 			],
 			"defines" : 
 			[
 				{
-					"backtrace" : 7,
+					"backtrace" : 5,
 					"define" : "DEBUG"
 				},
 				{
-					"backtrace" : 7,
+					"backtrace" : 5,
 					"define" : "STM32F407xx"
 				},
 				{
-					"backtrace" : 7,
+					"backtrace" : 5,
 					"define" : "USE_HAL_DRIVER"
 				}
 			],
 			"includes" : 
 			[
 				{
-					"backtrace" : 11,
+					"backtrace" : 9,
 					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Mycode"
 				},
 				{
-					"backtrace" : 11,
+					"backtrace" : 9,
 					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Mycode/mpu6050"
 				},
 				{
-					"backtrace" : 11,
+					"backtrace" : 9,
 					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Mycode/icm42688"
 				},
 				{
-					"backtrace" : 11,
+					"backtrace" : 9,
 					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Drivers/CMSIS/DSP/Include"
 				},
 				{
-					"backtrace" : 11,
+					"backtrace" : 9,
 					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Drivers/CMSIS/DSP/Include/dsp"
 				},
 				{
-					"backtrace" : 11,
+					"backtrace" : 9,
 					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Mycode/oled_jiangkeda"
 				},
 				{
-					"backtrace" : 7,
-					"path" : "G:/STM32/7_AutomatedSortingRobot_26/cmake/stm32cubemx/../../Core/Inc"
+					"backtrace" : 5,
+					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Core/Inc"
 				},
 				{
-					"backtrace" : 7,
-					"path" : "G:/STM32/7_AutomatedSortingRobot_26/cmake/stm32cubemx/../../Drivers/STM32F4xx_HAL_Driver/Inc"
+					"backtrace" : 5,
+					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Drivers/STM32F4xx_HAL_Driver/Inc"
 				},
 				{
-					"backtrace" : 7,
-					"path" : "G:/STM32/7_AutomatedSortingRobot_26/cmake/stm32cubemx/../../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy"
+					"backtrace" : 5,
+					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy"
 				},
 				{
-					"backtrace" : 7,
-					"path" : "G:/STM32/7_AutomatedSortingRobot_26/cmake/stm32cubemx/../../Drivers/CMSIS/Device/ST/STM32F4xx/Include"
+					"backtrace" : 5,
+					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Drivers/CMSIS/Device/ST/STM32F4xx/Include"
 				},
 				{
-					"backtrace" : 7,
-					"path" : "G:/STM32/7_AutomatedSortingRobot_26/cmake/stm32cubemx/../../Drivers/CMSIS/Include"
+					"backtrace" : 5,
+					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Drivers/CMSIS/Include"
 				},
 				{
-					"backtrace" : 7,
-					"path" : "G:/STM32/7_AutomatedSortingRobot_26/cmake/stm32cubemx/../../Middlewares/ST/ARM/DSP/Inc"
+					"backtrace" : 5,
+					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Middlewares/ST/ARM/DSP/Inc"
 				}
 			],
 			"language" : "ASM",
@@ -372,7 +357,7 @@
 	"dependencies" : 
 	[
 		{
-			"backtrace" : 7,
+			"backtrace" : 5,
 			"id" : "STM32_Drivers::@768a070a0fe75716b479"
 		}
 	],
@@ -431,52 +416,22 @@
 				"role" : "flags"
 			},
 			{
-				"backtrace" : 3,
-				"fragment" : "-T",
-				"role" : "flags"
-			},
-			{
-				"backtrace" : 3,
-				"fragment" : "G:/STM32/7_AutomatedSortingRobot_26/STM32F407xx_FLASH.ld",
-				"role" : "flags"
-			},
-			{
-				"backtrace" : 3,
-				"fragment" : "--specs=nano.specs",
-				"role" : "flags"
-			},
-			{
-				"backtrace" : 5,
-				"fragment" : "-LG:\\STM32\\7_AutomatedSortingRobot_26\\cmake\\stm32cubemx\\..\\..\\Middlewares\\ST\\ARM\\DSP\\Lib",
-				"role" : "libraryPath"
-			},
-			{
-				"backtrace" : 6,
+				"backtrace" : 4,
 				"fragment" : "-LG:\\STM32\\7_AutomatedSortingRobot_26\\Middlewares\\ST\\ARM\\DSP\\Lib",
 				"role" : "libraryPath"
 			},
 			{
-				"backtrace" : 7,
-				"fragment" : "-Wl,--start-group",
-				"role" : "libraries"
-			},
-			{
-				"backtrace" : 7,
+				"backtrace" : 5,
 				"fragment" : "-l:libarm_cortexM4lf_math.a",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 7,
-				"fragment" : "-Wl,--end-group",
-				"role" : "libraries"
-			},
-			{
-				"backtrace" : 8,
+				"backtrace" : 6,
 				"fragment" : "-larm_cortexM4lf_math",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 8,
+				"backtrace" : 6,
 				"fragment" : "-lm",
 				"role" : "libraries"
 			}
@@ -532,10 +487,7 @@
 				34,
 				35,
 				36,
-				37,
-				38,
-				39,
-				40
+				37
 			]
 		},
 		{
@@ -549,6 +501,9 @@
 			"name" : "Object Libraries",
 			"sourceIndexes" : 
 			[
+				38,
+				39,
+				40,
 				41,
 				42,
 				43,
@@ -562,373 +517,338 @@
 				51,
 				52,
 				53,
-				54,
-				55,
-				56,
-				57,
-				58,
-				59
+				54
 			]
 		}
 	],
 	"sources" : 
 	[
 		{
-			"backtrace" : 12,
+			"backtrace" : 10,
 			"compileGroupIndex" : 0,
 			"path" : "Core/Src/main.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 12,
+			"backtrace" : 10,
 			"compileGroupIndex" : 0,
 			"path" : "Core/Src/gpio.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 12,
+			"backtrace" : 10,
 			"compileGroupIndex" : 0,
-			"path" : "Core/Src/i2c.c",
+			"path" : "Core/Src/dma.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 12,
+			"backtrace" : 10,
 			"compileGroupIndex" : 0,
 			"path" : "Core/Src/tim.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 12,
+			"backtrace" : 10,
 			"compileGroupIndex" : 0,
 			"path" : "Core/Src/usart.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 12,
+			"backtrace" : 10,
 			"compileGroupIndex" : 0,
 			"path" : "Core/Src/stm32f4xx_it.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 12,
+			"backtrace" : 10,
 			"compileGroupIndex" : 0,
 			"path" : "Core/Src/stm32f4xx_hal_msp.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 12,
+			"backtrace" : 10,
 			"compileGroupIndex" : 0,
 			"path" : "Core/Src/sysmem.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 12,
+			"backtrace" : 10,
 			"compileGroupIndex" : 0,
 			"path" : "Core/Src/syscalls.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 12,
+			"backtrace" : 10,
 			"compileGroupIndex" : 1,
 			"path" : "startup_stm32f407xx.s",
 			"sourceGroupIndex" : 1
 		},
 		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
 			"path" : "Mycode/led.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
 			"path" : "Mycode/uart.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
 			"path" : "Mycode/delay.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
 			"path" : "Mycode/key.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
-			"compileGroupIndex" : 0,
-			"path" : "Mycode/mpu6050.c",
-			"sourceGroupIndex" : 0
-		},
-		{
-			"backtrace" : 13,
-			"compileGroupIndex" : 0,
-			"path" : "Mycode/gray.c",
-			"sourceGroupIndex" : 0
-		},
-		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
 			"path" : "Mycode/buzzer.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
 			"path" : "Mycode/laser.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
-			"compileGroupIndex" : 0,
-			"path" : "Mycode/infrared.c",
-			"sourceGroupIndex" : 0
-		},
-		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
 			"path" : "Mycode/gy53.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
-			"path" : "Mycode/ultrasonic.c",
+			"path" : "Mycode/lobot_servo.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
-			"compileGroupIndex" : 0,
-			"path" : "Mycode/servo.c",
-			"sourceGroupIndex" : 0
-		},
-		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
 			"path" : "Mycode/tb6612.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
-			"compileGroupIndex" : 0,
-			"path" : "Mycode/car.c",
-			"sourceGroupIndex" : 0
-		},
-		{
-			"backtrace" : 13,
-			"compileGroupIndex" : 0,
-			"path" : "Mycode/velocityProfile.c",
-			"sourceGroupIndex" : 0
-		},
-		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
 			"path" : "Mycode/encoder.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
-			"path" : "Mycode/emm_v5.c",
+			"path" : "Mycode/chassis.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
 			"path" : "Mycode/serialplot.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
 			"path" : "Mycode/pid.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
-			"compileGroupIndex" : 0,
-			"path" : "Mycode/icm42688.c",
-			"sourceGroupIndex" : 0
-		},
-		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
 			"path" : "Mycode/myflash.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
 			"path" : "Mycode/storage.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
-			"path" : "Mycode/nmos.c",
+			"path" : "Mycode/velocityProfile.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
-			"path" : "Mycode/mpu6050/mpu.c",
+			"path" : "Mycode/gw_grayscale.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
-			"path" : "Mycode/mpu6050/inv_mpu.c",
+			"path" : "Mycode/gw_softi2c.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
-			"path" : "Mycode/mpu6050/iic.c",
+			"path" : "Mycode/tcs34725.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
-			"path" : "Mycode/mpu6050/inv_mpu_dmp_motion_driver.c",
+			"path" : "Mycode/hwt101ct.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
-			"path" : "Mycode/icm42688/icm42688.c",
+			"path" : "Mycode/robot.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
-			"path" : "Mycode/icm42688/quaternion.c",
+			"path" : "Mycode/circle.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
-			"path" : "Mycode/oled_jiangkeda/oled.c",
+			"path" : "Mycode/oled_ui/oled_driver.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 13,
+			"backtrace" : 11,
 			"compileGroupIndex" : 0,
-			"path" : "Mycode/oled_jiangkeda/oled_data.c",
+			"path" : "Mycode/oled_ui/oled_fonts.c",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 7,
+			"backtrace" : 11,
+			"compileGroupIndex" : 0,
+			"path" : "Mycode/oled_ui/oled_ui_driver.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 11,
+			"compileGroupIndex" : 0,
+			"path" : "Mycode/oled_ui/oled_ui_menudata.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 11,
+			"compileGroupIndex" : 0,
+			"path" : "Mycode/oled_ui/oled_ui.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 11,
+			"compileGroupIndex" : 0,
+			"path" : "Mycode/oled_ui/oled.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 5,
 			"isGenerated" : true,
 			"path" : "build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Core/Src/system_stm32f4xx.c.obj",
 			"sourceGroupIndex" : 2
 		},
 		{
-			"backtrace" : 7,
-			"isGenerated" : true,
-			"path" : "build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c.c.obj",
-			"sourceGroupIndex" : 2
-		},
-		{
-			"backtrace" : 7,
-			"isGenerated" : true,
-			"path" : "build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c_ex.c.obj",
-			"sourceGroupIndex" : 2
-		},
-		{
-			"backtrace" : 7,
+			"backtrace" : 5,
 			"isGenerated" : true,
 			"path" : "build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c.obj",
 			"sourceGroupIndex" : 2
 		},
 		{
-			"backtrace" : 7,
+			"backtrace" : 5,
 			"isGenerated" : true,
 			"path" : "build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c.obj",
 			"sourceGroupIndex" : 2
 		},
 		{
-			"backtrace" : 7,
+			"backtrace" : 5,
 			"isGenerated" : true,
 			"path" : "build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash.c.obj",
 			"sourceGroupIndex" : 2
 		},
 		{
-			"backtrace" : 7,
+			"backtrace" : 5,
 			"isGenerated" : true,
 			"path" : "build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ex.c.obj",
 			"sourceGroupIndex" : 2
 		},
 		{
-			"backtrace" : 7,
+			"backtrace" : 5,
 			"isGenerated" : true,
 			"path" : "build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ramfunc.c.obj",
 			"sourceGroupIndex" : 2
 		},
 		{
-			"backtrace" : 7,
+			"backtrace" : 5,
 			"isGenerated" : true,
 			"path" : "build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.c.obj",
 			"sourceGroupIndex" : 2
 		},
 		{
-			"backtrace" : 7,
+			"backtrace" : 5,
 			"isGenerated" : true,
 			"path" : "build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma_ex.c.obj",
 			"sourceGroupIndex" : 2
 		},
 		{
-			"backtrace" : 7,
+			"backtrace" : 5,
 			"isGenerated" : true,
 			"path" : "build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma.c.obj",
 			"sourceGroupIndex" : 2
 		},
 		{
-			"backtrace" : 7,
+			"backtrace" : 5,
 			"isGenerated" : true,
 			"path" : "build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr.c.obj",
 			"sourceGroupIndex" : 2
 		},
 		{
-			"backtrace" : 7,
+			"backtrace" : 5,
 			"isGenerated" : true,
 			"path" : "build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr_ex.c.obj",
 			"sourceGroupIndex" : 2
 		},
 		{
-			"backtrace" : 7,
+			"backtrace" : 5,
 			"isGenerated" : true,
 			"path" : "build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c.obj",
 			"sourceGroupIndex" : 2
 		},
 		{
-			"backtrace" : 7,
+			"backtrace" : 5,
 			"isGenerated" : true,
 			"path" : "build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c.obj",
 			"sourceGroupIndex" : 2
 		},
 		{
-			"backtrace" : 7,
+			"backtrace" : 5,
 			"isGenerated" : true,
 			"path" : "build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_exti.c.obj",
 			"sourceGroupIndex" : 2
 		},
 		{
-			"backtrace" : 7,
+			"backtrace" : 5,
 			"isGenerated" : true,
 			"path" : "build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim.c.obj",
 			"sourceGroupIndex" : 2
 		},
 		{
-			"backtrace" : 7,
+			"backtrace" : 5,
 			"isGenerated" : true,
 			"path" : "build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim_ex.c.obj",
 			"sourceGroupIndex" : 2
 		},
 		{
-			"backtrace" : 7,
+			"backtrace" : 5,
 			"isGenerated" : true,
 			"path" : "build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c.obj",
 			"sourceGroupIndex" : 2

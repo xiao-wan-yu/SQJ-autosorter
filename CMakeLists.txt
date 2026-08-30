@@ -109,6 +109,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Mycode/velocityProfile.c
     ${CMAKE_SOURCE_DIR}/Mycode/gw_grayscale.c
     ${CMAKE_SOURCE_DIR}/Mycode/gw_softi2c.c
+    ${CMAKE_SOURCE_DIR}/Mycode/tcs34725.c
     ${CMAKE_SOURCE_DIR}/Mycode/hwt101ct.c
     ${CMAKE_SOURCE_DIR}/Mycode/robot.c
     ${CMAKE_SOURCE_DIR}/Mycode/circle.c
