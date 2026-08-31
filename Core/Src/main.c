@@ -439,7 +439,8 @@ int main(void)
     }
     
     //完整走
-    if(UART1_Data[0]==4)
+    //if(UART1_Data[0]==4)
+    if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin))
     {
       /**************圆盘机****************/
     
@@ -547,8 +548,8 @@ int main(void)
 	        ///delay_ms(2000);
           
           UART1_Printf("5");
-          //右+前，移动到阶梯附近
-          ROBOT_Move(80, 160, 100, 100, 100, 100);
+          //右+前，移动到阶梯附近,要往右多走点，不然撞到了
+          ROBOT_Move(110, 160, 100, 100, 100, 100);
           // ROBOT_Move(0,160,0,100,0,100);
           UART1_Printf("6");
           //向左慢走，直到前面的两个光电都感应到障碍物，开始测距，然后向前走到合适的距离（适合识别的距离）
@@ -556,7 +557,7 @@ int main(void)
           while(LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin)==0);
           ROBOT_MoveSpeed(0, 10);
           UART1_Printf("7");
-          while(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin)>100);
+          while(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin)>120);//100好像靠太近了
           ROBOT_MoveSpeed(0, 0);
 
           //向左走到字母处
@@ -579,7 +580,7 @@ int main(void)
           while(LASER_Barrier(LASER2_GPIO_Port,LASER2_Pin)==1);//这里容易识别到字母上的黑，然后停下来
           ROBOT_MoveSpeed(0, 0);
           //右前光电无障碍物，就开始向左走固定距离（走到阶梯平面中间）
-          ROBOT_Move(-45, -45, 50, 50, 50, 50);
+          ROBOT_Move(-45, -35, 50, 50, 50, 50);
           if(1)//开始执行圆柱任务的信号
           {
             ROBOT_Angle(270);
@@ -592,7 +593,7 @@ int main(void)
             //转完一圈，收起机械臂，然后往左转身走到仓库中间倒方块
             ROBOT_Move(-60, 0, 100, 100, 100, 100);
             ROBOT_Angle(90);//车子前面朝右
-            ROBOT_Move(0, -125, 50, 50, 50, 50);
+            ROBOT_Move(0, -138, 50, 50, 50, 50);
             ROBOT_Move(-45, 0, 50, 50, 50, 50);
             UART1_Printf("9");
 
@@ -613,25 +614,74 @@ int main(void)
 
             //倒完方块转个身再回家
             ROBOT_Angle(0);
-            ROBOT_Move(60, -210, 50, 100, 50, 100);
+            //往后多走一点，必须保证，前后在左右移动后能进入红色区域
+            ROBOT_Move(40, -225, 50, 100, 100, 100);//60，-240能进
             UART1_Printf("11");
 
-            /*先校准左右再校准前后，左右走可能会抖，而且前后比左右的反馈更准
-            注意！！！必须先让颜色传感器在左右移动之后一定能进入红色区域，
-            即前后距离必须能确保在红色区域（在哪里无所谓，后面再校准）
-            */
-            //如果为黑色，往右走，此时左右距离没问题，且传感器在红色区域内
-            ROBOT_Move(10, 0, 50, 50, 50, 50);
-            //往前走，走到颜色传感器一定在黑色区域内
-            ROBOT_Move(0, 50, 50, 50, 50, 50);
-            //颜色传感器校准前后：如果为黑色，往后走，直到为红色
-            ROBOT_Move(0, 50, 50, 50, 50, 50);
-            //识别为红色后停下
+      if(1){
+      /*先校准左右再校准前后，左右走可能会抖，而且前后比左右的反馈更准
+      注意！！！必须先让颜色传感器在左右移动之后一定能进入红/蓝区域，
+      即前后距离必须能确保在红/蓝区域内（在哪里无所谓，后面再校准）
+      */
+      //如果为黑色，匀速往右走，直到传感器进入红/蓝区域
+      //去抖：连续3次(约150ms)都读到红/蓝才确认，交界处"红黑红黑"抖动不会误停
+      ROBOT_MoveSpeed(10, 0);
+      {
+        uint8_t stable = 0;
+        while(1){
+          TCS34725_GetRawData(&tcs_rgbc);
+          if(TCS34725_ClassifyColor(&tcs_rgbc) != TCS_COLOR_BLACK){
+            if(++stable >= 3) break;
+          } else {
+            stable = 0;
+          }
+          HAL_Delay(50);
+        }
+      }
+      
+      //因为加了消抖，所以会稍微多走一小点，再减少一点盲走的距离
+
+      //进入红/蓝后，继续向右多走11.5，确保停在红/蓝区域内部（避免停在边缘抖动；距离按区域宽度调整），而且确保车身左右都在红/蓝区域内
+      ROBOT_Move(11.5, 0, 10, 10, 100, 100);
+      
+      //往前走，走到颜色传感器一定在黑色区域内（同样连续3次确认）
+      ROBOT_MoveSpeed(0, 10);
+      {
+        uint8_t stable = 0;
+        while(1){
+          TCS34725_GetRawData(&tcs_rgbc);
+          if(TCS34725_ClassifyColor(&tcs_rgbc) == TCS_COLOR_BLACK){
+            if(++stable >= 3) break;
+          } else {
+            stable = 0;
+          }
+          HAL_Delay(50);
+        }
+      }
+      
+      //颜色传感器校准前后：如果为黑色，匀速往后走，直到进入红/蓝区域（连续3次确认）
+      ROBOT_MoveSpeed(0, -10);
+      {
+        uint8_t stable = 0;
+        while(1){
+          TCS34725_GetRawData(&tcs_rgbc);
+          if(TCS34725_ClassifyColor(&tcs_rgbc) != TCS_COLOR_BLACK){
+            if(++stable >= 3) break;
+          } else {
+            stable = 0;
+          }
+          HAL_Delay(50);
+        }
+      }
+      
+      //识别为红/蓝后继续向后多走3，确保停在红/蓝区域内部（避免停在边缘抖动；距离按区域宽度调整），而且确保车身前后都在红/蓝区域内
+      ROBOT_Move(0, -3, 10, 10, 100, 100);
+      ROBOT_MoveSpeed(0, 0);
           }
         }
 
       }
-
+    }
       UART1_Data[0]=0;
     }
     
@@ -716,11 +766,11 @@ int main(void)
       ROBOT_MoveSpeed(0, 0);
     }
 
-    if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)){
-      ROBOT_Move(-50, 390, 100, 100, 100, 100);
-
-      ROBOT_Angle(270);
-    }
+    //if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)){
+    //  ROBOT_Move(-50, 390, 100, 100, 100, 100);
+    //
+    //  ROBOT_Angle(270);
+    //}
 
     //if(KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){
     //  //ROBOT_Move(-50, 0, 10, 10, 10, 10);
