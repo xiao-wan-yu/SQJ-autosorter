@@ -96,6 +96,7 @@ FLAG flag;
 int16_t data_encoder = 0;
 
 int32_t UART1_Data[UART1_DATA_NUM] = {0};    // 存放解析后的8个32位整数
+uint8_t CAM_Data[7] = {0};    // 存放视觉发送来的坐标数据（一帧：包头0xA1|类型|x两字节|y两字节|包尾0x0B）
 
 
 
@@ -242,7 +243,7 @@ int main(void)
   flag.angle   = 1;   // 航向环（角度环）默认开启：上电锁定当前朝向，串口 tyaw 可遥控转向
 
 
-  // /*主视觉测试（临时注释：先验证灰度，测完恢复）*/
+  //// /*主视觉测试（临时注释：先验证灰度，测完恢复）*/
   // while(1){
   //   if(VISION1_RxFlag){
   //     VISION1_RxFlag = 0;
@@ -254,17 +255,17 @@ int main(void)
   //     OLED_Update();
   //   }
   // }
-
-
-  // while(1){
+//
+//
+  //// while(1){
   //   if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)){
   //     ROBOT_Move(-50, 390, 100, 100, 100, 100);
-
-
-  //     ROBOT_Angle(270);
+//
+//
+  ////     ROBOT_Angle(270);
   //   }
-
-  //   /* 串口打印角度环数据（目标/实际/输出w + 里程计位置x/y），SerialPlot 观察走直线纠偏/转向收敛
+//
+  ////   /* 串口打印角度环数据（目标/实际/输出w + 里程计位置x/y），SerialPlot 观察走直线纠偏/转向收敛
   //      并解析串口调参指令：kp/ki/kd/target 角度环、vx/vy 手动、mx/my 走距、mv/mvacc 规划速度 */
   //   UART1_Printf("%f %f %f %f %f\r\n",
   //                chassis.target_yaw,
@@ -278,10 +279,10 @@ int main(void)
   //   }
   //   HAL_Delay(10);
   // }
-
-
-  /*速度环调参测试（临时注释：先跑下方编码器裸测标定 ACCURACY，测完恢复）*/
-  // while(1){
+//
+//
+  /*//速度环调参测试（临时注释：先跑下方编码器裸测标定 ACCURACY，测完恢复）*/
+  //// while(1){
   //   OLED_Printf(0, 0, OLED_8X16_HALF, "kp:%06.2f", chassis.speed_pid[1].kp);
   //   OLED_Printf(0, 16, OLED_8X16_HALF, "ki:%06.2f", chassis.speed_pid[1].ki);
   //   OLED_Printf(0, 32, OLED_8X16_HALF, "kd:%06.2f", chassis.speed_pid[1].kd);
@@ -304,11 +305,11 @@ int main(void)
   //   OLED_Update();
   // }
   // /*灰度传感器--通过*/
-  /* 灰度传感器读取：GRAY1/GRAY3 都走串行 IO 接口（GPIO 模拟时钟），读 8 路数字量（0=深、1=浅）
-     引脚（CubeMX 配置）：GRAY1=PB4(DAT)/PB9(CLK)、GRAY3=PB6(DAT)/PB7(CLK)
-     OLED 第一行(y=0)显示 GRAY1 八通道，第三行(y=32)显示 GRAY3 八通道 */
-  
-  // /*陀螺仪测试--通过*/
+  /*// 灰度传感器读取：GRAY1/GRAY3 都走串行 IO 接口（GPIO 模拟时钟），读 8 路数字量（0=深、1=浅）
+    // 引脚（CubeMX 配置）：GRAY1=PB4(DAT)/PB9(CLK)、GRAY3=PB6(DAT)/PB7(CLK)
+    // OLED 第一行(y=0)显示 GRAY1 八通道，第三行(y=32)显示 GRAY3 八通道 */
+  //
+  //// /*陀螺仪测试--通过*/
   // HWT101CT_Init();
   // HAL_UARTEx_ReceiveToIdle_DMA(&huart3, UART3_RxBuf, UART3_RxLength);//陀螺仪串口
   // __HAL_DMA_DISABLE_IT(&hdma_usart3_rx, DMA_IT_HT);    //使用DMA+UART时，会开启传输过半中断，需手动关闭
@@ -336,15 +337,15 @@ int main(void)
   // }
   // /* 临时调参：SerialPlot 串口画图 + 在线改PID（调好即删，改回正常逻辑） */
   // SERIALPLOT_PIDAdjustParam();
-
-
-  /* USER CODE END 2 */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-  
-
-  //   HAL_Delay(2000);
+//
+//
+  /*// USER CODE END 2 */
+//
+  /*// Infinite loop */
+  /*// USER CODE BEGIN WHILE */
+  //
+//
+  ////   HAL_Delay(2000);
   //   if (GW_Gray_Init() == 0) {
   //   UART1_Printf("GW Gray online\r\n");
   // } else {
@@ -354,53 +355,53 @@ int main(void)
   // HAL_Delay(2000);
   // ROBOT_MoveSpeed(0,0);
   // ROBOT_Move(0, 200, 30, 30, 30, 30);
-
-  /* ==================== TCS34725 颜色识别（替换原 1 号灰度传感器 GRAY1） ====================
-     SCL=PB9、SDA=PB4（原 GRAY1 的 CLK/DAT 线位），软件 I2C 100kHz，无需改 CubeMX；
-     模块供电 3.3V，LED/INT 悬空。GRAY3 仍走串行接口用于循线（GRAY_Data[GRAY3] 依旧可用）。
-     判色由 TCS34725_ClassifyColor() 完成：只分 黑/非黑 两类（红蓝统称非黑），
-     串口打印原始 C/R/G/B + HSV，可接 SerialPlot 观察并按实际物体标定阈值（见 tcs34725.h）。 */
-  uint8_t tcs_online = TCS34725_Init();
-  UART1_Printf("TCS34725 %s, ID=0x%02X\r\n",
-               tcs_online ? "ONLINE" : "OFFLINE", TCS34725_GetID());
+//
+  /*// ==================== TCS34725 颜色识别（替换原 1 号灰度传感器 GRAY1） ====================
+    // SCL=PB9、SDA=PB4（原 GRAY1 的 CLK/DAT 线位），软件 I2C 100kHz，无需改 CubeMX；
+    // 模块供电 3.3V，LED/INT 悬空。GRAY3 仍走串行接口用于循线（GRAY_Data[GRAY3] 依旧可用）。
+    // 判色由 TCS34725_ClassifyColor() 完成：只分 黑/非黑 两类（红蓝统称非黑），
+    // 串口打印原始 C/R/G/B + HSV，可接 SerialPlot 观察并按实际物体标定阈值（见 tcs34725.h）。 */
+  //uint8_t tcs_online = TCS34725_Init();
+  //UART1_Printf("TCS34725 %s, ID=0x%02X\r\n",
+    //           tcs_online ? "ONLINE" : "OFFLINE", TCS34725_GetID());
 
   while (1)
   {
-    /* GRAY3 仍走串行更新（循线数据 GRAY_Data[GRAY3] 保持有效） */
-    GRAY3_Serial_Update();
+    ///* GRAY3 仍走串行更新（循线数据 GRAY_Data[GRAY3] 保持有效） */
+    //GRAY3_Serial_Update();
 
-    /* TCS34725 读颜色：OLED 显示颜色名 + R/G/B + 亮度（串口不自动刷新，只在按键采样时打印） */
+    ///* TCS34725 读颜色：OLED 显示颜色名 + R/G/B + 亮度（串口不自动刷新，只在按键采样时打印） */
     static TCS34725_RGBC tcs_rgbc = {0};
-    if(TCS34725_GetRawData(&tcs_rgbc)){
-      uint8_t tcs_col = TCS34725_ClassifyColor(&tcs_rgbc);
-      OLED_Printf(0, 0,  OLED_8X16_HALF, "col:%s", TCS34725_ColorName(tcs_col));
-      OLED_Printf(0, 16, OLED_8X16_HALF, "R:%3d G:%3d B:%3d", tcs_rgbc.r, tcs_rgbc.g, tcs_rgbc.b);
-      OLED_Printf(0, 48, OLED_8X16_HALF, "C:%4d V:%3d%%", tcs_rgbc.c, (uint8_t)(tcs_rgbc.v * 100));
-      delay_ms(200);
-    } else {
-      OLED_Printf(0, 0, OLED_8X16_HALF, "TCS OFFLINE");
-    }
-
-    /* ==================== 颜色采样：按一次按钮 = 串口发一条当前值 ====================
-       把黑/红/蓝物体放到传感器下，按对应按钮一次，串口立即打一条 H/S/V：
-         按钮2(KEY1)=黑 -> BLK H=.. S=.. V=..
-         按钮3(KEY2)=红 -> RED H=.. S=.. V=..
-         按钮4(KEY3)=蓝 -> BLU H=.. S=.. V=..
-       每色按 8 次共 24 条，直接复制发回来定阈值。 */
-    if(KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){                 /* 按钮2：黑 */
-      TCS34725_GetRawData(&tcs_rgbc);                     /* 按下瞬间重新采一次 */
-      UART1_Printf("BLK H=%5.1f S=%0.2f V=%0.2f\r\n", tcs_rgbc.h, tcs_rgbc.s, tcs_rgbc.v);
-    }
-    if(KEY_ONE(KEY2_GPIO_Port, KEY2_Pin)){                 /* 按钮3：红 */
-      TCS34725_GetRawData(&tcs_rgbc);
-      UART1_Printf("RED H=%5.1f S=%0.2f V=%0.2f\r\n", tcs_rgbc.h, tcs_rgbc.s, tcs_rgbc.v);
-    }
-    if(KEY_ONE(KEY3_GPIO_Port, KEY3_Pin)){                 /* 按钮4：蓝 */
-      TCS34725_GetRawData(&tcs_rgbc);
-      UART1_Printf("BLU H=%5.1f S=%0.2f V=%0.2f\r\n", tcs_rgbc.h, tcs_rgbc.s, tcs_rgbc.v);
-    }
-
-    HAL_Delay(50);
+    //if(TCS34725_GetRawData(&tcs_rgbc)){
+    //  uint8_t tcs_col = TCS34725_ClassifyColor(&tcs_rgbc);
+    //  OLED_Printf(0, 0,  OLED_8X16_HALF, "col:%s", TCS34725_ColorName(tcs_col));
+    //  OLED_Printf(0, 16, OLED_8X16_HALF, "R:%3d G:%3d B:%3d", tcs_rgbc.r, tcs_rgbc.g, tcs_rgbc.b);
+    //  OLED_Printf(0, 48, OLED_8X16_HALF, "C:%4d V:%3d%%", tcs_rgbc.c, (uint8_t)(tcs_rgbc.v * 100));
+    //  delay_ms(200);
+    //} else {
+    //  OLED_Printf(0, 0, OLED_8X16_HALF, "TCS OFFLINE");
+    //}
+//
+    ///* ==================== 颜色采样：按一次按钮 = 串口发一条当前值 ====================
+    //   把黑/红/蓝物体放到传感器下，按对应按钮一次，串口立即打一条 H/S/V：
+    //     按钮2(KEY1)=黑 -> BLK H=.. S=.. V=..
+    //     按钮3(KEY2)=红 -> RED H=.. S=.. V=..
+    //     按钮4(KEY3)=蓝 -> BLU H=.. S=.. V=..
+    //   每色按 8 次共 24 条，直接复制发回来定阈值。 */
+    //if(KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){                 /* 按钮2：黑 */
+    //  TCS34725_GetRawData(&tcs_rgbc);                     /* 按下瞬间重新采一次 */
+    //  UART1_Printf("BLK H=%5.1f S=%0.2f V=%0.2f\r\n", tcs_rgbc.h, tcs_rgbc.s, tcs_rgbc.v);
+    //}
+    //if(KEY_ONE(KEY2_GPIO_Port, KEY2_Pin)){                 /* 按钮3：红 */
+    //  TCS34725_GetRawData(&tcs_rgbc);
+    //  UART1_Printf("RED H=%5.1f S=%0.2f V=%0.2f\r\n", tcs_rgbc.h, tcs_rgbc.s, tcs_rgbc.v);
+    //}
+    //if(KEY_ONE(KEY3_GPIO_Port, KEY3_Pin)){                 /* 按钮4：蓝 */
+    //  TCS34725_GetRawData(&tcs_rgbc);
+    //  UART1_Printf("BLU H=%5.1f S=%0.2f V=%0.2f\r\n", tcs_rgbc.h, tcs_rgbc.s, tcs_rgbc.v);
+    //}
+//
+    //HAL_Delay(50);
     //测距，2是前面的，1是后面的
     //OLED_Printf(0,16 , OLED_8X16_HALF, "dis_1:%4d", GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin));
     OLED_Printf(0,32 , OLED_8X16_HALF, "dis_2:%4d", GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin));
@@ -444,6 +445,8 @@ int main(void)
     {
       /**************圆盘机****************/
     
+      UART2_Printf("%c", 0xAA);//发0xAA告诉视觉这是红方
+
       //这里是机械臂抬起，该动作组运行时间为1秒
 			//delay_ms(1300);
       
@@ -467,10 +470,48 @@ int main(void)
 
       //这里是机械臂拍球动作
 		  //delay_ms(1400);
-		  //Usart_SendByte(UART5, 0xA1);//发0xA1告诉视觉开始识别
+		  UART2_Printf("%c", 0xA1);//发0xA1告诉视觉进入圆盘机识别
 
       /*移植过来的视觉处理代码
-      
+
+
+      /******************** 圆盘机视觉处理代码 ********************/
+      /* 与视觉约定的数据包格式：包头0xA1 | 第一个数据(0x00/0x01/0x02) | 第二个数据x坐标(2字节) | 第三个数据y坐标(2字节) | 包尾0x0B
+         触发条件：第二个字节==0x01或0x02，且第三个数(x,2字节)==100~200，且第四个数(y,2字节)==80~160 → 触发动作组1
+         结束条件：收到单字节指令0xA6，则退出本while循环 */
+      while(1){
+        if(VISION1_RxFlag){                              // 2号串口（主视觉）DMA收到一帧
+          VISION1_RxFlag = 0;                            // 必须立即清零
+
+          /* 唯一退出条件：收到单字节指令0xA6，则退出本while循环 */
+          if(VISION1_RxRealLength == 1 && VISION1_RxBuf[0] == 0xA6){
+            break;
+          }
+
+          memset(CAM_Data, 0, sizeof(CAM_Data));         // 清空上一帧数据
+          if(VISION1_RxRealLength <= sizeof(CAM_Data)){
+            memcpy(CAM_Data, VISION1_RxBuf, VISION1_RxRealLength);
+          }
+          if(CAM_Data[0] == 0xA1                                              // 包头
+             && (CAM_Data[1] == 0x01 || CAM_Data[1] == 0x02)                  // 第二个字节为0x01或0x02
+             && CAM_Data[6] == 0x0B){                                         // 包尾
+            uint16_t cam_x = (uint16_t)CAM_Data[2] | ((uint16_t)CAM_Data[3] << 8); // x坐标（第三个数，2字节）
+            uint16_t cam_y = (uint16_t)CAM_Data[4] | ((uint16_t)CAM_Data[5] << 8); // y坐标（第四个数，2字节）
+            if((cam_x >= 100 && cam_x <= 200)      // 第三个数(x)为100~200
+               && (cam_y >= 80 && cam_y <= 160)){  // 第四个数(y)为80~160
+                if(CAM_Data[1] == 0x01){
+                  runActionGroup(1, 1);    // 拍红球（重复执行，不退出循环）
+                  }
+                else if(CAM_Data[1] == 0x02){
+                  runActionGroup(2, 1);    // 拍黄球（重复执行，不退出循环）}
+                }
+            }
+          }
+        }
+      }
+
+
+      /*
 	MVData[0]=0x00;
 	uint8_t first_flag = 0;
 	
@@ -768,16 +809,15 @@ int main(void)
 
     //if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)){
     //  ROBOT_Move(-50, 390, 100, 100, 100, 100);
-    //
+    //  runActionGroup(50, 1);
     //  ROBOT_Angle(270);
     //}
 
-    //if(KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){
-    //  //ROBOT_Move(-50, 0, 10, 10, 10, 10);
-    //  runActionGroup(50, 1);
-
-      //ROBOT_Angle(270);
-    //}
+      if(KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){
+        //uint8_t Data[] = "0xAA";
+        UART2_Printf("%c", 0xAA);
+  
+    }
 
     // /* 串口打印角度环数据（目标/实际/输出w + 里程计位置x/y），SerialPlot 观察走直线纠偏/转向收敛
     //    并解析串口调参指令：kp/ki/kd/target 角度环、vx/vy 手动、mx/my 走距、mv/mvacc 规划速度 */
