@@ -439,19 +439,27 @@ int main(void)
     UART1_Data[0]=0;
     }
     
+
+      //进入各部分的标志位，红蓝可共用
+      uint8_t YuanPanJi_Flag = 0;
+      uint8_t JieTi_Flag = 0;
+      uint8_t LiZhu_Flag = 0;
+
     //完整走
     //if(UART1_Data[0]==4)
     if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin))
     {
+      
       /**************圆盘机****************/
     
+      YuanPanJi_Flag = 1;//圆盘机开始
       UART2_Printf("%c", 0xAA);//发0xAA告诉视觉这是红方
 
-      //这里是机械臂抬起，该动作组运行时间为1秒
-			//delay_ms(1300);
+      //路上就先把机械臂举起来
+      runActionGroup(1, 1);//不需要延时，因为和出发一起
       
       //先盲走到圆盘机中心+面向
-      ROBOT_Move(-60,408,100,120,100,120);
+      ROBOT_Move(-60,420,100,120,100,120);
       HAL_Delay(100);
       UART1_Printf("1");
       ROBOT_Angle(270);
@@ -466,25 +474,27 @@ int main(void)
         GRAY_Update();
       }
       ROBOT_MoveSpeed(0, 0);
-      // ROBOT_Move(0, -5, 0, 20, 0, 20);
 
-      //这里是机械臂拍球动作
-		  //delay_ms(1400);
+      //往后退到可以拍球，要快
+      ROBOT_Move(0, -11, 0, 10, 0, 10);//20太多，12擦球
+
+      //走到位后，放到识别状态
+		  runActionGroup(4, 1);
+      delay_ms(1400);
 		  UART2_Printf("%c", 0xA1);//发0xA1告诉视觉进入圆盘机识别
-
-      /*移植过来的视觉处理代码
-
 
       /******************** 圆盘机视觉处理代码 ********************/
       /* 与视觉约定的数据包格式：包头0xA1 | 第一个数据(0x00/0x01/0x02) | 第二个数据x坐标(2字节) | 第三个数据y坐标(2字节) | 包尾0x0B
          触发条件：第二个字节==0x01或0x02，且第三个数(x,2字节)==100~200，且第四个数(y,2字节)==80~160 → 触发动作组1
-         结束条件：收到单字节指令0xA6，则退出本while循环 */
-      while(1){
+         结束条件：收到单字节指令0xA6，则退出本while循环 
+         视觉屏幕320*240*/
+      while(YuanPanJi_Flag == 1){
         if(VISION1_RxFlag){                              // 2号串口（主视觉）DMA收到一帧
           VISION1_RxFlag = 0;                            // 必须立即清零
 
           /* 唯一退出条件：收到单字节指令0xA6，则退出本while循环 */
           if(VISION1_RxRealLength == 1 && VISION1_RxBuf[0] == 0xA6){
+            YuanPanJi_Flag = 0;//只是圆盘机结束，不代表阶梯开始，还要倒球
             break;
           }
 
@@ -497,65 +507,24 @@ int main(void)
              && CAM_Data[6] == 0x0B){                                         // 包尾
             uint16_t cam_x = (uint16_t)CAM_Data[2] | ((uint16_t)CAM_Data[3] << 8); // x坐标（第三个数，2字节）
             uint16_t cam_y = (uint16_t)CAM_Data[4] | ((uint16_t)CAM_Data[5] << 8); // y坐标（第四个数，2字节）
-            if((cam_x >= 100 && cam_x <= 200)      // 第三个数(x)为100~200
-               && (cam_y >= 80 && cam_y <= 160)){  // 第四个数(y)为80~160
-                if(CAM_Data[1] == 0x01){
-                  runActionGroup(1, 1);    // 拍红球（重复执行，不退出循环）
+            //if((cam_x >= 100 && cam_x <= 200)      // 第三个数(x)为100~200
+               //&& (cam_y >= 80 && cam_y <= 160)){  // 第四个数(y)为80~160
+              if((cam_x >= 10 && cam_x <= 320)      // 第三个数(x)为10~300，直接不限制，只要在屏幕内就拍
+                 && (cam_y >= 10 && cam_y <= 240)){  // 第四个数(y)为10~240
+               if(CAM_Data[1] == 0x01){
+                  runActionGroup(7, 1);    // 拍红球，包括分流板（重复执行，不退出循环）
                   }
                 else if(CAM_Data[1] == 0x02){
-                  runActionGroup(2, 1);    // 拍黄球（重复执行，不退出循环）}
+                  runActionGroup(10, 1);    // 拍黄球，包括分流板（重复执行，不退出循环）}
                 }
             }
           }
         }
       }
 
-
-      /*
-	MVData[0]=0x00;
-	uint8_t first_flag = 0;
-	
-	while(MVData[0] != 0x36){
-		
-		if(MVData[0] == 0x34) {//红
-			if(!first_flag){
-				
-				first_flag++;
-				MVData[0]=0x00;
-			}
-			else {
-				
-				runActionGroup(77, 1);
-				delay_ms(350);
-				MVData[0]=0x00;
-			}
-			
-		}
-			
-		if(MVData[0] == 0x35) {//黄
-			if(!first_flag){
-				
-				first_flag++;
-				MVData[0]=0x00;
-			}
-			else {
-				
-				runActionGroup(99, 1);
-				delay_ms(350);
-				MVData[0]=0x00;
-			}
-			
-		}
-	}
-	
-	
-	while(MVData[0] != 0x36);    //mv端任务完成
-      */
-
-
       /***************去仓库倒球*************/
 
-      if(1)//结束扫球信号
+      if(YuanPanJi_Flag == 0)//圆盘机结束时
       {
         //退后固定距离
         ROBOT_Move(0,-25,50,50,50,50);
@@ -568,25 +537,26 @@ int main(void)
         //往后慢退，直到测距测得合适距离（适合倒球的距离）
         UART1_Printf("3");
         ROBOT_MoveSpeed(0, -10);
-        while(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>100);
+        while(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>90);//100有点远，距离小于90就退此循环
         ROBOT_MoveSpeed(0,0);
         
-        //定位操作：向左慢平移到左后光电感应到无障碍物，之后再往右走固定距离（刚到对上仓库的距离）
+        //定位操作：向左慢平移到左后光电感应到无障碍物
         UART1_Printf("4");
-        ROBOT_MoveSpeed(-20, 0);
+        ROBOT_MoveSpeed(-10, 0);
         while (LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1);
         ROBOT_MoveSpeed(0,0);
 
-        ROBOT_Move(20, 0, 20, 0, 50, 0);
+        //往右走固定距离（刚到对上仓库的距离）
+        ROBOT_Move(12, 0, 10, 0, 10, 0);//20太大，速度100会飘
 
-        //runActionGroup(51, 1); 	//这里是倒球动作组
-	      //delay_ms(2000);
+        runActionGroup(16, 1); 	//这里是倒球动作组
+	      delay_ms(2000);
+        JieTi_Flag = 1;//阶梯开始
 
-        if(1)//结束倒球信号
-        {
+        if(JieTi_Flag == 1){//阶梯开始
           
-          //runActionGroup(50, 1); 	//这里是收倒球槽
-	        ///delay_ms(2000);
+          runActionGroup(19, 1); 	//这里是收倒球槽
+	        delay_ms(2000);
           
           UART1_Printf("5");
           //右+前，移动到阶梯附近,要往右多走点，不然撞到了
@@ -622,7 +592,11 @@ int main(void)
           ROBOT_MoveSpeed(0, 0);
           //右前光电无障碍物，就开始向左走固定距离（走到阶梯平面中间）
           ROBOT_Move(-45, -35, 50, 50, 50, 50);
-          if(1)//开始执行圆柱任务的信号
+
+          JieTi_Flag = 0;//阶梯结束，立柱开始
+          LiZhu_Flag = 1;//因为中途没去仓库，所以两个状态需要同时切换
+
+          if(LiZhu_Flag == 1)//立柱开始
           {
             ROBOT_Angle(270);
             //这里是转圈函数
@@ -819,6 +793,25 @@ int main(void)
   
     }
 
+        if(KEY_ONE(KEY2_GPIO_Port, KEY2_Pin)){
+        //往后慢退，直到测距测得合适距离（适合倒球的距离）
+        UART1_Printf("3");
+        ROBOT_MoveSpeed(0, -10);
+        while(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>90);//100有点远，距离小于90就推出此循环
+        ROBOT_MoveSpeed(0,0);
+        
+        //定位操作：向左慢平移到左后光电感应到无障碍物
+        UART1_Printf("4");
+        ROBOT_MoveSpeed(-10, 0);
+        while (LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1);
+        ROBOT_MoveSpeed(0,0);
+
+        //往右走固定距离（刚到对上仓库的距离）
+        ROBOT_Move(10, 0, 10, 0, 10, 0);//20太大，速度100会飘
+
+        runActionGroup(16, 1); 	//这里是倒球动作组
+	      delay_ms(2000);
+      }
     // /* 串口打印角度环数据（目标/实际/输出w + 里程计位置x/y），SerialPlot 观察走直线纠偏/转向收敛
     //    并解析串口调参指令：kp/ki/kd/target 角度环、vx/vy 手动、mx/my 走距、mv/mvacc 规划速度 */
     // UART1_Printf("%f %f %f %f %f\r\n",
