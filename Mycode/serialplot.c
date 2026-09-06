@@ -10,7 +10,7 @@
 #include "hwt101ct.h"
 #include "circle.h"
 
-#define PARAM_Number 19             //参数个数（航向环 + 整车速度 + 规划 + 圆周运动参数）
+#define PARAM_Number 23             //参数个数（航向环 + 整车速度 + 规划 + 启动裕量 + 到位判停提前量 + 精细/常规分档 + 圆周运动参数）
 #define YAW_Loop  chassis.yaw_pid   //要调参的pid环：整车航向环
 /* 死区无需在线调：控制循环按是否平移自动切换 —— 静止旋转 YAW_DEAD_ZONE_TURN(1.0°) 防来回飘，
    走直线(有平移) YAW_DEAD_ZONE_MOVE(0.3°) 让1°内偏航也被纠正 */
@@ -31,6 +31,10 @@ Param param[PARAM_Number] = { //可以修改的变量列表（名字匹配后按
   {&chassis.w,   "w", 0},         // 整车角速度 rad/s（航向环开启时被角度环接管，需 flag.angle=0 才直接生效）
   {&chassis.move_speed, "mv", 0},   // 梯形规划目标速度 cm/s（mx/my 走固定距离用，默认60）
   {&chassis.move_acc,   "mvacc", 0},// 梯形规划加减速 cm/s²（默认100）
+  {&chassis.start_margin, "stm", 0},// 启动阈值整形裕量（落地整定：15cm 前进确认4轮同步起转）
+  {&chassis.brake_decel, "brkd", 0},// 判停断电后自然滑停等效减速度cm/s²（默认100；滑过头调小、差一点到调大）
+  {&chassis.fine_max_dist, "sdist", 0}, // 短距精细档判定阈值 cm：Start_Move 两轴距离均≤它才用 提前判停+整形；大距离走纯时间开环（默认20）
+  {&chassis.fine_max_spd,  "lspd",  0}, // 低速精细档判定阈值 cm/s：恒速手动设速合速度≤它才用 启动整形（默认15）
   /* 圆周运动（CIRCLE_Run）在线调参：绕圈期间通过 UART1 下发，如 "ckp f 0.6" / "cstage i 3" */
   {&circle_param.stage, "cstage", 1},      // 圆周调试阶段 0~4（0纯开环→4全开，分步调试）
   {&circle_param.kp, "ckp", 0},       // 圆周距离环比例（1/s，默认0.5）

@@ -14,9 +14,11 @@ typedef struct{
 }VISION_DATA;
 
 extern VISION_DATA VISION_Data; 
+extern uint8_t vision_target_letter[2];
 
 
 void VISION_ReceiveData(uint8_t *buf, uint8_t buf_len);
+void VISION_ReceiveLetter(void);
 
 
 #endif

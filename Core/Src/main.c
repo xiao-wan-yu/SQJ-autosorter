@@ -98,6 +98,7 @@ int16_t data_encoder = 0;
 int32_t UART1_Data[UART1_DATA_NUM] = {0};    // 存放解析后的8个32位整数
 uint8_t CAM_Data[7] = {0};    // 存放视觉发送来的坐标数据（一帧：包头0xA1|类型|x两字节|y两字节|包尾0x0B）
 
+bool mode_red = true;  // 红蓝模式标志：true=红方，false=蓝方
 
 
 /* USER CODE END PV */
@@ -231,6 +232,11 @@ int main(void)
   // HAL_UARTEx_ReceiveToIdle_DMA(&huart5, UART5_RxBuf, UART5_RxLength);//步进电机串口
   // __HAL_DMA_DISABLE_IT(&hdma_uart5_rx, DMA_IT_HT);    //使用DMA+UART5时，会开启传输过半中断，需手动关闭
 
+  UART4_RxInit();//串口4(副视觉)接收初始化（DMA1_Stream2+空闲中断收帧，实现见 Mycode/uart.c）
+
+
+
+
   HAL_Delay(300);
 
   HWT101CT_Init();//陀螺仪初始化
@@ -243,7 +249,17 @@ int main(void)
   flag.angle   = 1;   // 航向环（角度环）默认开启：上电锁定当前朝向，串口 tyaw 可遥控转向
 
 
-  //// /*主视觉测试（临时注释：先验证灰度，测完恢复）*/
+  
+
+
+
+
+  // /*接收副视觉目标字母*/
+  // while(1){
+  //   VISION_ReceiveLetter();
+  //   UART4_Printf("%X %X\r\n", vision_target_letter[0], vision_target_letter[1]);//打印副视觉发过来的两个目标字母
+  // }
+  // /*主视觉测试（临时注释：先验证灰度，测完恢复）*/
   // while(1){
   //   if(VISION1_RxFlag){
   //     VISION1_RxFlag = 0;
@@ -440,104 +456,41 @@ int main(void)
     }
     
 
-      //进入各部分的标志位，红蓝可共用
-      uint8_t YuanPanJi_Flag = 0;
-      uint8_t JieTi_Flag = 0;
-      uint8_t LiZhu_Flag = 0;
+    //进入各部分的标志位，红蓝可共用
+    uint8_t YuanPanJi_Flag = 0;
+    uint8_t ZhengMian_Flag = 0;
+    uint8_t ZhengMian_Letter[2] = {0, 0};   //副视觉正面识别结果(0xAB~0xCD)拆分出的两个目标字母
+    uint8_t JieTi_Flag = 0;
+    uint8_t LiZhu_Flag = 0;
 
     //完整走
     //if(UART1_Data[0]==4)
-    if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin))
-    {
-      
-      /**************圆盘机****************/
-    
-      YuanPanJi_Flag = 1;//圆盘机开始
-      UART2_Printf("%c", 0xAA);//发0xAA告诉视觉这是红方
 
-      //路上就先把机械臂举起来
-      runActionGroup(1, 1);//不需要延时，因为和出发一起
-      
-      //先盲走到圆盘机中心+面向
-      ROBOT_Move(-60,420,100,120,100,120);
-      HAL_Delay(100);
-      UART1_Printf("1");
-      ROBOT_Angle(270);
-      UART1_Printf("2");
-
-      
-      //向前慢走，直到灰度传感器边缘的两个传感器有感应到白线
-      GRAY_Update();
-      ROBOT_MoveSpeed(0, 15);
-      while(GRAY_Data[GRAY3][0]!=1)
-      {
-        GRAY_Update();
+    //红蓝方选择
+    while(1){
+      OLED_Printf(0, 0, OLED_8X16_HALF, "mode:%s", mode_red?"red ":"blue");
+      OLED_Printf(0, 16, OLED_8X16_HALF, "key2:change mode");
+      OLED_Printf(0, 32, OLED_8X16_HALF, "key3:next");
+      OLED_Update();
+      if(KEY_ONE(KEY2_GPIO_Port, KEY2_Pin)){//按键2--更改模式
+        mode_red = !mode_red;
       }
-      ROBOT_MoveSpeed(0, 0);
-
-      //往后退到可以拍球，要快
-      ROBOT_Move(0, -11, 0, 10, 0, 10);//20太多，12擦球
-
-      //走到位后，放到识别状态
-		  runActionGroup(4, 1);
-      delay_ms(1400);
-		  UART2_Printf("%c", 0xA1);//发0xA1告诉视觉进入圆盘机识别
-
-      /******************** 圆盘机视觉处理代码 ********************/
-      /* 与视觉约定的数据包格式：包头0xA1 | 第一个数据(0x00/0x01/0x02) | 第二个数据x坐标(2字节) | 第三个数据y坐标(2字节) | 包尾0x0B
-         触发条件：第二个字节==0x01或0x02，且第三个数(x,2字节)==100~200，且第四个数(y,2字节)==80~160 → 触发动作组1
-         结束条件：收到单字节指令0xA6，则退出本while循环 
-         视觉屏幕320*240*/
-      while(YuanPanJi_Flag == 1){
-        if(VISION1_RxFlag){                              // 2号串口（主视觉）DMA收到一帧
-          VISION1_RxFlag = 0;                            // 必须立即清零
-
-          /* 唯一退出条件：收到单字节指令0xA6，则退出本while循环 */
-          if(VISION1_RxRealLength == 1 && VISION1_RxBuf[0] == 0xA6){
-            YuanPanJi_Flag = 0;//只是圆盘机结束，不代表阶梯开始，还要倒球
-            break;
-          }
-
-          memset(CAM_Data, 0, sizeof(CAM_Data));         // 清空上一帧数据
-          if(VISION1_RxRealLength <= sizeof(CAM_Data)){
-            memcpy(CAM_Data, VISION1_RxBuf, VISION1_RxRealLength);
-          }
-          if(CAM_Data[0] == 0xA1                                              // 包头
-             && (CAM_Data[1] == 0x01 || CAM_Data[1] == 0x02)                  // 第二个字节为0x01或0x02
-             && CAM_Data[6] == 0x0B){                                         // 包尾
-            uint16_t cam_x = (uint16_t)CAM_Data[2] | ((uint16_t)CAM_Data[3] << 8); // x坐标（第三个数，2字节）
-            uint16_t cam_y = (uint16_t)CAM_Data[4] | ((uint16_t)CAM_Data[5] << 8); // y坐标（第四个数，2字节）
-            //if((cam_x >= 100 && cam_x <= 200)      // 第三个数(x)为100~200
-               //&& (cam_y >= 80 && cam_y <= 160)){  // 第四个数(y)为80~160
-              if((cam_x >= 10 && cam_x <= 320)      // 第三个数(x)为10~300，直接不限制，只要在屏幕内就拍
-                 && (cam_y >= 10 && cam_y <= 240)){  // 第四个数(y)为10~240
-               if(CAM_Data[1] == 0x01){
-                  runActionGroup(7, 1);    // 拍红球，包括分流板（重复执行，不退出循环）
-                  }
-                else if(CAM_Data[1] == 0x02){
-                  runActionGroup(10, 1);    // 拍黄球，包括分流板（重复执行，不退出循环）}
-                }
-            }
-          }
-        }
+      if(KEY_ONE(KEY3_GPIO_Port, KEY3_Pin)){//按键3--下一步
+        break;
       }
 
-      /***************去仓库倒球*************/
+      //0和1专用于调试
+      if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)){
+        //uint8_t Data[] = "0xAA";
+        //UART2_Printf("%c", 0xAA);
 
-      if(YuanPanJi_Flag == 0)//圆盘机结束时
-      {
-        //退后固定距离
-        ROBOT_Move(0,-25,50,50,50,50);
-        //向左平行到仓库
-        ROBOT_Move(-185,0,100,0,100,0);
-        //转身
-        HAL_Delay(100);
-        ROBOT_Angle(90);
-        
+      }
+
+      if(KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){
         //往后慢退，直到测距测得合适距离（适合倒球的距离）
         UART1_Printf("3");
         ROBOT_MoveSpeed(0, -10);
-        while(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>90);//100有点远，距离小于90就退此循环
+        while(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>90);//100有点远，距离小于90就推出此循环
         ROBOT_MoveSpeed(0,0);
         
         //定位操作：向左慢平移到左后光电感应到无障碍物
@@ -547,158 +500,322 @@ int main(void)
         ROBOT_MoveSpeed(0,0);
 
         //往右走固定距离（刚到对上仓库的距离）
-        ROBOT_Move(12, 0, 10, 0, 10, 0);//20太大，速度100会飘
+        ROBOT_Move(10, 0, 10, 0, 10, 0);//20太大，速度100会飘
 
         runActionGroup(16, 1); 	//这里是倒球动作组
 	      delay_ms(2000);
-        JieTi_Flag = 1;//阶梯开始
+      }
+    }
+    //？后面，左蓝右红
+    
+      
+    /**************圆盘机****************/
+  
+    YuanPanJi_Flag = 1;//圆盘机开始
+    UART2_Printf("%c", mode_red ? 0xAA : 0xBB);//告诉视觉红(0xAA)蓝(0xBB)方
 
-        if(JieTi_Flag == 1){//阶梯开始
-          
-          runActionGroup(19, 1); 	//这里是收倒球槽
-	        delay_ms(2000);
-          
-          UART1_Printf("5");
-          //右+前，移动到阶梯附近,要往右多走点，不然撞到了
-          ROBOT_Move(110, 160, 100, 100, 100, 100);
-          // ROBOT_Move(0,160,0,100,0,100);
-          UART1_Printf("6");
-          //向左慢走，直到前面的两个光电都感应到障碍物，开始测距，然后向前走到合适的距离（适合识别的距离）
-          ROBOT_MoveSpeed(-10, 0);
-          while(LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin)==0);
-          ROBOT_MoveSpeed(0, 10);
-          UART1_Printf("7");
-          while(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin)>120);//100好像靠太近了
-          ROBOT_MoveSpeed(0, 0);
+    //路上就先把机械臂举起来
+    runActionGroup(1, 1);//不需要延时，因为和出发一起
+    
+    //先盲走到圆盘机中心+面向
+    ROBOT_Move(mode_red?-60:60,415,100,120,100,120);
+    HAL_Delay(100);
+    UART1_Printf("1");
+    mode_red ? ROBOT_Angle(270) : ROBOT_Angle(90);
+    UART1_Printf("2");
 
-          //向左走到字母处
-          ROBOT_Move(-30, 0, 50, 0, 50, 0);
-          /*
-            这里放识别的代码
-          */
-          ROBOT_MoveSpeed(-20, 0);
-          HAL_Delay(1000);//避免路上识别到字母然后停下来
-          while(LASER_Barrier(LASER3_GPIO_Port,LASER3_Pin)==1);//这里容易识别到字母上的黑，然后停下来
-          ROBOT_MoveSpeed(0, 0);
-          UART1_Printf("8");
+    
+    //向前慢走，直到灰度传感器边缘的两个传感器有感应到白线
+    GRAY_Update();
+    ROBOT_MoveSpeed(0, 15);
+    while(GRAY_Data[GRAY3][0]!=1)
+    {
+      GRAY_Update();
+    }
+    ROBOT_MoveSpeed(0, 0);
 
-          //左前光电无障碍物就开始从左往右走
-          ROBOT_MoveSpeed(20, 0);
-          /*
-            这里放抓取的代码
-          */
-          HAL_Delay(3000);
-          while(LASER_Barrier(LASER2_GPIO_Port,LASER2_Pin)==1);//这里容易识别到字母上的黑，然后停下来
-          ROBOT_MoveSpeed(0, 0);
-          //右前光电无障碍物，就开始向左走固定距离（走到阶梯平面中间）
-          ROBOT_Move(-45, -35, 50, 50, 50, 50);
+    //往后退到可以拍球，要快（不需要后退了，直接灰度校准更准确）
+    //ROBOT_Move(0, mode_red ? -11 : -14, 0, 10, 0, 10);//20太多，12擦球
 
-          JieTi_Flag = 0;//阶梯结束，立柱开始
-          LiZhu_Flag = 1;//因为中途没去仓库，所以两个状态需要同时切换
+    //走到位后，放到识别状态
+    runActionGroup(4, 1);
+    delay_ms(1400);
+    UART2_Printf("%c", 0xA1);//发0xA1告诉主视觉进入圆盘机识别
 
-          if(LiZhu_Flag == 1)//立柱开始
-          {
-            ROBOT_Angle(270);
-            //这里是转圈函数
+    /******************** 圆盘机视觉处理代码 ********************/
+    /* 与视觉约定的数据包格式：包头0xA1 | 第一个数据(0x00/0x01/0x02) | 第二个数据x坐标(2字节) | 第三个数据y坐标(2字节) | 包尾0x0B
+        触发条件：第二个字节==0x01或0x02，且第三个数(x,2字节)==100~200，且第四个数(y,2字节)==80~160 → 触发动作组1
+        结束条件：收到单字节指令0xA6，则退出本while循环 
+        视觉屏幕320*240*/
+    while(YuanPanJi_Flag == 1){
+      if(VISION1_RxFlag){                              // 2号串口（主视觉）DMA收到一帧
+        VISION1_RxFlag = 0;                            // 必须立即清零
 
-            /*
-            这里放识别的代码，如果遇到可以夹的就停下转圈
-            */
+        /* 唯一退出条件：收到单字节指令0xA6，则退出本while循环 */
+        if(VISION1_RxRealLength == 1 && VISION1_RxBuf[0] == 0xA6){
+          YuanPanJi_Flag = 0;//只是圆盘机结束，不代表阶梯开始，还要倒球
+          break;
+        }
 
-            //转完一圈，收起机械臂，然后往左转身走到仓库中间倒方块
-            ROBOT_Move(-60, 0, 100, 100, 100, 100);
-            ROBOT_Angle(90);//车子前面朝右
-            ROBOT_Move(0, -138, 50, 50, 50, 50);
-            ROBOT_Move(-45, 0, 50, 50, 50, 50);
-            UART1_Printf("9");
-
-            //定位操作：向左慢平移到左后光电感应到无障碍物，之后再往右走固定距离（刚到仓库中间的距离）
-            ROBOT_MoveSpeed(-20, 0);
-            while (LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1);
-            ROBOT_MoveSpeed(0,0);
-
-            ROBOT_Move(25, 0, 20, 0, 50, 0);
-
-            //得走远一点才能转身倒方块
-            ROBOT_Move(0, 10, 50, 50, 50, 50);
-            ROBOT_Angle(270);//车子前面朝左
-            UART1_Printf("10");
-            /*
-              这里放倒方块的代码
-            */
-
-            //倒完方块转个身再回家
-            ROBOT_Angle(0);
-            //往后多走一点，必须保证，前后在左右移动后能进入红色区域
-            ROBOT_Move(40, -225, 50, 100, 100, 100);//60，-240能进
-            UART1_Printf("11");
-
-      if(1){
-      /*先校准左右再校准前后，左右走可能会抖，而且前后比左右的反馈更准
-      注意！！！必须先让颜色传感器在左右移动之后一定能进入红/蓝区域，
-      即前后距离必须能确保在红/蓝区域内（在哪里无所谓，后面再校准）
-      */
-      //如果为黑色，匀速往右走，直到传感器进入红/蓝区域
-      //去抖：连续3次(约150ms)都读到红/蓝才确认，交界处"红黑红黑"抖动不会误停
-      ROBOT_MoveSpeed(10, 0);
-      {
-        uint8_t stable = 0;
-        while(1){
-          TCS34725_GetRawData(&tcs_rgbc);
-          if(TCS34725_ClassifyColor(&tcs_rgbc) != TCS_COLOR_BLACK){
-            if(++stable >= 3) break;
-          } else {
-            stable = 0;
+        memset(CAM_Data, 0, sizeof(CAM_Data));         // 清空上一帧数据
+        if(VISION1_RxRealLength <= sizeof(CAM_Data)){
+          memcpy(CAM_Data, VISION1_RxBuf, VISION1_RxRealLength);
+        }
+        if(CAM_Data[0] == 0xA1                                              // 包头
+            && (CAM_Data[1] == 0x01 || CAM_Data[1] == 0x02)                  // 第二个字节为0x01或0x02
+            && CAM_Data[6] == 0x0B){                                         // 包尾
+          uint16_t cam_x = (uint16_t)CAM_Data[2] | ((uint16_t)CAM_Data[3] << 8); // x坐标（第三个数，2字节）
+          uint16_t cam_y = (uint16_t)CAM_Data[4] | ((uint16_t)CAM_Data[5] << 8); // y坐标（第四个数，2字节）
+          //if((cam_x >= 100 && cam_x <= 200)      // 第三个数(x)为100~200
+              //&& (cam_y >= 80 && cam_y <= 160)){  // 第四个数(y)为80~160
+            if((cam_x >= 10 && cam_x <= 310)      // 第三个数(x)为10~300，直接不限制，只要在屏幕内就拍
+                && (cam_y >= 10 && cam_y <= 230)){  // 第四个数(y)为10~240
+              if(CAM_Data[1] == 0x01){
+                runActionGroup(7, 1);    // 拍本色球，包括分流板（重复执行，不退出循环）
+                }
+              else if(CAM_Data[1] == 0x02){
+                runActionGroup(10, 1);    // 拍黄球，包括分流板（重复执行，不退出循环）}
+              }
           }
-          HAL_Delay(50);
         }
       }
-      
-      //因为加了消抖，所以会稍微多走一小点，再减少一点盲走的距离
+    }
 
-      //进入红/蓝后，继续向右多走11.5，确保停在红/蓝区域内部（避免停在边缘抖动；距离按区域宽度调整），而且确保车身左右都在红/蓝区域内
-      ROBOT_Move(11.5, 0, 10, 10, 100, 100);
+    /***************去仓库倒球*************/
+
+    if(YuanPanJi_Flag == 0)//圆盘机结束时
+    {
+      //退后固定距离
+      ROBOT_Move(0,-25,50,50,50,50);
+      //收起机械臂
+      runActionGroup(0, 1);
+      //向左平行到仓库
+      ROBOT_Move(mode_red ? -185 : 192,0,100,0,100,0);
+      //转身
+      HAL_Delay(100);
+      mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
       
-      //往前走，走到颜色传感器一定在黑色区域内（同样连续3次确认）
-      ROBOT_MoveSpeed(0, 10);
-      {
-        uint8_t stable = 0;
-        while(1){
-          TCS34725_GetRawData(&tcs_rgbc);
-          if(TCS34725_ClassifyColor(&tcs_rgbc) == TCS_COLOR_BLACK){
-            if(++stable >= 3) break;
-          } else {
-            stable = 0;
-          }
-          HAL_Delay(50);
-        }
-      }
-      
-      //颜色传感器校准前后：如果为黑色，匀速往后走，直到进入红/蓝区域（连续3次确认）
+      //往后慢退，直到测距测得合适距离（适合倒球的距离）
       ROBOT_MoveSpeed(0, -10);
-      {
-        uint8_t stable = 0;
-        while(1){
-          TCS34725_GetRawData(&tcs_rgbc);
-          if(TCS34725_ClassifyColor(&tcs_rgbc) != TCS_COLOR_BLACK){
-            if(++stable >= 3) break;
-          } else {
-            stable = 0;
-          }
-          HAL_Delay(50);
-        }
-      }
+      while(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>90);//100有点远，距离小于90就退此循环
+      ROBOT_MoveSpeed(0,0);
       
-      //识别为红/蓝后继续向后多走3，确保停在红/蓝区域内部（避免停在边缘抖动；距离按区域宽度调整），而且确保车身前后都在红/蓝区域内
-      ROBOT_Move(0, -3, 10, 10, 100, 100);
-      ROBOT_MoveSpeed(0, 0);
+      //加一次角度校准（这些地方的角度很重要）
+      mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
+
+      //定位操作：向左慢平移到左后光电感应到无障碍物
+      //新：更改激光位置，让它在没对到障碍物时直接就已经是合适的位置，不需要调整
+      ROBOT_MoveSpeed(-10, 0);
+      while (LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1);
+      ROBOT_MoveSpeed(0,0);
+
+      //加一次角度校准
+      mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
+      //往右走固定距离（刚到对上仓库的距离）
+      //if(mode_red) ROBOT_Move(12, 0, 10, 0, 10, 0);//20太大，速度100会飘，12太远
+
+      runActionGroup(16, 1); 	//这里是倒球动作组
+      delay_ms(2000);
+
+      ZhengMian_Flag = 1;//正面识别开始
+
+      if(ZhengMian_Flag == 1){
+        UART4_Printf("%c", 0xA1);//发0xA2告诉副视觉进入正面识别
+        runActionGroup(19, 1); 	//这里是收倒球槽
+        delay_ms(2000);
+
+        //先清掉之前残留的串口4接收数据，防止把旧数据误当成0xA7
+        UART4_RxFlag = 0;
+        UART4_RxRealLength = 0;
+        memset(UART4_RxBuf, 0, UART4_RxLength);   //UART4_RxBuf是extern数组，不能用sizeof
+
+        //如果没收到串口4(副视觉)发来的0xA7，就一直在此while中执行内容
+        //内容：副视觉发来的单字节为0xAB/0xAC/0xAD/0xBC/0xBD/0xCD这6种之一时，
+        //      就存下来并原样转发给主视觉(串口2)；不是这6种就不存；
+        //退出条件：收到单字节0xA7
+        while(ZhengMian_Flag == 1){                       //ZhengMian_Flag还是1=还没收到0xA7，一直循环
+          /* ============ 内容：副视觉六种结果字节处理见下方收帧逻辑 ============ */
+
+          /* 串口4收到一帧后的处理 */
+          if(UART4_RxFlag){                               //串口4（副视觉）DMA收到一帧
+            UART4_RxFlag = 0;                             //必须立即清零
+
+            if(UART4_RxRealLength == 1){                  //这一帧是单字节
+              uint8_t vision4_byte = UART4_RxBuf[0];      //取出这一帧的数据
+
+              /* 唯一退出条件：收到单字节0xA7，则退出本while循环 */
+              if(vision4_byte == 0xA7){
+                ZhengMian_Flag = 0;                       //收到0xA7，正面识别确认，退出等待
+                JieTi_Flag = 1;                           //阶梯开始
+                break;
+              }
+
+              /* 副视觉发来的6种有效结果字节：0xAB 0xAC 0xAD 0xBC 0xBD 0xCD */
+              if(vision4_byte == 0xAB || vision4_byte == 0xAC || vision4_byte == 0xAD ||
+                 vision4_byte == 0xBC || vision4_byte == 0xBD || vision4_byte == 0xCD){
+                //存下来：高4位=第一个字母，低4位=第二个字母（存到 ZhengMian_Letter，供后面阶梯阶段使用）
+                ZhengMian_Letter[0] = (vision4_byte & 0xF0) >> 4;
+                ZhengMian_Letter[1] = (vision4_byte & 0x0F);
+                //原样发送给主视觉（串口2）
+                UART2_Printf("%c", vision4_byte);
+              }
+              //不是上面6种的其他单字节：不存，直接忽略
+            }
           }
         }
-
       }
+
+      if(JieTi_Flag == 1){//阶梯开始
+        
+        //右+前，移动到阶梯附近,要往右多走点，不然撞到了
+        ROBOT_Move(110, 160, 100, 100, 100, 100);
+
+        //向左慢走，直到前面的两个光电都感应到障碍物，开始测距，然后向前走到合适的距离（适合识别的距离）
+        ROBOT_MoveSpeed(-10, 0);
+        while(LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin)==0);
+        
+        //还没写完
+        ROBOT_MoveSpeed(0, 10);
+
+        while(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin)>120);//100好像靠太近了
+        ROBOT_MoveSpeed(0, 0);
+
+        //向左走到字母处
+        ROBOT_Move(-30, 0, 50, 0, 50, 0);
+        /*
+          这里放识别的代码
+        */
+        ROBOT_MoveSpeed(-20, 0);
+        HAL_Delay(1000);//避免路上识别到字母然后停下来
+        while(LASER_Barrier(LASER3_GPIO_Port,LASER3_Pin)==1);//这里容易识别到字母上的黑，然后停下来
+        ROBOT_MoveSpeed(0, 0);
+        UART1_Printf("8");
+
+        //左前光电无障碍物就开始从左往右走
+        ROBOT_MoveSpeed(20, 0);
+        /*
+          这里放抓取的代码
+        */
+        HAL_Delay(3000);
+        while(LASER_Barrier(LASER2_GPIO_Port,LASER2_Pin)==1);//这里容易识别到字母上的黑，然后停下来
+        ROBOT_MoveSpeed(0, 0);
+        //右前光电无障碍物，就开始向左走固定距离（走到阶梯平面中间）
+        ROBOT_Move(-45, -35, 50, 50, 50, 50);
+
+        JieTi_Flag = 0;//阶梯结束，立柱开始
+        LiZhu_Flag = 1;//因为中途没去仓库，所以两个状态需要同时切换
+
+        if(LiZhu_Flag == 1)//立柱开始
+        {
+          ROBOT_Angle(270);
+          //这里是转圈函数
+
+          /*
+          这里放识别的代码，如果遇到可以夹的就停下转圈
+          */
+
+          //转完一圈，收起机械臂，然后往左转身走到仓库中间倒方块
+          ROBOT_Move(-60, 0, 100, 100, 100, 100);
+          ROBOT_Angle(90);//车子前面朝右
+          ROBOT_Move(0, -138, 50, 50, 50, 50);
+          ROBOT_Move(-45, 0, 50, 50, 50, 50);
+          UART1_Printf("9");
+
+          //定位操作：向左慢平移到左后光电感应到无障碍物，之后再往右走固定距离（刚到仓库中间的距离）
+          ROBOT_MoveSpeed(-20, 0);
+          while (LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1);
+          ROBOT_MoveSpeed(0,0);
+
+          ROBOT_Move(25, 0, 20, 0, 50, 0);
+
+          //得走远一点才能转身倒方块
+          ROBOT_Move(0, 10, 50, 50, 50, 50);
+          ROBOT_Angle(270);//车子前面朝左
+          UART1_Printf("10");
+          /*
+            这里放倒方块的代码
+          */
+
+          //倒完方块转个身再回家
+          ROBOT_Angle(0);
+          //往后多走一点，必须保证，前后在左右移动后能进入红色区域
+          ROBOT_Move(40, -225, 50, 100, 100, 100);//60，-240能进
+          UART1_Printf("11");
+
+    if(1){
+    /*先校准左右再校准前后，左右走可能会抖，而且前后比左右的反馈更准
+    注意！！！必须先让颜色传感器在左右移动之后一定能进入红/蓝区域，
+    即前后距离必须能确保在红/蓝区域内（在哪里无所谓，后面再校准）
+    */
+    //如果为黑色，匀速往右走，直到传感器进入红/蓝区域
+    //去抖：连续3次(约150ms)都读到红/蓝才确认，交界处"红黑红黑"抖动不会误停
+    ROBOT_MoveSpeed(10, 0);
+    {
+      uint8_t stable = 0;
+      while(1){
+        TCS34725_GetRawData(&tcs_rgbc);
+        if(TCS34725_ClassifyColor(&tcs_rgbc) != TCS_COLOR_BLACK){
+          if(++stable >= 3) break;
+        } else {
+          stable = 0;
+        }
+        HAL_Delay(50);
+      }
+    }
+    
+    //因为加了消抖，所以会稍微多走一小点，再减少一点盲走的距离
+
+    //进入红/蓝后，继续向右多走11.5，确保停在红/蓝区域内部（避免停在边缘抖动；距离按区域宽度调整），而且确保车身左右都在红/蓝区域内
+    ROBOT_Move(11.5, 0, 10, 10, 100, 100);
+    
+    //往前走，走到颜色传感器一定在黑色区域内（同样连续3次确认）
+    ROBOT_MoveSpeed(0, 10);
+    {
+      uint8_t stable = 0;
+      while(1){
+        TCS34725_GetRawData(&tcs_rgbc);
+        if(TCS34725_ClassifyColor(&tcs_rgbc) == TCS_COLOR_BLACK){
+          if(++stable >= 3) break;
+        } else {
+          stable = 0;
+        }
+        HAL_Delay(50);
+      }
+    }
+    
+    //颜色传感器校准前后：如果为黑色，匀速往后走，直到进入红/蓝区域（连续3次确认）
+    ROBOT_MoveSpeed(0, -10);
+    {
+      uint8_t stable = 0;
+      while(1){
+        TCS34725_GetRawData(&tcs_rgbc);
+        if(TCS34725_ClassifyColor(&tcs_rgbc) != TCS_COLOR_BLACK){
+          if(++stable >= 3) break;
+        } else {
+          stable = 0;
+        }
+        HAL_Delay(50);
+      }
+    }
+    
+    //识别为红/蓝后继续向后多走3，确保停在红/蓝区域内部（避免停在边缘抖动；距离按区域宽度调整），而且确保车身前后都在红/蓝区域内
+    ROBOT_Move(0, -3, 10, 10, 100, 100);
+    ROBOT_MoveSpeed(0, 0);
+        }
+      }
+
+    }
+
+
+
+
+
+
+
+
     }
       UART1_Data[0]=0;
-    }
+
     
     //单独测试转圈：定半径圆周运动（豆包三层闭环方案：径向距离环PID + 航向同步环 + 切向速度前馈）
     //  目标测距 d_target_mm（传感器→管壁）：150~200mm 范围内都可用；轨迹半径 D=d/10+传感器偏置8+管半径4=27~32cm
@@ -781,37 +898,6 @@ int main(void)
       ROBOT_MoveSpeed(0, 0);
     }
 
-    //if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)){
-    //  ROBOT_Move(-50, 390, 100, 100, 100, 100);
-    //  runActionGroup(50, 1);
-    //  ROBOT_Angle(270);
-    //}
-
-      if(KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){
-        //uint8_t Data[] = "0xAA";
-        UART2_Printf("%c", 0xAA);
-  
-    }
-
-        if(KEY_ONE(KEY2_GPIO_Port, KEY2_Pin)){
-        //往后慢退，直到测距测得合适距离（适合倒球的距离）
-        UART1_Printf("3");
-        ROBOT_MoveSpeed(0, -10);
-        while(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>90);//100有点远，距离小于90就推出此循环
-        ROBOT_MoveSpeed(0,0);
-        
-        //定位操作：向左慢平移到左后光电感应到无障碍物
-        UART1_Printf("4");
-        ROBOT_MoveSpeed(-10, 0);
-        while (LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1);
-        ROBOT_MoveSpeed(0,0);
-
-        //往右走固定距离（刚到对上仓库的距离）
-        ROBOT_Move(10, 0, 10, 0, 10, 0);//20太大，速度100会飘
-
-        runActionGroup(16, 1); 	//这里是倒球动作组
-	      delay_ms(2000);
-      }
     // /* 串口打印角度环数据（目标/实际/输出w + 里程计位置x/y），SerialPlot 观察走直线纠偏/转向收敛
     //    并解析串口调参指令：kp/ki/kd/target 角度环、vx/vy 手动、mx/my 走距、mv/mvacc 规划速度 */
     // UART1_Printf("%f %f %f %f %f\r\n",

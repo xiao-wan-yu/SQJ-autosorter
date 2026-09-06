@@ -7,6 +7,8 @@
 #define UART1_USE_DMA               1
 //串口2开启DMA接收时置1
 #define UART2_USE_DMA               1
+//串口4(副视觉)开启DMA接收时置1
+#define UART4_USE_DMA               1
 //使用HWT101CT陀螺仪时置1 不使用陀螺仪时置0（DMA）
 #define UART3_USE_HWT101CT          1
 //UART5 实际接舵机控制板（CN6 接口，波特率9600，见 Mycode/lobot_servo.c）
@@ -20,7 +22,8 @@
 #define UART2_TxLengthMax 200               //串口2发送数据的最大数据长度
 #define UART3_RxLength 200                    //串口3接收数据包的真实数据长度
 #define UART3_TxLengthMax 200               //串口3发送数据的最大数据长度
-#define UART4_TxLengthMax 200               //串口4(备用串口)发送数据的最大数据长度
+#define UART4_RxLength 200                    //串口4(副视觉)接收数据包的真实数据长度（开启DMA接收时，则为最大接收长度）
+#define UART4_TxLengthMax 200               //串口4(副视觉)发送数据的最大数据长度
 #define UART5_RxLength 255                  //串口5接收数据包的真实数据长度（开启DMA接收时，则为最大接收长度；现接舵机控制板，一般不启用接收）
 #define UART5_TxLengthMax 200               //串口5发送数据的最大数据长度
 
@@ -33,6 +36,9 @@ extern uint8_t UART2_RxFlag;                //串口2接收完成标志位（接
 extern uint8_t UART3_RxNewData;             //串口3最新接收到的数据
 extern uint8_t UART3_RxBuf[];               //串口3存放真实数据的数组（不包含包头包尾）
 extern uint8_t UART3_RxFlag;                //串口3接收完成标志位（接收完成则为1）
+extern uint8_t UART4_RxNewData;             //串口4(副视觉)最新接收到的数据
+extern uint8_t UART4_RxBuf[];               //串口4(副视觉)存放真实数据的数组（不包含包头包尾）
+extern uint8_t UART4_RxFlag;                //串口4(副视觉)接收完成标志位（接收完成则为1）
 extern uint8_t UART5_RxNewData;             //串口5最新接收到的数据
 extern uint8_t UART5_RxBuf[];               //串口5存放真实数据的数组（不包含包头包尾）
 extern __IO uint8_t UART5_RxFlag;                //串口5接收完成标志位（接收完成则为1）
@@ -42,6 +48,7 @@ void UART1_Printf(char *fmt, ...);
 void UART2_Printf(char *fmt, ...);
 void UART3_Printf(char *fmt, ...);
 void UART4_Printf(char *fmt, ...);
+void UART4_RxInit(void);            //串口4(副视觉)接收初始化：DMA1_Stream2+空闲中断收帧
 
 
 /******************当串口1开启DMA接收时启用下面的宏定义********************/
@@ -67,6 +74,20 @@ extern uint8_t UART2_RxRealLength;              //串口2每次接收指令的�
 #endif
 /***********************************************************************/
 
+
+/******************当串口4(副视觉)开启DMA接收时启用下面的宏定义********************/
+#if UART4_USE_DMA
+#define VISION4_RxNewData        UART4_RxNewData
+#define VISION4_RxBuf            UART4_RxBuf
+#define VISION4_RxFlag           UART4_RxFlag
+#define VISION4_RxLength         UART4_RxLength
+#define VISION4_RxRealLength     UART4_RxRealLength
+#define VISION4_TxLengthMax      UART4_TxLengthMax
+#define VISION4_Printf           UART4_Printf
+extern DMA_HandleTypeDef hdma_uart4_rx;                 //串口4(副视觉)接收DMA句柄
+extern uint8_t UART4_RxRealLength;              //串口4(副视觉)每次接收指令的实际长度
+#endif
+/***********************************************************************/
 
 /*****************当串口3接到HWT101CT陀螺仪时启用下面的宏定义********************/
 #if UART3_USE_HWT101CT

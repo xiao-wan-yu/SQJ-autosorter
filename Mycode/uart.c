@@ -24,6 +24,9 @@ uint8_t UART2_RxFlag = 0;               //串口2接收完成标志位（接收�
 uint8_t UART3_RxNewData;                //串口3最新接收到的数据
 uint8_t UART3_RxBuf[UART3_RxLength];    //串口3存放真实数据的数组（不包含包头包尾）
 uint8_t UART3_RxFlag = 0;               //串口3接收完成标志位（接收完成则为1）
+uint8_t UART4_RxNewData;                //串口4(副视觉)最新接收到的数据
+uint8_t UART4_RxBuf[UART4_RxLength];    //串口4(副视觉)存放真实数据的数组（不包含包头包尾）
+uint8_t UART4_RxFlag = 0;               //串口4(副视觉)接收完成标志位（接收完成则为1）
 uint8_t UART5_RxNewData;                //串口5最新接收到的数据
 uint8_t UART5_RxBuf[UART5_RxLength];    //串口5存放真实数据的数组（不包含包头包尾）
 __IO uint8_t UART5_RxFlag;                   //串口5接收完成标志位（接收完成则为1）
@@ -38,6 +41,10 @@ uint8_t UART2_RxRealLength;              //串口2每次接收指令的实际长
 
 #if UART3_USE_HWT101CT
 uint8_t UART3_RxRealLength;              //串口3每次接收指令的实际长度
+#endif
+
+#if UART4_USE_DMA
+uint8_t UART4_RxRealLength;              //串口4(副视觉)每次接收指令的实际长度
 #endif
 
 #if UART5_USE_SteppingMotor
@@ -225,7 +232,43 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 
 /* ========== DMA 句柄定义(补: CubeMX 重新生成后丢失定义,未配置DMA时仅占位) ========== */
 // DMA_HandleTypeDef hdma_usart1_rx;
+DMA_HandleTypeDef hdma_uart4_rx;   //UART4(副视觉)接收DMA句柄（CubeMX未配DMA，此处手动补充定义）
 DMA_HandleTypeDef hdma_uart5_rx;
+
+/**
+  * @brief  串口4(副视觉)接收初始化
+  * @note   CubeMX 工程里没给 UART4 配 DMA/NVIC，这里手动补齐（UART4_RX 固定走 DMA1_Stream2/通道4），
+  *         并仿照串口2(主视觉)那套开启 DMA+空闲中断收帧。主函数外设启动区调用一次即可。
+  *         收帧完成后由 HAL_UARTEx_RxEventCallback() 置 UART4_RxFlag/UART4_RxRealLength。
+  */
+void UART4_RxInit(void){
+  __HAL_RCC_DMA1_CLK_ENABLE();
+  hdma_uart4_rx.Instance = DMA1_Stream2;
+  hdma_uart4_rx.Init.Channel = DMA_CHANNEL_4;
+  hdma_uart4_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
+  hdma_uart4_rx.Init.PeriphInc = DMA_PINC_DISABLE;
+  hdma_uart4_rx.Init.MemInc = DMA_MINC_ENABLE;
+  hdma_uart4_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+  hdma_uart4_rx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+  hdma_uart4_rx.Init.Mode = DMA_NORMAL;
+  hdma_uart4_rx.Init.Priority = DMA_PRIORITY_LOW;
+  hdma_uart4_rx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+  if (HAL_DMA_Init(&hdma_uart4_rx) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  __HAL_LINKDMA(&huart4, hdmarx, hdma_uart4_rx);
+
+  /* UART4 + DMA1_Stream2 中断使能 */
+  HAL_NVIC_SetPriority(UART4_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(UART4_IRQn);
+  HAL_NVIC_SetPriority(DMA1_Stream2_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream2_IRQn);
+
+  /* 开启 DMA+空闲中断接收 */
+  HAL_UARTEx_ReceiveToIdle_DMA(&huart4, UART4_RxBuf, UART4_RxLength);
+  __HAL_DMA_DISABLE_IT(&hdma_uart4_rx, DMA_IT_HT);    //使用DMA+UART时，会开启传输过半中断，需手动关闭
+}
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size){
   if(huart == &huart1){//调试串口
@@ -256,6 +299,16 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size){
 
     HAL_UARTEx_ReceiveToIdle_DMA(&huart3, UART3_RxBuf, UART3_RxLength);
     __HAL_DMA_DISABLE_IT(&hdma_usart3_rx, DMA_IT_HT);    //使用DMA+UART时，会开启传输过半中断，需手动关闭
+  }
+
+  if(huart == &huart4){//副视觉串口
+    /*此处进行数据处理*/
+    /*对副视觉串口返回的数据进行处理*/
+    UART4_RxRealLength = Size;
+    UART4_RxFlag = 1;
+
+    HAL_UARTEx_ReceiveToIdle_DMA(&huart4, UART4_RxBuf, UART4_RxLength);
+    __HAL_DMA_DISABLE_IT(&hdma_uart4_rx, DMA_IT_HT);    //使用DMA+UART时，会开启传输过半中断，需手动关闭
   }
 
   if(huart == &huart5){//普通串口/步进电机串口

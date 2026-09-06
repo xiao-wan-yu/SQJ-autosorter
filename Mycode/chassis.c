@@ -10,6 +10,16 @@
 
 Chassis chassis;
 
+/* 各轮正/反转启动 PWM 阈值（2026-09-04 用户悬空实测：电机静止→持续转动的临界 PWM）。
+   落地值略高于悬空值，靠 start_margin(裕量) 兜底；若需 >2.0 才同步则落地补测直接改表 */
+static const StartPwm_t START_PWM[5] = {
+    {0, 0},       // 索引 0 不用
+    {110, 130},   // 1 左前 LF（最难启动）
+    {90, 130},    // 2 左后 LB
+    {80, 110},    // 3 右后 RB
+    {60, 70},     // 4 右前 RF（最好启动）
+};
+
 /**
   * @brief 底盘初始化：配置4轮速度环PID参数
   * @attention PWM/编码器/STBY 的启动由 main.c 外设启动区负责
@@ -75,6 +85,19 @@ void CHASSIS_Init(void){
   chassis.speed_seg[1].kp = 2.5f;   chassis.speed_seg[1].ki = 0.02f;  chassis.speed_seg[1].kd = 0.0f; // 40-80
   chassis.speed_seg[2].kp = 3.0f;   chassis.speed_seg[2].ki = 0.05f;  chassis.speed_seg[2].kd = 0.0f; // 80-120
   chassis.speed_seg[3].kp = 3.5f;   chassis.speed_seg[3].ki = 0.02f;  chassis.speed_seg[3].kd = 0.0f; // 120-160
+
+  /* 启动阈值整形 + 到位判停：裕量取默认值，累计位移/目标距离清零 */
+  chassis.start_margin = START_PWM_MARGIN_DFT;
+  chassis.dist_acc_x   = 0.0f;
+  chassis.dist_acc_y   = 0.0f;
+  chassis.move_target_x = 0.0f;
+  chassis.move_target_y = 0.0f;
+  /* 到位判停提前量：断电自然滑停等效减速度取默认值 */
+  chassis.brake_decel = BRAKE_DECEL_DFT;
+  /* 精细/常规分档：默认短距≤20cm、低速≤15cm/s，档位在 Start_Move / 恒速时按目标重算 */
+  chassis.fine_max_dist = FINE_MOVE_MAX_DIST_DFT;
+  chassis.fine_max_spd  = FINE_MOVE_MAX_SPD_DFT;
+  chassis.fine_move     = 0;
 }
 
 /**
@@ -134,6 +157,10 @@ void CHASSIS_Odom_Calculate(const int16_t pulse[5]){
   chassis.now_v_y = dy / ENCODER_TIME_S;
   chassis.pos_x += dx;
   chassis.pos_y += dy;
+  /* 到位判停数据源：车体系实际位移 fabs 累计（判断"走够目标距离"用累计弧长即可，
+     不依赖 yaw 旋转；MoveSpeed/原地旋转时无判停引用，累加无害） */
+  chassis.dist_acc_x += fabsf(dx_o);
+  chassis.dist_acc_y += fabsf(dy_o);
 }
 
 /**
@@ -165,6 +192,35 @@ void CHASSIS_Start_Move(float x_dist, float y_dist, float x_speed, float y_speed
   chassis.y_speed_plan_flag = 1;
   chassis.x_set_speed_flag  = 0;   // 规划期间由中断接管 v_x/v_y（手动设速让位）
   chassis.y_set_speed_flag  = 0;
+  /* 到位判停（位置闭环）：清零本段累计位移、记录目标距离（|x/y_dist|，距离0的轴=0 不参与判停） */
+  chassis.dist_acc_x   = 0.0f;
+  chassis.dist_acc_y   = 0.0f;
+  chassis.move_target_x = fabsf(x_dist);
+  chassis.move_target_y = fabsf(y_dist);
+  /* 精细/常规分档：两轴目标距离均≤短距阈值(sdist)→精细档（启 启动整形+提前量判停断电）；
+     否则常规档（大距离/高速）纯时间开环到 tp.t 自然停，不做位置判停、不做启动整形，
+     避免提前量判停在 v~100+ 时提前约 v²/2a=50cm 就断电长滑行 → 又斜又偏。
+     注意：常规档提前量判停被控制循环跳过（见判停块 fine_move 门），此处只记档位。 */
+  chassis.fine_move = (chassis.move_target_x <= chassis.fine_max_dist
+                    && chassis.move_target_y <= chassis.fine_max_dist) ? 1 : 0;
+}
+
+/* 到位断电停转（判停触发时调用）：结束规划后清零4轮速度环输出/积分/历史误差并断电。
+   断电后轮子仍会按机械阻力自然滑行一段（等效减速度≈chassis.brake_decel≈100cm/s²），
+   因此调用点由判停块按"目标−当前速度²/(2·brake_decel)"提前触发，滑停正好落在目标上。 */
+static void CHASSIS_Stop_Now(void){
+  for(uint8_t i = CHASSIS_MOTOR_LF; i <= CHASSIS_MOTOR_RF; i++){
+    PID_INC *pid = &chassis.speed_pid[i];
+    pid->target    = 0.0f;
+    pid->out       = 0.0f;
+    pid->i_out     = 0.0f;
+    pid->p_out     = 0.0f;
+    pid->d_out     = 0.0f;
+    pid->err       = 0.0f;
+    pid->last_err  = 0.0f;
+    pid->prev_err  = 0.0f;
+    TB6612_Control(i, 0);          // 直接断电
+  }
 }
 
 /**
@@ -180,6 +236,35 @@ void CHASSIS_Control_Loop(void){
     chassis.ti += ENCODER_TIME_S;
     if(chassis.ti >= chassis.tp_x.t) chassis.x_speed_plan_flag = 0;   // x轴规划到时间 → 结束
     if(chassis.ti >= chassis.tp_y.t) chassis.y_speed_plan_flag = 0;   // y轴规划到时间 → 结束
+    /* 到位判停（位置闭环，2026-09-04 新增）：目标距离>0 且车体系累计位移≥目标 → 提前清标志停车。
+       dist_acc 由 CHASSIS_Odom_Calculate 本函数下方累加，此判停读到的是上一周期值（滞后10ms可忽略）；
+       本块在下方 if(flag) v=dir*vel else v=0 之前 → 清标志当周期 v 即归零。
+       ti>=tp.t 时间判停保留，作"全车卡死 dist_acc 不涨"的兜底 */
+    /* 提前量判停（2026-09-05 分档后仅精细档短距启用）：目标轴还剩的距离 ≤ 当前速度的滑行距离
+       v²/(2·brake_decel)（再加10ms判停滞后补偿）就触发——结束规划 + 清空4轮输出断电，让车自然
+       滑停，落点正好在目标距离上。若判停在"距离刚好撞上目标"才触发，断电后还会再滑 v²/(2a)（实测
+       三档 a≈100cm/s²），必过头。
+       常规档（大距离/高速）不走本块：提前量 v²/2a 在 v≈100 时约 50cm，会在离目标半米就断电，
+       靠 50cm 不受控滑行到位 → 又斜又偏（队友长距走斜的实测元凶）。常规档只用上方 ti>=tp.t 的
+       纯时间开环梯形（末速0自然减速），回到分档前已验证的整图走法。 */
+    if(chassis.fine_move){
+      if(chassis.move_target_x > 0.1f){
+        float nowv   = fabsf(chassis.now_v_x);   // 上一周期实测整车x速度（判停读到的位移同理滞后一周期）
+        float glide  = nowv*nowv/(2.0f*chassis.brake_decel) + nowv*ENCODER_TIME_S;
+        if(chassis.dist_acc_x >= chassis.move_target_x - glide){
+          chassis.x_speed_plan_flag = 0;
+          if(chassis.move_target_y <= 0.1f) CHASSIS_Stop_Now();  // x 单轴到位 → 清空断电（斜走两轴同走不刹）
+        }
+      }
+      if(chassis.move_target_y > 0.1f){
+        float nowv   = fabsf(chassis.now_v_y);
+        float glide  = nowv*nowv/(2.0f*chassis.brake_decel) + nowv*ENCODER_TIME_S;
+        if(chassis.dist_acc_y >= chassis.move_target_y - glide){
+          chassis.y_speed_plan_flag = 0;
+          if(chassis.move_target_x <= 0.1f) CHASSIS_Stop_Now();  // y 单轴到位 → 清空断电
+        }
+      }
+    }
   }
   if(chassis.x_speed_plan_flag) chassis.v_x = chassis.speed_dir_x * calcTrapezoidalVel(&chassis.tp_x, chassis.ti);
   else if(!chassis.x_set_speed_flag) chassis.v_x = 0.0f;              // 规划结束/无规划 → 归零停
@@ -223,6 +308,17 @@ void CHASSIS_Control_Loop(void){
           pid->prev_err  = 0.0f;
           TB6612_Control(i, 0);    // 直接断电停转
         }
+        /* 读空4轮编码器并喂里程计（关键修复 2026-09-05）：
+           断电滑行/静止漂移期间轮子还在转，若不读清，这些脉冲会积压在编码器计数器里，
+           等下一次 Start_Move 首拍被当成"单周期跑了几cm"一次性读入 → now_v 爆成几百cm/s、
+           到位判停提前量 glide 爆炸 → 车一启动就被误判"已到位"断电（"my 第二次不动"根因）。
+           这里每10ms读清并如实累计进里程计：滑行位移进入 pos/disti（OLED 与尺一致），
+           now_v 也随真实轮速衰减到0，编码器永远不积压。 */
+        int16_t idle_pulse[5];
+        for(uint8_t i = CHASSIS_MOTOR_LF; i <= CHASSIS_MOTOR_RF; i++){
+          idle_pulse[i] = ENCODER_GetPulse(i);
+        }
+        CHASSIS_Odom_Calculate(idle_pulse);
         return;                    // 跳过本轮速度环
       }
       /* 有平移速度(vy/vx≠0)：w=0 停旋转，不清速度环，继续跑麦轮+速度环使 vx/vy 生效 */
@@ -238,6 +334,17 @@ void CHASSIS_Control_Loop(void){
   }
   /* 里程计：4轮脉冲 → 车体位移 → 全局坐标积分 */
   CHASSIS_Odom_Calculate(pulse);
+  /* 精细档判定（控制启动整形是否启用）：
+       规划中 → 短距 Start_Move(fine_move=1) 才整形；
+       恒速手动设速 → 合速度≤lspd 的慢速才整形（同步破静摩擦）；
+       常规档（大距离/高速）不做整形 → 纯速度环自爬，回归分档前"整图跑通"的旧走法 */
+  uint8_t do_shape = 0;
+  if(chassis.x_speed_plan_flag || chassis.y_speed_plan_flag){
+    do_shape = chassis.fine_move;
+  }else if(chassis.x_set_speed_flag || chassis.y_set_speed_flag){
+    float mag = sqrtf(chassis.v_x*chassis.v_x + chassis.v_y*chassis.v_y);
+    if(mag > 0.5f && mag <= chassis.fine_max_spd + 0.01f) do_shape = 1;
+  }
   for(uint8_t i = CHASSIS_MOTOR_LF; i <= CHASSIS_MOTOR_RF; i++){
     PID_INC *pid = &chassis.speed_pid[i];
     if(abs(pulse[i]) < 25){//软件滤波：|脉冲|>=25 视为丢数/噪声，不更新 actual（保持上次值）
@@ -252,6 +359,21 @@ void CHASSIS_Control_Loop(void){
     pid->ki = chassis.speed_seg[seg].ki;
     pid->kd = chassis.speed_seg[seg].kd;
     PID_IncUpdate(pid);                                                     // 增量式 PID（照搬旧代码算法）
+    /* 启动阈值整形（2026-09-04 新增，2026-09-05 起仅精细档启用）：该轮被命令要动(target≠0)但实测
+       速度还很小(轮子没转起来)、且 PID 自身输出不够 → 抬到"该轮自己的启动阈值×裕量"，让4轮同一命令
+       时刻同步破静摩擦。轮子一旦转起来(|actual|≥START_STILL_SPD)立即交还 PID；增量式下一拍按误差把
+       输出拉回，不会持续顶满。常规档（大距/高速）跳过：4轮各自阻力差只影响起步瞬态，高速长距有足够
+       加速段让速度环自爬，整形顶高反而可能引入瞬时横向速度差 */
+    if(do_shape){
+      float mrg = chassis.start_margin;
+      if(     pid->target >  0.5f && pid->actual <  START_STILL_SPD
+          && pid->out < START_PWM[i].fwd * mrg){
+          pid->out = START_PWM[i].fwd * mrg;
+      }else if(pid->target < -0.5f && pid->actual > -START_STILL_SPD
+          && pid->out > -START_PWM[i].rev * mrg){
+          pid->out = -START_PWM[i].rev * mrg;
+      }
+    }
     TB6612_Control(i, (int16_t)pid->out);                                   // PWM ±1000 直接输出
   }
 }

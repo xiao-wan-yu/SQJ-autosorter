@@ -2,6 +2,9 @@
 
 VISION_DATA VISION_Data; 
 
+uint8_t vision_letter = 0x00; //副视觉发过来的数据（包含两个目标字母）
+uint8_t vision_target_letter[2];//存放副视觉发过来的两个目标字母
+
 /**
   * @brief  解析视觉模块信息并存入 VisionData 结构体
   */
@@ -31,3 +34,13 @@ void VISION_ReceiveData(uint8_t *buf, uint8_t buf_len)
   }
 }
 
+
+extern UART_HandleTypeDef huart4;
+/**
+  * @brief  解析副视觉模块信息并存入 vision_target_letter数组（阻塞式函数）
+  */  
+void VISION_ReceiveLetter(void){
+  HAL_UART_Receive(&huart4, &vision_letter, 1, HAL_MAX_DELAY);
+  vision_target_letter[0] = (vision_letter & 0xF0) >> 4; //第一个字母
+  vision_target_letter[1] = (vision_letter & 0x0F);      //第二个字母
+}

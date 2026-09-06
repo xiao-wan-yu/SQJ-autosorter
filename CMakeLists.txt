@@ -113,6 +113,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Mycode/hwt101ct.c
     ${CMAKE_SOURCE_DIR}/Mycode/robot.c
     ${CMAKE_SOURCE_DIR}/Mycode/circle.c
+    ${CMAKE_SOURCE_DIR}/Mycode/vision.c
 
     
     #根据选择的oled文件做相应修改
