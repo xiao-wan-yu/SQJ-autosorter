@@ -518,7 +518,7 @@ int main(void)
     runActionGroup(1, 1);//不需要延时，因为和出发一起
     
     //先盲走到圆盘机中心+面向
-    ROBOT_Move(mode_red?-60:60,415,100,120,100,120);
+    ROBOT_Move(mode_red?-60:60,418,100,120,100,120);
     HAL_Delay(100);
     UART1_Printf("1");
     mode_red ? ROBOT_Angle(270) : ROBOT_Angle(90);
@@ -547,6 +547,25 @@ int main(void)
         触发条件：第二个字节==0x01或0x02，且第三个数(x,2字节)==100~200，且第四个数(y,2字节)==80~160 → 触发动作组1
         结束条件：收到单字节指令0xA6，则退出本while循环 
         视觉屏幕320*240*/
+    /* ==================== 圆盘机拍球防连拍（重点！） ====================
+       ★现象解释（先看这里再调参）：
+       1) "一个球拍两次" = 视觉按 0.02s 连续上报，同一个球在画面里占好几帧，
+          旧代码每帧都 runActionGroup，所以一球被重复拍；
+       2) "上一球要拍拍了下一个" = runActionGroup 只是给舵机控制板发一条启动指令
+          就立刻返回(约7ms)，动作组本身要在控制板上跑几百ms；上一拍没跑完，
+          下一帧(已是下一个球)又触发一次，动作就落到了下一个球上。
+       所以别再去纠结视觉发帧间隔是0.02还是0.03：核心是在MCU侧
+       "同一球只认第一帧 + 一次动作没执行完不再触发"。下面用冷却时间实现。
+       ★YPJ_HIT_COOLDOWN_MS 调法：设成 ≥ 动作组7/10从开始到复位可再拍的实测耗时。
+         调大→更不易连拍，但若相邻两球间隔比它还短，后一个球会漏拍；
+         调小→能跟上连着的球，但小于动作实际耗时又会连拍。
+         用串口1日志里相邻两次"HIT"行的时间戳就能标定真实动作耗时。
+       ★YPJ_HIT_LOG：1=串口1打印 HIT/SKIP 时序（先在电脑上分析帧间隔和连拍），调好后改0。 */
+    const uint32_t YPJ_HIT_COOLDOWN_MS = 250;   /* 拍一次后的最短冷却(ms)，按动作组实测调整 */
+    const uint8_t  YPJ_HIT_LOG = 1;            /* 1=开日志 0=关 */
+    uint32_t ypj_last_hit_t   = 0;             /* 上一次真正触发"拍"的时刻(ms) */
+    uint32_t ypj_last_frame_t = 0;             /* 上一次收到"有球"帧的时刻(ms)，日志看发帧间隔 */
+
     while(YuanPanJi_Flag == 1){
       if(VISION1_RxFlag){                              // 2号串口（主视觉）DMA收到一帧
         VISION1_RxFlag = 0;                            // 必须立即清零
@@ -562,20 +581,35 @@ int main(void)
           memcpy(CAM_Data, VISION1_RxBuf, VISION1_RxRealLength);
         }
         if(CAM_Data[0] == 0xA1                                              // 包头
-            && (CAM_Data[1] == 0x01 || CAM_Data[1] == 0x02)                  // 第二个字节为0x01或0x02
+            && (CAM_Data[1] == 0x01 || CAM_Data[1] == 0x02)                  // 有球：0x01本色 / 0x02黄
             && CAM_Data[6] == 0x0B){                                         // 包尾
           uint16_t cam_x = (uint16_t)CAM_Data[2] | ((uint16_t)CAM_Data[3] << 8); // x坐标（第三个数，2字节）
           uint16_t cam_y = (uint16_t)CAM_Data[4] | ((uint16_t)CAM_Data[5] << 8); // y坐标（第四个数，2字节）
-          //if((cam_x >= 100 && cam_x <= 200)      // 第三个数(x)为100~200
-              //&& (cam_y >= 80 && cam_y <= 160)){  // 第四个数(y)为80~160
-            if((cam_x >= 10 && cam_x <= 310)      // 第三个数(x)为10~300，直接不限制，只要在屏幕内就拍
-                && (cam_y >= 10 && cam_y <= 230)){  // 第四个数(y)为10~240
+          uint32_t now    = HAL_GetTick();          // 当前时刻(ms)
+          uint32_t d_last = now - ypj_last_frame_t; // 距上一帧"有球"帧的间隔(ms)，日志用于看视觉真实发帧间隔
+          ypj_last_frame_t = now;
+
+          if((cam_x >= 10 && cam_x <= 310)      // x为10~300，直接不限制，只要在屏幕内就拍
+              && (cam_y >= 10 && cam_y <= 230)){  // y为10~240
+            if((now - ypj_last_hit_t) < YPJ_HIT_COOLDOWN_MS){
+              /* ===== 冷却期：还是同一个球 / 上一拍动作还没执行完 → 忽略（防连拍关键）===== */
+              if(YPJ_HIT_LOG)
+                UART1_Printf("SKIP b=%u x=%u y=%u d=%lu\r\n",
+                             (unsigned)CAM_Data[1], (unsigned)cam_x, (unsigned)cam_y,
+                             (unsigned long)d_last);
+            }else{
+              /* ===== 冷却已过：这一帧当作"新球"，真正拍一次 ===== */
+              ypj_last_hit_t = now;
               if(CAM_Data[1] == 0x01){
-                runActionGroup(7, 1);    // 拍本色球，包括分流板（重复执行，不退出循环）
-                }
-              else if(CAM_Data[1] == 0x02){
-                runActionGroup(10, 1);    // 拍黄球，包括分流板（重复执行，不退出循环）}
+                runActionGroup(7, 1);    // 拍本色球，包括分流板
+              }else{
+                runActionGroup(10, 1);   // 拍黄球，包括分流板
               }
+              if(YPJ_HIT_LOG)
+                UART1_Printf("HIT  b=%u x=%u y=%u d=%lu\r\n",
+                             (unsigned)CAM_Data[1], (unsigned)cam_x, (unsigned)cam_y,
+                             (unsigned long)d_last);
+            }
           }
         }
       }
@@ -586,7 +620,7 @@ int main(void)
     if(YuanPanJi_Flag == 0)//圆盘机结束时
     {
       //退后固定距离
-      ROBOT_Move(0,-25,50,50,50,50);
+      ROBOT_Move(0,-28,50,50,50,50);
       //收起机械臂
       runActionGroup(0, 1);
       //向左平行到仓库
@@ -600,6 +634,8 @@ int main(void)
       while(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>90);//100有点远，距离小于90就退此循环
       ROBOT_MoveSpeed(0,0);
       
+      HAL_Delay(1000);//延时一下提高稳定性
+
       //加一次角度校准（这些地方的角度很重要）
       mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
 
@@ -608,6 +644,7 @@ int main(void)
       ROBOT_MoveSpeed(-10, 0);
       while (LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1);
       ROBOT_MoveSpeed(0,0);
+      HAL_Delay(1000);//延时一下提高稳定性
 
       //加一次角度校准
       mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
@@ -620,37 +657,55 @@ int main(void)
       ZhengMian_Flag = 1;//正面识别开始
 
       if(ZhengMian_Flag == 1){
-        UART4_Printf("%c", 0xA1);//发0xA2告诉副视觉进入正面识别
+        
+        /*正面识别的通信流程：
+          1. MCU分别发0xA2给主视觉和副视觉，告诉它们进入正面识别
+          2. 副视觉(串口4)发来的单字节为0xAB/0xAC/0xAD/0xBC/0xBD/0xCD这6种之一时，
+             就存下来并原样转发给主视觉(串口2)；不是这6种就不存；
+          3. 存下来后，MCU发0xA7给副视觉，告诉它我收到了，副视觉可以结束识别了
+          4. 主视觉收到MCU发送的，副视觉传来的原样信息后，发0xA7给MCU，告诉它正面识别结束了
+          5. MCU收到主视觉发来的单字节0xA7，则退出本while循环，正面识别结束
+        */
+
+        UART2_Printf("%c", 0xA2);//发0xA2告诉主视觉进入正面识别
+        UART4_Printf("%c", 0xA2);//发0xA2告诉副视觉进入正面识别
+
         runActionGroup(19, 1); 	//这里是收倒球槽
         delay_ms(2000);
 
-        //先清掉之前残留的串口4接收数据，防止把旧数据误当成0xA7
+        //右+前，移动到阶梯附近,要往右多走点，不然撞到了
+        ROBOT_Move(110, 160, 100, 100, 100, 100);
+
+        //向左慢走，直到前面的两个光电都感应到障碍物
+        ROBOT_MoveSpeed(-10, 0);
+        while(LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin)==0);
+
+        //往左走一定距离，视觉中能完整看到两个字母（可以省去测距前后校准）
+        ROBOT_Move(-50, 0, 10, 10, 10, 10);
+        //停车准备识别
+        ROBOT_MoveSpeed(0,0);
+        HAL_Delay(1000);//延时一下提高稳定性
+
+        //清掉主/副视觉串口的残留接收数据，避免把旧数据误当成有效信息
+        UART2_RxFlag = 0;
+        UART2_RxRealLength = 0;
+        memset(UART2_RxBuf, 0, UART2_RxLength);
         UART4_RxFlag = 0;
         UART4_RxRealLength = 0;
         memset(UART4_RxBuf, 0, UART4_RxLength);   //UART4_RxBuf是extern数组，不能用sizeof
 
-        //如果没收到串口4(副视觉)发来的0xA7，就一直在此while中执行内容
-        //内容：副视觉发来的单字节为0xAB/0xAC/0xAD/0xBC/0xBD/0xCD这6种之一时，
-        //      就存下来并原样转发给主视觉(串口2)；不是这6种就不存；
-        //退出条件：收到单字节0xA7
-        while(ZhengMian_Flag == 1){                       //ZhengMian_Flag还是1=还没收到0xA7，一直循环
-          /* ============ 内容：副视觉六种结果字节处理见下方收帧逻辑 ============ */
+        //流程2~5都在while里跑，收到主视觉发来的0xA7才退出
+        while(ZhengMian_Flag == 1){
+          /* ============ 流程2/3/5：副视觉六种字节处理 + 主视觉0xA7退出，见下方 ============ */
 
-          /* 串口4收到一帧后的处理 */
+          /* 串口4收到一帧后的处理：副视觉 */
           if(UART4_RxFlag){                               //串口4（副视觉）DMA收到一帧
             UART4_RxFlag = 0;                             //必须立即清零
 
             if(UART4_RxRealLength == 1){                  //这一帧是单字节
               uint8_t vision4_byte = UART4_RxBuf[0];      //取出这一帧的数据
 
-              /* 唯一退出条件：收到单字节0xA7，则退出本while循环 */
-              if(vision4_byte == 0xA7){
-                ZhengMian_Flag = 0;                       //收到0xA7，正面识别确认，退出等待
-                JieTi_Flag = 1;                           //阶梯开始
-                break;
-              }
-
-              /* 副视觉发来的6种有效结果字节：0xAB 0xAC 0xAD 0xBC 0xBD 0xCD */
+              /* 流程2：副视觉发来的6种有效结果字节 0xAB/0xAC/0xAD/0xBC/0xBD/0xCD 之一 */
               if(vision4_byte == 0xAB || vision4_byte == 0xAC || vision4_byte == 0xAD ||
                  vision4_byte == 0xBC || vision4_byte == 0xBD || vision4_byte == 0xCD){
                 //存下来：高4位=第一个字母，低4位=第二个字母（存到 ZhengMian_Letter，供后面阶梯阶段使用）
@@ -658,41 +713,46 @@ int main(void)
                 ZhengMian_Letter[1] = (vision4_byte & 0x0F);
                 //原样发送给主视觉（串口2）
                 UART2_Printf("%c", vision4_byte);
+                //流程3：发0xA7给副视觉，告诉它我收到了，副视觉可以结束识别了
+                UART4_Printf("%c", 0xA7);
               }
-              //不是上面6种的其他单字节：不存，直接忽略
+              //不是这6种的其他单字节：不存，直接忽略
             }
+          }
+
+          /* 流程5：主视觉(串口2)收到MCU转发的原样信息后，发0xA7给MCU → 收到则退出while */
+          if(UART2_RxFlag){                               //串口2（主视觉）DMA收到一帧
+            UART2_RxFlag = 0;                             //必须立即清零
+            if(UART2_RxRealLength == 1 && UART2_RxBuf[0] == 0xA7){
+              ZhengMian_Flag = 0;                         //主视觉确认，正面识别结束
+              JieTi_Flag = 1;                             //阶梯开始
+              break;
+            }
+            //主视觉发来的其它帧：忽略，继续等单字节0xA7
           }
         }
       }
 
       if(JieTi_Flag == 1){//阶梯开始
         
-        //右+前，移动到阶梯附近,要往右多走点，不然撞到了
-        ROBOT_Move(110, 160, 100, 100, 100, 100);
-
-        //向左慢走，直到前面的两个光电都感应到障碍物，开始测距，然后向前走到合适的距离（适合识别的距离）
-        ROBOT_MoveSpeed(-10, 0);
-        while(LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin)==0);
-        
-        //还没写完
+        //识别完成后，先走近阶梯，走到合适距离（适合识别的距离）
         ROBOT_MoveSpeed(0, 10);
-
         while(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin)>120);//100好像靠太近了
         ROBOT_MoveSpeed(0, 0);
+        HAL_Delay(1000);//延时一下提高稳定性
 
-        //向左走到字母处
-        ROBOT_Move(-30, 0, 50, 0, 50, 0);
-        /*
-          这里放识别的代码
-        */
-        ROBOT_MoveSpeed(-20, 0);
-        HAL_Delay(1000);//避免路上识别到字母然后停下来
-        while(LASER_Barrier(LASER3_GPIO_Port,LASER3_Pin)==1);//这里容易识别到字母上的黑，然后停下来
+        //定位操作：向左慢平移到左后光电感应到无障碍物
+        ROBOT_MoveSpeed(-10, 0);//这里容易识别到字母上的黑，然后停下来
+        //HAL_Delay(1000);//避免路上识别到字母然后停下来
+        while(LASER_Barrier(LASER3_GPIO_Port,LASER3_Pin)==1);
         ROBOT_MoveSpeed(0, 0);
-        UART1_Printf("8");
+        HAL_Delay(1000);//延时一下提高稳定性
 
         //左前光电无障碍物就开始从左往右走
-        ROBOT_MoveSpeed(20, 0);
+        ROBOT_MoveSpeed(10, 0);
+
+        //只写到这里
+
         /*
           这里放抓取的代码
         */
