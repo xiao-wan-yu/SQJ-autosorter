@@ -100,6 +100,9 @@ uint8_t CAM_Data[7] = {0};    // 存放视觉发送来的坐标数据（一帧�
 
 bool mode_red = true;  // 红蓝模式标志：true=红方，false=蓝方
 
+//阶梯(8物块)夹取工作模式：1=按顺序计数(第二字节 0x00不夹/0x01夹)；2=视觉反馈编号(0xMN: M=第几个物块1~8, N=1夹/0不夹, 如0x11=第1个夹、0x60=第6个不夹)
+uint8_t JieTi_Grab_Mode = 2;   // 现场切换时改这里（置1/置2）
+
 
 /* USER CODE END PV */
 
@@ -560,8 +563,16 @@ int main(void)
          调大→更不易连拍，但若相邻两球间隔比它还短，后一个球会漏拍；
          调小→能跟上连着的球，但小于动作实际耗时又会连拍。
          用串口1日志里相邻两次"HIT"行的时间戳就能标定真实动作耗时。
-       ★YPJ_HIT_LOG：1=串口1打印 HIT/SKIP 时序（先在电脑上分析帧间隔和连拍），调好后改0。 */
-    const uint32_t YPJ_HIT_COOLDOWN_MS = 250;   /* 拍一次后的最短冷却(ms)，按动作组实测调整 */
+       ★YPJ_HIT_LOG：1=串口1打印 HIT/SKIP 时序（先在电脑上分析帧间隔和连拍），调好后改0。 
+
+       ★8秒一圈，12个球，两个球之间间隔2/3秒，7和10动作组都是400ms
+       */
+
+    /* 实测：圆盘8s/圈、12球 → 相邻两球间隔≈667ms；动作组7/10执行400ms。
+       冷却窗口须满足 400ms < 冷却 < 667ms（>动作耗时保证上一拍跑完不连拍，
+       <球间隔保证不漏下一个球）。取500ms＝已验证过"连拍解决、连续球能拍"的参数，
+       与动作组改回400ms保持同一套基线，方便你继续调"偏左"。 */
+    const uint32_t YPJ_HIT_COOLDOWN_MS = 500;   /* 冷却窗口：400 < 值 < 667 */
     const uint8_t  YPJ_HIT_LOG = 1;            /* 1=开日志 0=关 */
     uint32_t ypj_last_hit_t   = 0;             /* 上一次真正触发"拍"的时刻(ms) */
     uint32_t ypj_last_frame_t = 0;             /* 上一次收到"有球"帧的时刻(ms)，日志看发帧间隔 */
@@ -748,16 +759,103 @@ int main(void)
         ROBOT_MoveSpeed(0, 0);
         HAL_Delay(1000);//延时一下提高稳定性
 
-        //左前光电无障碍物就开始从左往右走
+        //机械臂变成识别状态
+        runActionGroup(54, 1);
+        HAL_Delay(2000);
+
+        //清掉主视觉残留帧：只认进入对准后的实时坐标，避免拿校准途中收到的旧数据误判/误停
+        VISION1_RxFlag = 0;
+        VISION1_RxRealLength = 0;
+        memset(VISION1_RxBuf, 0, VISION1_RxLength);
+
+        /* 阶梯目标对准逻辑见下方：主视觉A3数据包 0x00→继续右走；0x01→按x对直到|x|<=10停下 */
+        UART2_Printf("%c", 0xA3);//发0xA3告诉主视觉进入"阶梯目标对准"阶段(惯例同0xA1圆盘机/0xA2正面识别；若视觉端在收到0xA7后已自行上报A3帧，此行可删)
+
+        //左前光电无障碍物就开始从左往右走，边走边找目标，抓完一个继续抓下一个
         ROBOT_MoveSpeed(10, 0);
 
-        //只写到这里
-
-        /*
-          这里放抓取的代码
+        /* ============ 阶梯连续抓取：主视觉(串口2)实时坐标包 ============
+           数据包(7字节)：A3 | cmd | x低 | x高 | y低 | y高 | 0x0B包尾
+           x为画面中心偏移(16位有符号,低字节在前,-160~160)；y范围-120~120(本阶段不用)
+           cmd含义由全局变量 JieTi_Grab_Mode 决定：
+             Mode=1 按顺序计数：cmd==0x00 → 不需要夹，保持右走；cmd==0x01 → 需要夹，x对准停车夹取
+                 物块计数：车右走时，x每从"偏右(>10)"进入"对准带(|x|<=10)"一次就算路过1个
+                 物块（不需要夹的也会路过，所以编号才是连续的1~8）
+             Mode=2 视觉反馈编号：cmd==0xMN（M=高4位=第几个物块1~8，N=低4位=1要夹/0不要）
+                 例：0x11=第1个物块需要夹；0x60=第6个物块不需要夹
+           夹取动作组：第1~2个(中阶梯)→57；第3~6个(高阶梯)→60；第7~8个(矮阶梯)→63；
+                       夹完每一个都要调用66(回到识别状态)；两个动作组各约5秒(delay_ms(5000))
+           结束条件：右前光电(LASER2)无障碍物=已走出阶梯区域，没有更多要抓的目标
         */
-        HAL_Delay(3000);
-        while(LASER_Barrier(LASER2_GPIO_Port,LASER2_Pin)==1);//这里容易识别到字母上的黑，然后停下来
+        {
+          int16_t cam_x = 0;      // 当前目标x(有符号，车身右为正)
+          uint8_t grab_cnt = 0;   // 已路过的物块数(1~8)，仅计数模式用
+          uint8_t x_state = 1;    // 计数模式辅助：1=偏右(x>10) 2=对准带(|x|<=10) 3=偏左(x<-10)
+          uint8_t cnt_en  = 1;    // 计数模式辅助：1=允许给当前物块计数(防止同一个物块重复数)
+
+          while(LASER_Barrier(LASER2_GPIO_Port,LASER2_Pin)==1){//还在阶梯区域：继续右走扫描
+            if(VISION1_RxFlag){                    // 主视觉DMA收到一帧
+              VISION1_RxFlag = 0;                  // 必须立即清零
+              /* 在缓冲区里找 A3...0B 的完整包，兼容可能的多帧黏包 */
+              for(uint8_t i = 0; i + 7 <= VISION1_RxRealLength; i++){
+                if(VISION1_RxBuf[i] == 0xA3        // 包头
+                    && VISION1_RxBuf[i + 6] == 0x0B){// 包尾
+                  cam_x = (int16_t)((uint16_t)VISION1_RxBuf[i + 2]
+                                  | ((uint16_t)VISION1_RxBuf[i + 3] << 8));//x低字节在前
+                  uint8_t cmd = VISION1_RxBuf[i + 1];
+
+                  /* ---------- 解析：第几个物块num / 要不要夹need ---------- */
+                  uint8_t need = 0;
+                  uint8_t num  = 0;
+                  if(JieTi_Grab_Mode == 1){              // 模式1：按顺序计数
+                    need = (cmd == 0x01);                // 0x01=需要夹
+                    /* 计数：x从偏右(x>10)进入对准带(|x|<=10)=车对准/路过1个物块 */
+                    if(x_state == 1 && cam_x <= 10 && cam_x >= -10 && cnt_en){
+                      if(grab_cnt < 8) grab_cnt++;
+                      cnt_en = 0;                        // 这个物块已数过
+                    }
+                    if(cam_x > 10){          x_state = 1; }
+                    else if(cam_x < -10){    x_state = 3; cnt_en = 1; }//已从左边离开,允许数下一个
+                    else{                    x_state = 2; }
+                    /* 保险：需要夹却因跳帧没数到时，补数一次 */
+                    if(need && cam_x <= 10 && cam_x >= -10 && cnt_en && grab_cnt < 8){
+                      grab_cnt++;
+                      cnt_en = 0;
+                    }
+                    num = (grab_cnt == 0) ? 1 : grab_cnt;
+                  }else{                                 // 模式2：视觉反馈编号
+                    num  = (cmd >> 4) & 0x0F;            // 高4位=第几个物块
+                    need = (cmd & 0x0F) != 0;            // 低4位=1要夹/0不要
+                  }
+
+                  /* ---------- 按物块编号选择动作组，对准后夹取 ---------- */
+                  if(need && num >= 1 && num <= 8){
+                    if(cam_x > 10){          // 目标偏车身右 → 往右走
+                      ROBOT_MoveSpeed(10, 0);
+                    }else if(cam_x < -10){   // 目标偏车身左 → 往左走
+                      ROBOT_MoveSpeed(-10, 0);
+                    }else{                   // |x|<=10 → 已对准，把当前这个夹走
+                      ROBOT_MoveSpeed(0, 0); // 停车
+
+                      /* 第1~2个→57中阶梯夹；第3~6个→60高阶梯夹；第7~8个→63矮阶梯夹 */
+                      uint8_t act = (num <= 2) ? 57 : ((num <= 6) ? 60 : 63);
+                      runActionGroup(act, 1);   // 夹取动作组
+                      delay_ms(5000);           // 夹取动作约5秒
+                      runActionGroup(66, 1);    // 夹完回到识别状态
+                      delay_ms(5000);           // 识别动作约5秒
+
+                      if(JieTi_Grab_Mode == 1){ x_state = 3; cnt_en = 1; }//这个已处理完，准备数下一个
+                      ROBOT_MoveSpeed(10, 0);   // 继续往右走，看下一个是否需要夹
+                    }
+                  }else{
+                    ROBOT_MoveSpeed(10, 0);     // 不需要夹：不动机械臂，继续右走
+                  }
+                  break;                         // 一帧只处理第一个完整包
+                }
+              }
+            }
+          }
+        }
         ROBOT_MoveSpeed(0, 0);
         //右前光电无障碍物，就开始向左走固定距离（走到阶梯平面中间）
         ROBOT_Move(-45, -35, 50, 50, 50, 50);
