@@ -483,10 +483,34 @@ int main(void)
       }
 
       //0和1专用于调试
-      if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)){
-        //uint8_t Data[] = "0xAA";
-        //UART2_Printf("%c", 0xAA);
-
+      if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)){//按键0--调试：进入/退出"实时显示灰度值"(串口UART1+OLED)
+        // GRAY3 串行接口 8 路数字量（0=深/1=浅），与循线同源，不影响后续运行。
+        // 注意：KEY_ONE 是"单击"检测（确认按下后会等松手才返回），
+        //       所以做成：按一次 KEY0 进入实时显示，再按一次 KEY0 退出回菜单。
+        // OLED(128x64) 布局：第1行 GRAY3 八路值(左探头1~右探头8)，第2行图例 0=深/1=浅
+        UART1_Printf("==== GRAY3 8CH  (0=deep 1=light)  press KEY0 to exit ====\r\n");
+        OLED_Clear();                                          // 进入调试前清屏(只改缓存)
+        OLED_Update();                                         // 推送一次，避免残留菜单字
+        while(1){
+          GRAY3_Serial_Update();                               // 实时刷新 GRAY3 8 路数字量
+          UART1_Printf("GRAY3:%d %d %d %d %d %d %d %d\r\n",
+                       GRAY_Data[GRAY3][0], GRAY_Data[GRAY3][1],
+                       GRAY_Data[GRAY3][2], GRAY_Data[GRAY3][3],
+                       GRAY_Data[GRAY3][4], GRAY_Data[GRAY3][5],
+                       GRAY_Data[GRAY3][6], GRAY_Data[GRAY3][7]);
+          OLED_Printf(0, 0, OLED_8X16_HALF, "GRAY3:%d%d%d%d%d%d%d%d",
+                      GRAY_Data[GRAY3][0], GRAY_Data[GRAY3][1],
+                      GRAY_Data[GRAY3][2], GRAY_Data[GRAY3][3],
+                      GRAY_Data[GRAY3][4], GRAY_Data[GRAY3][5],
+                      GRAY_Data[GRAY3][6], GRAY_Data[GRAY3][7]);
+          OLED_Printf(0, 16, OLED_8X16_HALF, "0=deep 1=light");
+          OLED_Update();                                       // 推送显存到屏幕
+          HAL_Delay(50);                                       // 50ms 刷一次，方便人眼观察
+          if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)) break;         // 再按一次 KEY0 退出
+        }
+        OLED_Clear();                                          // 退出时清屏，恢复菜单前先清
+        OLED_Update();
+        UART1_Printf("==== GRAY3 debug exit ====\r\n");
       }
 
       if(KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){
@@ -521,21 +545,26 @@ int main(void)
     runActionGroup(1, 1);//不需要延时，因为和出发一起
     
     //先盲走到圆盘机中心+面向
-    ROBOT_Move(mode_red?-60:60,418,100,120,100,120);
+    ROBOT_Move(mode_red?-60:60,417,100,120,100,120);
     HAL_Delay(100);
     UART1_Printf("1");
     mode_red ? ROBOT_Angle(270) : ROBOT_Angle(90);
     UART1_Printf("2");
 
     
-    //向前慢走，直到灰度传感器边缘的两个传感器有感应到白线
+    //向前慢走，直到灰度传感器第二路(探头2)感应到白线
     GRAY_Update();
     ROBOT_MoveSpeed(0, 15);
-    while(GRAY_Data[GRAY3][0]!=1)
+    while(GRAY_Data[GRAY3][0] == 0)//探头1为0(黑)继续走，读到1(白)即停
+
     {
       GRAY_Update();
     }
     ROBOT_MoveSpeed(0, 0);
+
+    //往后走一点点
+    ROBOT_Move(0, mode_red ? -2 : -2, 0, 10, 0, 10);
+    HAL_Delay(100);
 
     //往后退到可以拍球，要快（不需要后退了，直接灰度校准更准确）
     //ROBOT_Move(0, mode_red ? -11 : -14, 0, 10, 0, 10);//20太多，12擦球
@@ -572,7 +601,7 @@ int main(void)
        冷却窗口须满足 400ms < 冷却 < 667ms（>动作耗时保证上一拍跑完不连拍，
        <球间隔保证不漏下一个球）。取500ms＝已验证过"连拍解决、连续球能拍"的参数，
        与动作组改回400ms保持同一套基线，方便你继续调"偏左"。 */
-    const uint32_t YPJ_HIT_COOLDOWN_MS = 500;   /* 冷却窗口：400 < 值 < 667 */
+    const uint32_t YPJ_HIT_COOLDOWN_MS = 300;   /* 冷却窗口：400 < 值 < 667 */
     const uint8_t  YPJ_HIT_LOG = 1;            /* 1=开日志 0=关 */
     uint32_t ypj_last_hit_t   = 0;             /* 上一次真正触发"拍"的时刻(ms) */
     uint32_t ypj_last_frame_t = 0;             /* 上一次收到"有球"帧的时刻(ms)，日志看发帧间隔 */
@@ -645,7 +674,7 @@ int main(void)
       while(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>90);//100有点远，距离小于90就退此循环
       ROBOT_MoveSpeed(0,0);
       
-      HAL_Delay(1000);//延时一下提高稳定性
+      HAL_Delay(100);//延时一下提高稳定性
 
       //加一次角度校准（这些地方的角度很重要）
       mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
@@ -655,12 +684,12 @@ int main(void)
       ROBOT_MoveSpeed(-10, 0);
       while (LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1);
       ROBOT_MoveSpeed(0,0);
-      HAL_Delay(1000);//延时一下提高稳定性
+      HAL_Delay(100);//延时一下提高稳定性
 
       //加一次角度校准
       mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
       //往右走固定距离（刚到对上仓库的距离）
-      //if(mode_red) ROBOT_Move(12, 0, 10, 0, 10, 0);//20太大，速度100会飘，12太远
+      if(mode_red) ROBOT_Move(5, 0, 10, 0, 10, 0);//20太大，速度100会飘，12太远
 
       runActionGroup(16, 1); 	//这里是倒球动作组
       delay_ms(2000);
