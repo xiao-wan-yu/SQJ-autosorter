@@ -265,9 +265,59 @@ void UART4_RxInit(void){
   HAL_NVIC_SetPriority(DMA1_Stream2_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream2_IRQn);
 
+  /* UART4_RX(PC11) 补内部上拉：CubeMX 生成的是 GPIO_NOPULL，副视觉没接/线断了时 RX 悬空，
+     会收进噪声帧并触发 ORE 错误，把这条串口的接收"打死"(见下面 HAL_UART_ErrorCallback)。
+     上拉后线空着也是稳定的空闲高电平；TX(PC10) 不用管。 */
+  {
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin       = GPIO_PIN_11;          //PC11 = UART4_RX
+    GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull      = GPIO_PULLUP;
+    GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_VERY_HIGH;
+    GPIO_InitStruct.Alternate = GPIO_AF8_UART4;
+    HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  }
+
   /* 开启 DMA+空闲中断接收 */
   HAL_UARTEx_ReceiveToIdle_DMA(&huart4, UART4_RxBuf, UART4_RxLength);
   __HAL_DMA_DISABLE_IT(&hdma_uart4_rx, DMA_IT_HT);    //使用DMA+UART时，会开启传输过半中断，需手动关闭
+}
+
+/* ============================================================================
+   ★串口错误回调（必须有！）：ORE溢出 / FE帧错 / NE噪声错一旦发生，HAL 会终止 DMA 接收，
+     而且**不会自动重新开始**，那条串口从此"永远收不到数据"，直到复位为止。
+     现场表现就是：OLED 上一直 WAIT...，连自己拿串口助手往这个口发都收不到。
+     这里把出错的串口重新拉起来，让接收自愈。
+   ============================================================================ */
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart){
+  if(huart == &huart1){//调试串口
+    __HAL_UART_CLEAR_OREFLAG(huart);
+    HAL_UART_AbortReceive(huart);
+    HAL_UARTEx_ReceiveToIdle_DMA(&huart1, UART1_RxBuf, UART1_RxLength);
+    __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
+  }
+  if(huart == &huart2){//主视觉串口
+    __HAL_UART_CLEAR_OREFLAG(huart);
+    HAL_UART_AbortReceive(huart);
+    UART2_RxFlag = 0;
+    UART2_RxRealLength = 0;
+    HAL_UARTEx_ReceiveToIdle_DMA(&huart2, UART2_RxBuf, UART2_RxLength);
+    __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
+  }
+  if(huart == &huart3){//陀螺仪串口
+    __HAL_UART_CLEAR_OREFLAG(huart);
+    HAL_UART_AbortReceive(huart);
+    HAL_UARTEx_ReceiveToIdle_DMA(&huart3, UART3_RxBuf, UART3_RxLength);
+    __HAL_DMA_DISABLE_IT(&hdma_usart3_rx, DMA_IT_HT);
+  }
+  if(huart == &huart4){//副视觉串口
+    __HAL_UART_CLEAR_OREFLAG(huart);
+    HAL_UART_AbortReceive(huart);
+    UART4_RxFlag = 0;
+    UART4_RxRealLength = 0;
+    HAL_UARTEx_ReceiveToIdle_DMA(&huart4, UART4_RxBuf, UART4_RxLength);
+    __HAL_DMA_DISABLE_IT(&hdma_uart4_rx, DMA_IT_HT);
+  }
 }
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size){

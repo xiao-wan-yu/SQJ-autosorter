@@ -28,6 +28,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdbool.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stm32f4xx_hal.h>
 #include "./../../Mycode/led.h"
@@ -101,7 +102,7 @@ uint8_t CAM_Data[7] = {0};    // 存放视觉发送来的坐标数据（一帧�
 bool mode_red = true;  // 红蓝模式标志：true=红方，false=蓝方
 
 //阶梯(8物块)夹取工作模式：1=按顺序计数(第二字节 0x00不夹/0x01夹)；2=视觉反馈编号(0xMN: M=第几个物块1~8, N=1夹/0不夹, 如0x11=第1个夹、0x60=第6个不夹)
-uint8_t JieTi_Grab_Mode = 2;   // 现场切换时改这里（置1/置2）
+uint8_t JieTi_Grab_Mode = 1;   // 现场切换时改这里（置1/置2）
 
 
 /* USER CODE END PV */
@@ -161,6 +162,76 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 
 
 /* USER CODE END 0 */
+
+/* ================= 正面识别通信显示(整个"正面识别"阶段只有这一个函数在动屏幕) =================
+   一屏四行，位置固定，一眼看出"走到第几步 + 两个串口各自收到了什么"：
+     y= 0  8x16  进度0="ZM 0/3 TO POS"(还没发0xA2) → 1="ZM 1/3 SEND OK" → 2="ZM 2/3 LETTER OK" → 3="ZM DONE 0xA7 OK"
+     y=16  8x16  "V4 A,B 0xAB OK"      副视觉(备用串口UART4)：WAIT / 字母(A~D)+原始字节 / BAD
+     y=32  8x16  "V2 0xA7 OK"          主视觉(串口2)：WAIT / 0xA7 OK / 收到的其它字节(BAD)
+     y=48  6x8   "r4:1 r2:2 U4:RX 12s" 收帧数 + 串口4在听(RX正常/ERR停过) + 进入本阶段秒数(心跳)
+   ★状态一变(或100ms心跳)就调用一次：函数内部把四行一次性画完再刷新，
+     不会出现"只改半屏 / 字符串变短留旧字"的花屏。
+   rx4/rx2 传主循环里的收帧数 comm_rx4/comm_rx2；字母直接取 ZhengMian_Letter(0xA~0xD → 'A'~'D') */
+#define ZM_ST_PREP    0      //进度0：还没发0xA2(正在移动到识别位)
+#define ZM_ST_SEND    1      //进度1：0xA2已发给主视觉+副视觉
+#define ZM_ST_LETTER  2      //进度2：副视觉字母已收到→已转发主视觉+已回执副视觉
+#define ZM_ST_RECV    3      //进度3：主视觉的0xA7已收到，正面识别结束
+#define ZM_RES_WAIT   0      //结果：还没收到
+#define ZM_RES_OK     1      //结果：收到有效内容
+#define ZM_RES_BAD    2      //结果：收到无效内容
+
+static uint8_t  zm_step     = ZM_ST_PREP;   //通信进度(0=还没发0xA2)
+static uint8_t  zm_v4_res   = ZM_RES_WAIT;  //副视觉(串口4)结果状态
+static uint8_t  zm_v4_byte  = 0;            //副视觉原始字节
+static uint8_t  zm_v4_len   = 0;            //副视觉这一帧的帧长(帧长不是1时显示长度)
+static uint8_t  zm_v2_res   = ZM_RES_WAIT;  //主视觉(串口2)结果状态
+static uint8_t  zm_v2_byte  = 0;            //主视觉原始字节
+static uint32_t zm_t0       = 0;            //进入本阶段的时刻(第4行"秒数"用)
+
+/* 副视觉正面识别结果(0xAB~0xCD)：高4位=第一个字母、低4位=第二个字母(存原始nibble，0xA~0xD)
+   ★原来声明在 main() 里面，移到文件顶部是为了让显示函数 ZM_ShowComm() 也能读到，不重复存一份 */
+uint8_t ZhengMian_Letter[2] = {0, 0};
+
+/* nibble(0xA~0xD) → 字母('A'~'D')；不是这几个值时原样变成字符，方便一眼看出收到了什么 */
+static char ZM_Nibble2Char(uint8_t nib){
+  return (nib >= 0x0A && nib <= 0x0D) ? (char)('A' + nib - 0x0A) : (char)('0' + (nib & 0x0F));
+}
+
+static void ZM_ShowComm(int rx4, int rx2){
+  /* 整屏清掉(0~63行)：①新字符串比旧的短时不会留旧字；
+     ②清掉上一屏"在 y=48 用 8x16 大字体"残留的下半截(y=56~63)——
+       不清的话它会顶在第4行的6x8小字下面，看起来像两行小字互相覆盖 */
+  OLED_Clear();
+
+  /* 第1行：通信进度 */
+  if(zm_step == ZM_ST_PREP)        OLED_Printf(0,  0, OLED_8X16_HALF, "ZM 0/3 TO POS");   //还没发0xA2(移动中)
+  else if(zm_step == ZM_ST_SEND)   OLED_Printf(0,  0, OLED_8X16_HALF, "ZM 1/3 SEND OK");
+  else if(zm_step == ZM_ST_LETTER) OLED_Printf(0,  0, OLED_8X16_HALF, "ZM 2/3 LETTER OK");
+  else                             OLED_Printf(0,  0, OLED_8X16_HALF, "ZM DONE 0xA7 OK");
+
+  /* 第2行：副视觉(备用串口UART4)的字母结果 */
+  if(zm_v4_res == ZM_RES_OK){
+    OLED_Printf(0, 16, OLED_8X16_HALF, "V4 %c,%c 0x%02X OK",
+                ZM_Nibble2Char(ZhengMian_Letter[0]), ZM_Nibble2Char(ZhengMian_Letter[1]), zm_v4_byte);
+  }else if(zm_v4_res == ZM_RES_BAD){
+    if(zm_v4_len == 1) OLED_Printf(0, 16, OLED_8X16_HALF, "V4 0x%02X BAD", zm_v4_byte);
+    else               OLED_Printf(0, 16, OLED_8X16_HALF, "V4 len%d BAD", zm_v4_len);
+  }else{
+    OLED_Printf(0, 16, OLED_8X16_HALF, "V4 WAIT letter");
+  }
+
+  /* 第3行：主视觉(串口2)的确认 */
+  if(zm_v2_res == ZM_RES_OK)       OLED_Printf(0, 32, OLED_8X16_HALF, "V2 0xA7 OK");
+  else if(zm_v2_res == ZM_RES_BAD) OLED_Printf(0, 32, OLED_8X16_HALF, "V2 0x%02X BAD", zm_v2_byte);
+  else                             OLED_Printf(0, 32, OLED_8X16_HALF, "V2 WAIT 0xA7");
+
+  /* 第4行(6x8)：收帧数 + 串口4接收状态 + 进入本阶段秒数(一直在涨=程序在跑，不动=死等在某一步) */
+  OLED_Printf(0, 48, OLED_6X8_HALF, "r4:%d r2:%d U4:%s %02ds",
+              rx4, rx2, (huart4.RxState == HAL_UART_STATE_BUSY_RX) ? "RX" : "ERR",
+              (int)((HAL_GetTick() - zm_t0) / 1000U % 100U));
+
+  OLED_Update();
+}
 
 /**
   * @brief  The application entry point.
@@ -459,10 +530,29 @@ int main(void)
     }
     
 
+    /* ---------- 正面识别通信的屏幕显示(实现在文件上方的 ZM_ShowComm()，这里只说"屏幕上该看到什么") ----------
+       一屏四行、位置固定，状态一变就整屏重画一次(不会花屏、不会留旧字)：
+         y=  0  8x16  "ZM 0/3 TO POS"        进度0：还没发0xA2(正在收倒球槽+移动到识别位)
+                      "ZM 1/3 SEND OK"      进度1：0xA2已发给主视觉+副视觉
+                      "ZM 2/3 LETTER OK"    第2步：副视觉字母已收到、已转发主视觉、已回执副视觉
+                      "ZM DONE 0xA7 OK"     第3步：主视觉的0xA7已收到，正面识别结束
+         y= 16  8x16  "V4 A,B 0xAB OK"      副视觉(备用串口UART4)：字母(A~D)+原始字节，成功一次就锁死不被覆盖
+                      "V4 WAIT letter"      还没收到
+                      "V4 0x12 BAD"         收到了别的单字节          "V4 len3 BAD" 帧长不是1
+         y= 32  8x16  "V2 0xA7 OK"          主视觉(串口2)：确认成功
+                      "V2 WAIT 0xA7"        还没收到                  "V2 0x12 BAD" 收到别的字节
+         y= 48  6x8   "r4:1 r2:2 U4:RX 12s" 收帧数 + 串口4在听(RX正常/ERR停过，程序会自动重启它) + 进入本阶段秒数
+                      ★秒数一直在涨=程序在跑；不动=死等在某一步(配合电脑串口1的日志看是哪一步)
+       对应流程：0走到识别位 → 1发0xA2 → 2收副视觉字母(6种之一) → 3转发主视觉+回执副视觉 → 4等主视觉0xA7 → 5结束
+       ★排查用(电脑串口1，115200)：完整收发时序都会打印
+         "TX 0xA2 -> V1(UART2) + V4(UART4)" / "RX4 len=1: 0xAB" / "RX2 len=1 got=0xA7"
+         "TX relay 0xAB -> V1(UART2), TX 0xA7 -> V4(UART4)"                              */
+    int comm_rx4 = 0, comm_rx2 = 0;                //副视觉(串口4)收帧数 / 主视觉(串口2)收帧数
+    uint32_t comm_t_oled = 0;                      //OLED刷新节流用时刻(ms)
+
     //进入各部分的标志位，红蓝可共用
     uint8_t YuanPanJi_Flag = 0;
     uint8_t ZhengMian_Flag = 0;
-    uint8_t ZhengMian_Letter[2] = {0, 0};   //副视觉正面识别结果(0xAB~0xCD)拆分出的两个目标字母
     uint8_t JieTi_Flag = 0;
     uint8_t LiZhu_Flag = 0;
 
@@ -474,6 +564,7 @@ int main(void)
       OLED_Printf(0, 0, OLED_8X16_HALF, "mode:%s", mode_red?"red ":"blue");
       OLED_Printf(0, 16, OLED_8X16_HALF, "key2:change mode");
       OLED_Printf(0, 32, OLED_8X16_HALF, "key3:next");
+      OLED_Printf(0, 48, OLED_8X16_HALF, "key0:jump ZM");
       OLED_Update();
       if(KEY_ONE(KEY2_GPIO_Port, KEY2_Pin)){//按键2--更改模式
         mode_red = !mode_red;
@@ -483,37 +574,102 @@ int main(void)
       }
 
       //0和1专用于调试
-      if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)){//按键0--调试：进入/退出"实时显示灰度值"(串口UART1+OLED)
-        // GRAY3 串行接口 8 路数字量（0=深/1=浅），与循线同源，不影响后续运行。
-        // 注意：KEY_ONE 是"单击"检测（确认按下后会等松手才返回），
-        //       所以做成：按一次 KEY0 进入实时显示，再按一次 KEY0 退出回菜单。
-        // OLED(128x64) 布局：第1行 GRAY3 八路值(左探头1~右探头8)，第2行图例 0=深/1=浅
-        UART1_Printf("==== GRAY3 8CH  (0=deep 1=light)  press KEY0 to exit ====\r\n");
-        OLED_Clear();                                          // 进入调试前清屏(只改缓存)
-        OLED_Update();                                         // 推送一次，避免残留菜单字
-        while(1){
-          GRAY3_Serial_Update();                               // 实时刷新 GRAY3 8 路数字量
-          UART1_Printf("GRAY3:%d %d %d %d %d %d %d %d\r\n",
-                       GRAY_Data[GRAY3][0], GRAY_Data[GRAY3][1],
-                       GRAY_Data[GRAY3][2], GRAY_Data[GRAY3][3],
-                       GRAY_Data[GRAY3][4], GRAY_Data[GRAY3][5],
-                       GRAY_Data[GRAY3][6], GRAY_Data[GRAY3][7]);
-          OLED_Printf(0, 0, OLED_8X16_HALF, "GRAY3:%d%d%d%d%d%d%d%d",
-                      GRAY_Data[GRAY3][0], GRAY_Data[GRAY3][1],
-                      GRAY_Data[GRAY3][2], GRAY_Data[GRAY3][3],
-                      GRAY_Data[GRAY3][4], GRAY_Data[GRAY3][5],
-                      GRAY_Data[GRAY3][6], GRAY_Data[GRAY3][7]);
-          OLED_Printf(0, 16, OLED_8X16_HALF, "0=deep 1=light");
-          OLED_Update();                                       // 推送显存到屏幕
-          HAL_Delay(50);                                       // 50ms 刷一次，方便人眼观察
-          if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)) break;         // 再按一次 KEY0 退出
-        }
-        OLED_Clear();                                          // 退出时清屏，恢复菜单前先清
+      if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)){
+        /* 【调试入口】按键0：跳过圆盘机、跳过仓库倒球，直接跳到"正面识别"开头执行
+           （就是跳到下面 ZhengMian_Flag = 1 那一行，从那里往下依次是：
+             发0xA2给主/副视觉 → 收倒球槽 → 走到阶梯附近 → 左前光电对准 → 清串口残留
+             → 正面识别通信流程(5步) → 阶梯抓取 → 立柱 → 回红蓝区）
+           ★用法：在"红蓝方选择"界面按 KEY2 先选好红/蓝，再按 KEY0 就从中途开始跑；
+             车会先自己走到阶梯附近对准，所以先把车放在圆盘机/仓库方向随便一点的位置即可 */
+        UART1_Printf("DEBUG: KEY0 jump to ZhengMian start\r\n");
+        OLED_Printf(0, 48, OLED_8X16_HALF, "jump to ZM...");
         OLED_Update();
-        UART1_Printf("==== GRAY3 debug exit ====\r\n");
+        //如果跳过了发送红蓝方给视觉的步骤，直接告诉视觉红(0xAA)蓝(0xBB)方
+        UART2_Printf("%c", mode_red ? 0xAA : 0xBB);//告诉视觉红(0xAA)蓝(0xBB)方
+        goto ZHENGMIAN_START;
+
+        /* ---- 原来的按键0调试(手动把车开到阶梯对准位)已由上面跳转代替，保留备用 ----
+        //右+前，移动到阶梯附近,要往右速度快点，不然撞到了
+        ROBOT_Move(100, 160, 100, 50, 100, 50);
+
+        //向左慢走，直到前面的两个光电都感应到障碍物
+        ROBOT_MoveSpeed(-10, 0);
+        //while(LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin)==0);
+        while(LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin)==0);//左后是1，右边为2，左前是3
+
+
+        //往左走一定距离，视觉中能完整看到两个字母（可以省去测距前后校准）
+        ROBOT_Move(-50, 0, 10, 10, 10, 10);
+        //停车准备识别
+        ROBOT_MoveSpeed(0,0);
+        HAL_Delay(100);//延时一下提高稳定性
+        -------------------------------------------------------------------------- */
       }
 
       if(KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){
+        /* ================= 【调试】按钮1(KEY1)：按下就进入"等待备用串口(UART4)接收"状态 =================
+           用途：不跑整车流程，单独验证备用串口(副视觉 UART4)能不能把字母结果发过来。
+           流程：按下KEY1 → 屏幕显示 WAIT → 备用串口收到"单字节0xAB" → 把这一字节拆成两个字母打到屏幕上
+                 (高4位=第1个字母、低4位=第2个字母；0xA~0xD 对应字母 A~D，所以 0xAB → "AB")，
+                 同时往电脑串口1打一条日志；收到后自动退出等待，回到"红蓝方选择"界面。
+           说明：收到别的单字节 / 帧长不是1：都不算成功，只在屏幕上显示 BAD 后继续等；
+                 等满30秒还没等到就自动退出(屏幕显示 TIMEOUT)，避免一直卡在这里。
+           ★若副视觉要先收到0xA2才开始识别/发字母，把下面那行被注释掉的 UART4_Printf 打开即可。 */
+        UART4_RxFlag = 0;                                    //清掉进入等待前残留的接收帧
+        UART4_RxRealLength = 0;
+        OLED_Clear();
+        OLED_Printf(0,  0, OLED_8X16_HALF, "KEY1 : WAIT 0xAB");
+        OLED_Printf(0, 16, OLED_8X16_HALF, "UART4 waiting...");
+        OLED_Update();
+        UART1_Printf("KEY1: wait UART4 single byte 0xAB\r\n");
+        //UART4_Printf("%c", 0xA2);                          //若副视觉要收到0xA2才开始识别，把本行打开
+
+        {
+          uint32_t uart4_wait_t0 = HAL_GetTick();            //等待起始时刻(算超时用)
+          while(1){
+            /* 自愈：备用串口万一因为ORE/FE出错停了接收，这里立刻重新拉起来(同正面识别里的做法) */
+            if((huart4.RxState != HAL_UART_STATE_BUSY_RX) || ((hdma_uart4_rx.Instance->CR & DMA_SxCR_EN) == 0U)){
+              HAL_UART_AbortReceive(&huart4);
+              UART4_RxFlag = 0;
+              HAL_UARTEx_ReceiveToIdle_DMA(&huart4, UART4_RxBuf, UART4_RxLength);
+              __HAL_DMA_DISABLE_IT(&hdma_uart4_rx, DMA_IT_HT);
+            }
+
+            if(UART4_RxFlag){                                //备用串口收到一帧
+              UART4_RxFlag = 0;                              //必须立即清零
+              UART1_Printf("KEY1 RX4 len=%d: 0x%02X\r\n", UART4_RxRealLength, UART4_RxBuf[0]);
+              if(UART4_RxRealLength == 1 && UART4_RxBuf[0] == 0xAB){
+                /* ===== 成功：单字节0xAB，拆出两个字母打到屏幕上 ===== */
+                char letter0 = (char)('A' + (((UART4_RxBuf[0] >> 4) & 0x0F) - 0x0A));   //高4位=第1个字母
+                char letter1 = (char)('A' + ((UART4_RxBuf[0] & 0x0F) - 0x0A));         //低4位=第2个字母
+                OLED_ClearArea(0, 0, OLED_WIDTH, 48);
+                OLED_Printf(0,  0, OLED_8X16_HALF, "RX   : 0x%02X OK", UART4_RxBuf[0]);
+                OLED_Printf(0, 16, OLED_8X16_HALF, "letter:%c, %c", letter0, letter1);
+                OLED_Printf(0, 32, OLED_8X16_HALF, "hi:%X  lo:%X", (UART4_RxBuf[0] >> 4) & 0x0F, UART4_RxBuf[0] & 0x0F);
+                OLED_Update();
+                UART1_Printf("KEY1 got 0x%02X -> letter %c %c\r\n", UART4_RxBuf[0], letter0, letter1);
+                break;                                       //收到就退出等待，回红蓝方选择界面
+              }else{
+                /* 不是"单字节0xAB"：不算成功，显示出来继续等 */
+                OLED_ClearArea(0, 32, OLED_WIDTH, 16);
+                OLED_Printf(0, 32, OLED_8X16_HALF, "NOT 0xAB: 0x%02X", UART4_RxBuf[0]);
+                OLED_Update();
+              }
+            }
+
+            if(HAL_GetTick() - uart4_wait_t0 >= 30000U){     //超时保护：30秒没等到0xAB就自动退出
+              OLED_ClearArea(0, 32, OLED_WIDTH, 16);
+              OLED_Printf(0, 32, OLED_8X16_HALF, "TIMEOUT 30s");
+              OLED_Update();
+              UART1_Printf("KEY1: wait 0xAB timeout\r\n");
+              break;
+            }
+          }
+        }
+
+        /* ================= 旧代码开始（原来的按键1"倒球调试"，先整段注释保留）=================
+           要恢复原来的倒球调试：把本行与下面"旧代码结束"那一行的注释符去掉，并把上面的等待接收测试删掉即可。
+
         //往后慢退，直到测距测得合适距离（适合倒球的距离）
         UART1_Printf("3");
         ROBOT_MoveSpeed(0, -10);
@@ -531,6 +687,8 @@ int main(void)
 
         runActionGroup(16, 1); 	//这里是倒球动作组
 	      delay_ms(2000);
+        ================= 旧代码结束 ================= */
+
       }
     }
     //？后面，左蓝右红
@@ -605,6 +763,8 @@ int main(void)
     const uint8_t  YPJ_HIT_LOG = 1;            /* 1=开日志 0=关 */
     uint32_t ypj_last_hit_t   = 0;             /* 上一次真正触发"拍"的时刻(ms) */
     uint32_t ypj_last_frame_t = 0;             /* 上一次收到"有球"帧的时刻(ms)，日志看发帧间隔 */
+    uint8_t  ypj_first_skipped = 0;            /* 0=还没跳过第一个球；1=第一个球已跳过，之后正常拍 */
+
 
     while(YuanPanJi_Flag == 1){
       if(VISION1_RxFlag){                              // 2号串口（主视觉）DMA收到一帧
@@ -613,6 +773,8 @@ int main(void)
         /* 唯一退出条件：收到单字节指令0xA6，则退出本while循环 */
         if(VISION1_RxRealLength == 1 && VISION1_RxBuf[0] == 0xA6){
           YuanPanJi_Flag = 0;//只是圆盘机结束，不代表阶梯开始，还要倒球
+          runActionGroup(0, 1);  // 收起机械臂
+          HAL_Delay(3000);
           break;
         }
 
@@ -640,6 +802,12 @@ int main(void)
             }else{
               /* ===== 冷却已过：这一帧当作"新球"，真正拍一次 ===== */
               ypj_last_hit_t = now;
+              if(ypj_first_skipped == 0){      /* 识别到的第一个球：只跳过、不拍，从第二个球开始正常拍 */
+                ypj_first_skipped = 1;
+                if(YPJ_HIT_LOG)
+                  UART1_Printf("SKIP1 b=%u x=%u y=%u\r\n",
+                               (unsigned)CAM_Data[1], (unsigned)cam_x, (unsigned)cam_y);
+              }else{
               if(CAM_Data[1] == 0x01){
                 runActionGroup(7, 1);    // 拍本色球，包括分流板
               }else{
@@ -649,6 +817,7 @@ int main(void)
                 UART1_Printf("HIT  b=%u x=%u y=%u d=%lu\r\n",
                              (unsigned)CAM_Data[1], (unsigned)cam_x, (unsigned)cam_y,
                              (unsigned long)d_last);
+              }
             }
           }
         }
@@ -671,7 +840,7 @@ int main(void)
       
       //往后慢退，直到测距测得合适距离（适合倒球的距离）
       ROBOT_MoveSpeed(0, -10);
-      while(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>90);//100有点远，距离小于90就退此循环
+      while(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>85);//100有点远，距离小于90就退此循环，90也远
       ROBOT_MoveSpeed(0,0);
       
       HAL_Delay(100);//延时一下提高稳定性
@@ -689,11 +858,12 @@ int main(void)
       //加一次角度校准
       mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
       //往右走固定距离（刚到对上仓库的距离）
-      if(mode_red) ROBOT_Move(5, 0, 10, 0, 10, 0);//20太大，速度100会飘，12太远
+      //if(mode_red) ROBOT_Move(5, 0, 10, 0, 10, 0);//20太大，速度100会飘，12太远
 
       runActionGroup(16, 1); 	//这里是倒球动作组
       delay_ms(2000);
 
+ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"界面按 KEY0，goto 跳到这一行往下执行
       ZhengMian_Flag = 1;//正面识别开始
 
       if(ZhengMian_Flag == 1){
@@ -707,24 +877,34 @@ int main(void)
           5. MCU收到主视觉发来的单字节0xA7，则退出本while循环，正面识别结束
         */
 
-        UART2_Printf("%c", 0xA2);//发0xA2告诉主视觉进入正面识别
-        UART4_Printf("%c", 0xA2);//发0xA2告诉副视觉进入正面识别
+        /* ===== 正面识别 第1段：先复位显示，再"收倒球槽 + 走到阶梯对准位"；到位后才发0xA2 =====
+           ★为什么到位才发0xA2：0xA2是两个视觉的"开始识别"标志。早发的话副视觉可能在车还没到位时
+             就把结果发出来，甚至被后面的"清残留"清掉；到位后再发，这段时序就完全不用纠结。 */
+        comm_rx4 = 0; comm_rx2 = 0; comm_t_oled = 0;               //本阶段收发计数清零
+        zm_step = ZM_ST_PREP;                       //进度0：还没发0xA2(正在移动到识别位)
+        zm_v4_res = ZM_RES_WAIT; zm_v4_byte = 0; zm_v4_len = 0;
+        zm_v2_res = ZM_RES_WAIT; zm_v2_byte = 0;
+        ZhengMian_Letter[0] = 0; ZhengMian_Letter[1] = 0;    //上一轮残留的字母清掉
+        zm_t0 = HAL_GetTick();                      //本阶段起始时刻(第4行"秒数"用)
+        ZM_ShowComm(comm_rx4, comm_rx2);            //先画一屏：进度0(移动中)，V4/V2 都是 WAIT
 
         runActionGroup(19, 1); 	//这里是收倒球槽
         delay_ms(2000);
 
-        //右+前，移动到阶梯附近,要往右多走点，不然撞到了
-        ROBOT_Move(110, 160, 100, 100, 100, 100);
+        //右+前，移动到阶梯附近,要往右多走点，不然撞到了，y160太远了，不利于视觉识别
+        ROBOT_Move(100, 150, 100, 50, 100, 50);
 
-        //向左慢走，直到前面的两个光电都感应到障碍物
+        //向左慢走，直到前面的两个光电都感应到障碍物（右边坏了）
         ROBOT_MoveSpeed(-10, 0);
-        while(LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin)==0);
+        //while(LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin)==0);
+        while(LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin)==0);//左后是1，右边为2，左前是3
+        HAL_Delay(100);//延时一下提高稳定性
 
         //往左走一定距离，视觉中能完整看到两个字母（可以省去测距前后校准）
-        ROBOT_Move(-50, 0, 10, 10, 10, 10);
+        ROBOT_Move(-42, 0, 100, 0, 100, 0);
         //停车准备识别
         ROBOT_MoveSpeed(0,0);
-        HAL_Delay(1000);//延时一下提高稳定性
+        HAL_Delay(100);//延时一下提高稳定性
 
         //清掉主/副视觉串口的残留接收数据，避免把旧数据误当成有效信息
         UART2_RxFlag = 0;
@@ -734,13 +914,35 @@ int main(void)
         UART4_RxRealLength = 0;
         memset(UART4_RxBuf, 0, UART4_RxLength);   //UART4_RxBuf是extern数组，不能用sizeof
 
+        /* ★把两个视觉串口的 DMA 接收强制重启一遍：万一之前因为出错(ORE/FE)停了接收，
+           这里复位+重启，保证进循环时两个口都是真的"在听"状态 */
+        HAL_UART_AbortReceive(&huart2);
+        HAL_UARTEx_ReceiveToIdle_DMA(&huart2, UART2_RxBuf, UART2_RxLength);
+        __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
+        HAL_UART_AbortReceive(&huart4);
+        HAL_UARTEx_ReceiveToIdle_DMA(&huart4, UART4_RxBuf, UART4_RxLength);
+        __HAL_DMA_DISABLE_IT(&hdma_uart4_rx, DMA_IT_HT);
+
+        /* ===== 车已到位、串口残留已清、DMA已重启 → 现在才发0xA2开始识别(进度1)，然后进通信循环 ===== */
+        UART2_Printf("%c", 0xA2);//发0xA2告诉主视觉进入正面识别
+        UART4_Printf("%c", 0xA2);//发0xA2告诉副视觉进入正面识别
+        UART1_Printf("TX 0xA2 -> V1(UART2) + V4(UART4)\r\n");      //日志：0xA2发出的时刻(和后面的RX日志对时间)
+        zm_step = ZM_ST_SEND;                       //进度1完成：0xA2已发
+        comm_t_oled = HAL_GetTick();                //显示节流重新计时
+        ZM_ShowComm(comm_rx4, comm_rx2);            //第2行等副视觉字母，第3行等主视觉0xA7
+
         //流程2~5都在while里跑，收到主视觉发来的0xA7才退出
-        while(ZhengMian_Flag == 1){
+        while(ZhengMian_Flag == 1){ 
           /* ============ 流程2/3/5：副视觉六种字节处理 + 主视觉0xA7退出，见下方 ============ */
 
           /* 串口4收到一帧后的处理：副视觉 */
           if(UART4_RxFlag){                               //串口4（副视觉）DMA收到一帧
             UART4_RxFlag = 0;                             //必须立即清零
+            comm_rx4++;                                   //监视：串口4(副视觉)收到帧数+1
+            //副视觉发来的原始内容(整帧)打印到电脑串口1；屏幕上只显示状态与结果(见 ZM_ShowComm)
+            UART1_Printf("RX4 len=%d:", UART4_RxRealLength);
+            for(uint8_t k = 0; k < UART4_RxRealLength && k < 8; k++) UART1_Printf(" %02X", UART4_RxBuf[k]);
+            UART1_Printf("\r\n");
 
             if(UART4_RxRealLength == 1){                  //这一帧是单字节
               uint8_t vision4_byte = UART4_RxBuf[0];      //取出这一帧的数据
@@ -755,38 +957,104 @@ int main(void)
                 UART2_Printf("%c", vision4_byte);
                 //流程3：发0xA7给副视觉，告诉它我收到了，副视觉可以结束识别了
                 UART4_Printf("%c", 0xA7);
+                UART1_Printf("TX relay 0x%02X -> V1(UART2), TX 0xA7 -> V4(UART4)\r\n", vision4_byte);
+
+                /* ===== 收到6种之一 → 第2行显示字母(A~D)+原始字节；拿到一次就锁死(之后无效字节不再覆盖) =====
+                   ★字母已由上面两行的 ZhengMian_Letter[0]/[1] 存好(高4位/低4位)，显示函数直接取用 */
+                zm_v4_res  = ZM_RES_OK;
+                zm_v4_len  = 1;
+                zm_v4_byte = vision4_byte;
+                zm_step = ZM_ST_LETTER;                 //进度：第2步完成
+                ZM_ShowComm(comm_rx4, comm_rx2);
+              }else{
+                /* 不是这6种的其他单字节：不存、忽略
+                   ★只在"还没拿到有效结果"时才显示在第2行(带 BAD 标记)，拿到结果后不再改它 */
+                if(zm_v4_res != ZM_RES_OK){
+                  zm_v4_res = ZM_RES_BAD; zm_v4_len = 1; zm_v4_byte = vision4_byte;
+                  ZM_ShowComm(comm_rx4, comm_rx2);
+                }
               }
-              //不是这6种的其他单字节：不存，直接忽略
+            }else{
+              /* 帧长不是1(副视觉发了别的包)：不存、忽略；同样只在还没拿到有效结果时才显示长度 */
+              if(zm_v4_res != ZM_RES_OK){
+                zm_v4_res = ZM_RES_BAD; zm_v4_len = UART4_RxRealLength;
+                ZM_ShowComm(comm_rx4, comm_rx2);
+              }
             }
           }
 
           /* 流程5：主视觉(串口2)收到MCU转发的原样信息后，发0xA7给MCU → 收到则退出while */
           if(UART2_RxFlag){                               //串口2（主视觉）DMA收到一帧
             UART2_RxFlag = 0;                             //必须立即清零
+            comm_rx2++;                                   //监视：串口2(主视觉)收到帧数+1
+            //主视觉发来的原始内容也打印一份：和上面的RX4日志连起来看，就能判断"两个串口是不是收到同一个字节"
+            UART1_Printf("RX2 len=%d got=0x%02X\r\n", UART2_RxRealLength, UART2_RxBuf[0]);
             if(UART2_RxRealLength == 1 && UART2_RxBuf[0] == 0xA7){
+              /* ===== 收到主视觉0xA7 → 第3行显示 OK，正面识别结束，进入阶梯 =====
+                 ★阶梯阶段屏幕上会保留"正面识别拿到的两个字母"，方便对照 */
+              zm_v2_res  = ZM_RES_OK;
+              zm_v2_byte = 0xA7;
+              zm_step    = ZM_ST_RECV;                    //进度：3步全部完成
+              ZM_ShowComm(comm_rx4, comm_rx2);
+
               ZhengMian_Flag = 0;                         //主视觉确认，正面识别结束
               JieTi_Flag = 1;                             //阶梯开始
               break;
             }
-            //主视觉发来的其它帧：忽略，继续等单字节0xA7
+            /* 主视觉发来的其它帧：不算成功，只在"还没拿到0xA7"时把最新字节显示在第3行(带 BAD) */
+            if(zm_v2_res != ZM_RES_OK){
+              zm_v2_res  = ZM_RES_BAD;
+              zm_v2_byte = (UART2_RxRealLength > 0) ? UART2_RxBuf[0] : 0;
+              ZM_ShowComm(comm_rx4, comm_rx2);
+            }
+          }
+
+          /* ===== 每100ms：自愈两个视觉串口的接收(出错/DMA停了就重启) + 定时刷屏(计数/串口状态/秒数) =====
+             ★屏幕上四行的内容统一由 ZM_ShowComm() 负责，这里只做"定时刷新"，不再直接写屏幕 */
+          if(HAL_GetTick() - comm_t_oled >= 100U){
+            comm_t_oled = HAL_GetTick();
+
+            /* 自愈1：串口4(副视觉)如果没在接收(出错停了 / DMA关了)就立刻重新拉起来 */
+            if((huart4.RxState != HAL_UART_STATE_BUSY_RX) || ((hdma_uart4_rx.Instance->CR & DMA_SxCR_EN) == 0U)){
+              HAL_UART_AbortReceive(&huart4);
+              UART4_RxFlag = 0;
+              HAL_UARTEx_ReceiveToIdle_DMA(&huart4, UART4_RxBuf, UART4_RxLength);
+              __HAL_DMA_DISABLE_IT(&hdma_uart4_rx, DMA_IT_HT);
+            }
+            /* 自愈2：串口2(主视觉)同理 */
+            if((huart2.RxState != HAL_UART_STATE_BUSY_RX) || ((hdma_usart2_rx.Instance->CR & DMA_SxCR_EN) == 0U)){
+              HAL_UART_AbortReceive(&huart2);
+              UART2_RxFlag = 0;
+              HAL_UARTEx_ReceiveToIdle_DMA(&huart2, UART2_RxBuf, UART2_RxLength);
+              __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
+            }
+
+            ZM_ShowComm(comm_rx4, comm_rx2);           //心跳刷新(第4行计数/串口状态/秒数，前三行内容不变)
           }
         }
       }
 
       if(JieTi_Flag == 1){//阶梯开始
+        /* 屏幕切到"阶梯"阶段：正面识别拿到的两个字母留在第1行(方便对照)，其余清掉；
+           阶梯阶段下面不再刷新屏幕，想加信息就在这几行后面加 */
+        OLED_Clear();
+        OLED_Printf(0,  0, OLED_8X16_HALF, "JIETI letter %c %c",
+                    ZM_Nibble2Char(ZhengMian_Letter[0]), ZM_Nibble2Char(ZhengMian_Letter[1]));
+        OLED_Printf(0, 16, OLED_8X16_HALF, "scan & grab...");
+        OLED_Update();
         
         //识别完成后，先走近阶梯，走到合适距离（适合识别的距离）
         ROBOT_MoveSpeed(0, 10);
         while(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin)>120);//100好像靠太近了
         ROBOT_MoveSpeed(0, 0);
-        HAL_Delay(1000);//延时一下提高稳定性
+        HAL_Delay(100);//延时一下提高稳定性
 
-        //定位操作：向左慢平移到左后光电感应到无障碍物
+        //定位操作：向左慢平移到左前光电感应到无障碍物
         ROBOT_MoveSpeed(-10, 0);//这里容易识别到字母上的黑，然后停下来
         //HAL_Delay(1000);//避免路上识别到字母然后停下来
         while(LASER_Barrier(LASER3_GPIO_Port,LASER3_Pin)==1);
         ROBOT_MoveSpeed(0, 0);
-        HAL_Delay(1000);//延时一下提高稳定性
+        HAL_Delay(100);//延时一下提高稳定性
 
         //机械臂变成识别状态
         runActionGroup(54, 1);
