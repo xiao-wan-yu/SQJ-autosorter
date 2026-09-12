@@ -247,12 +247,12 @@ static void ZM_ShowComm(int rx4, int rx2){
         低速精细档(≤15cm/s)起步会"启动整形"顶PWM，冲得更明显。
      ③ 回到 目标±容差 或 超过 JIETI_FWD_MS 就结束(结束时同样置零)，调用方重新给 JIETI_ALIGN_SPEED
    测距说明：GY53_2是前面的、GY53_1是后面的；GY53_GetDistance_PWM()返回mm，超量程/无目标返回2000 */
-#define JIETI_FWD_TARGET_MM   80      //目标前后距离(mm)：100靠太近，120太远,105也远，80才是合适
+#define JIETI_FWD_TARGET_MM   95      //目标前后距离(mm)：100靠太近，120太远,105也远
 #define JIETI_FWD_TOL_MM        5     //容差(mm)：|实测-目标|<=5 视为已校准好
 #define JIETI_FWD_TRIG_MM      10     //触发阈值(mm)：偏离超过该值才停下校准(避免频繁停车)
 #define JIETI_FWD_MS        1000U     //单次校准最长耗时(ms)：到点先退出，剩下偏差下一轮扫描继续修
 #define JIETI_FWD_SPEED       5.0f    //校准时的前后速度(cm/s，慢一点不容易冲过头)
-#define JIETI_FWD_STEP_MS      80U    //微调每步给速度的时间(ms)：5cm/s×80ms≈4mm/步（80合适，100好像多了）
+#define JIETI_FWD_STEP_MS      100U    //微调每步给速度的时间(ms)：5cm/s×100ms≈5mm/步（100合适）
 #define JIETI_FWD_SETTLE_MS    60U    //每步后置零等车停稳+测距刷新的时间(ms)
 #define JIETI_FWD_CHK_MS       100U    //扫描中每隔多少ms实时测一次距离（50太频繁）
 #define JIETI_FWD_OLED_MS     100U    //屏幕上实时测距的刷新周期(ms)
@@ -267,7 +267,6 @@ static void ZM_ShowComm(int rx4, int rx2){
      进入阶梯时校好的那个值，角度环就能一直按它纠偏。 */
 static float jieti_keep_yaw = -1.0f;   //阶梯阶段目标朝向(°)，-1=还没锁(没锁就不动它)
 
-//在原有基础上加了锁定目标朝向的代码：设完速度立刻把目标朝向恢复回进入阶梯时校好的那个值
 static void JieTi_MoveSpeed(float x_speed, float y_speed){
   ROBOT_MoveSpeed(x_speed, y_speed);
   if(jieti_keep_yaw >= 0.0f) chassis.target_yaw = jieti_keep_yaw;  //恢复锁向目标，继续纠偏
@@ -1263,7 +1262,7 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
                       /* 第1~2个→57中阶梯夹；第3~6个→60高阶梯夹；第7~8个→63矮阶梯夹 */
                       uint8_t act = (num <= 2) ? 57 : ((num <= 6) ? 60 : 63);
                       runActionGroup(act, 1);   // 夹取动作组
-                      delay_ms(7500);           // 夹取动作约6秒，不够时间会跳过下一个动作（矮阶梯会更慢，要7.5秒）
+                      delay_ms(6000);           // 夹取动作约6秒，不够时间会跳过下一个动作
                       runActionGroup(66, 1);    // 夹完回到识别状态
                       delay_ms(3000);           // 识别动作约3秒,回到识别动作很快
 
