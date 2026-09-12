@@ -235,7 +235,7 @@ static void ZM_ShowComm(int rx4, int rx2){
 
 /* ================= 阶梯阶段参数 ================= */
 #define JIETI_ALIGN_SPEED     5.0f    //对准阶段左右移动速度(cm/s)：左移、右移都用它
-#define JIETI_ALIGN_BAND       50     //对准带：|cam_x|<=50 就算对准(停车夹取)；原来10太严
+#define JIETI_ALIGN_BAND       30     //对准带：|cam_x|<=30 就算对准(停车夹取)；原来10太严，50太宽
 #define JIETI_IMG_CX          160     //视觉x是0~320像素，减它转成相对画面中心的偏移
 /* ---------------- 前后距离：实时监测 + 超标才校准 ----------------
    车向右扫描时容易前后漂移(离阶梯越来越远/越来越近)，夹取和视觉对准都会受影响。
@@ -256,6 +256,15 @@ static void ZM_ShowComm(int rx4, int rx2){
 #define JIETI_FWD_SETTLE_MS    60U    //每步后置零等车停稳+测距刷新的时间(ms)
 #define JIETI_FWD_CHK_MS       100U    //扫描中每隔多少ms实时测一次距离（50太频繁）
 #define JIETI_FWD_OLED_MS     100U    //屏幕上实时测距的刷新周期(ms)
+
+/* ---------------- 8个坑固定位移步进(计数就靠它) ----------------
+   ★JIETI_STEP_CM = "坑与坑之间的距离"，现场拿尺量一下把值改准：
+     每走完一段固定位移 = 到了下一个坑(粗定位)，再用视觉x精细对准；对准了就算数到这一个 */
+#define JIETI_STEP_CM         10      //★坑间距(10cm)：每个坑之间固定走多远(现场量)
+#define JIETI_STEP_SPEED      5      //走固定位移时的最大速度(cm/s)
+#define JIETI_STEP_ACC        5      //走固定位移时的加减速(cm/s^2)
+#define JIETI_ALIGN_MS      3000U     //单个坑"视觉对准"总超时(ms)：超时就按已对准处理，继续下一个
+#define JIETI_VIS_MS         200U     //等主视觉一帧的超时(ms)
 
 /* ================== 阶梯阶段：保持锁向目标（否则越走越斜） ==================
    ★ROBOT_MoveSpeed() 内部会把 chassis.target_yaw 置成哨兵(YAW_TARGET_NONE)，
@@ -283,12 +292,51 @@ static void JieTi_ShowFwdMm(uint16_t d_mm){
   OLED_Update();
 }
 
-/* 实时显示"当前是第几个物块"：只占第4行(y=48, 6x8)，先清这一行再画，
+/* ---------------- 阶梯阶段运行时状态(显示/对准/测距共用) ---------------- */
+static int16_t  jieti_cam_x     = 0;       //最近一帧：目标距画面中心偏移(负=偏左 / 正=偏右)
+static uint8_t  jieti_cmd       = 0;       //最近一帧：cmd(要不要夹)
+static uint8_t  jieti_blk_now   = 0;       //当前是第几个坑(1~8，0=还没对准第一个)
+static uint32_t jieti_chk_tick  = 0;       //实时测距节流时刻(ms)
+static uint32_t jieti_oled_tick = 0;       //屏幕刷新节流时刻(ms)
+
+/* 实时显示"当前是第几个坑(物块)"+最近一帧视觉x：只占第4行(y=48, 6x8)，
    不动第1/2行(JIETI letter x y / scan & grab...)和第3行(实时测距) */
-static void JieTi_ShowBlockNo(uint8_t no, uint8_t total){
+static void JieTi_ShowBlockNo(uint8_t no, uint8_t total, int16_t cam_x){
   OLED_ClearArea(0, 48, 128, 8);                                  //只清第4行
-  OLED_Printf(0, 48, OLED_6X8_HALF, "BLK %u/%u", (unsigned)no, (unsigned)total);
+  if(no >= 1 && no <= total){
+    /* X+12/X-30 = 最近一帧视觉给的"目标离画面中心多远"，现场一眼看出对准情况 */
+    OLED_Printf(0, 48, OLED_6X8_HALF, "BLK %u/%u X%+4d", (unsigned)no, (unsigned)total, (int)cam_x);
+  }else{
+    OLED_Printf(0, 48, OLED_6X8_HALF, "BLK -/%u", (unsigned)total);  //还没对准第一个坑
+  }
   OLED_Update();
+}
+
+/* 清掉主视觉残留帧：只认之后的实时坐标(走完固定位移后 / 夹取动作后调用) */
+static void JieTi_FlushVision(void){
+  VISION1_RxFlag = 0;
+  VISION1_RxRealLength = 0;
+  memset(VISION1_RxBuf, 0, VISION1_RxLength);
+}
+
+/* 取一帧主视觉A3包(等不到就返回0)；结果存进 jieti_cam_x / jieti_cmd */
+static uint8_t JieTi_GetVision(uint32_t wait_ms){
+  uint32_t t0 = HAL_GetTick();
+  while((HAL_GetTick() - t0) < wait_ms){
+    if(VISION1_RxFlag){
+      VISION1_RxFlag = 0;                                        //必须立即清零
+      for(uint8_t i = 0; i + 7 <= VISION1_RxRealLength; i++){    //在缓冲里找 A3...0B 完整包
+        if(VISION1_RxBuf[i] == 0xA3 && VISION1_RxBuf[i + 6] == 0x0B){
+          jieti_cam_x = (int16_t)((uint16_t)VISION1_RxBuf[i + 2]
+                                | ((uint16_t)VISION1_RxBuf[i + 3] << 8));  //x低字节在前(0~320像素)
+          jieti_cam_x -= JIETI_IMG_CX;                                     //减160 → 距画面中心偏移
+          jieti_cmd   = VISION1_RxBuf[i + 1];
+          return 1;
+        }
+      }
+    }
+  }
+  return 0;
 }
 
 /* 实时监测 + 超标才校准：入参是刚读到的距离(mm)；返回 1=确实停下校准过(调用方要重新给速度) */
@@ -317,6 +365,42 @@ static uint8_t JieTi_FwdFixIfNeeded(uint16_t d_now){
   }
   JieTi_MoveSpeed(0, 0);                                             //到位/超时/异常：统一置零
   return 1;                                                          //告诉调用方"停过车了，要重新给速度"
+}
+
+/* 阶梯阶段"边走边服务"：按周期实时测距 + 刷屏幕 + 超标就停下校准
+   返回1 = 这次真停过车校准(调用方按需把速度再给回去) */
+static uint8_t JieTi_FwdService(void){
+  if(HAL_GetTick() - jieti_chk_tick < JIETI_FWD_CHK_MS) return 0;          //没到测距周期：先不测
+  jieti_chk_tick = HAL_GetTick();
+  uint16_t d_mm = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);     //实时测距(mm)
+  if(HAL_GetTick() - jieti_oled_tick >= JIETI_FWD_OLED_MS){               //屏幕按自己的周期刷
+    jieti_oled_tick = HAL_GetTick();
+    JieTi_ShowFwdMm(d_mm);                                               //第3行：实时测距
+    JieTi_ShowBlockNo(jieti_blk_now, 8, jieti_cam_x);                    //第4行：第几个坑 + 视觉x
+  }
+  return JieTi_FwdFixIfNeeded(d_mm);
+}
+
+/* 走向并对准当前坑：用视觉x对准，|cam_x|<=JIETI_ALIGN_BAND 就算对准(对准完停车)
+   first_pit=1：第1个坑要"先看到目标出现在画面右侧(x>对准带)"，再等它进入对准带(防止把别的东西当目标)
+   对准过程中反复调用 JieTi_FwdService()：前后距离偏了就停下校准，校准完继续对准 */
+static void JieTi_GoAlign(uint8_t first_pit){
+  uint32_t t0 = HAL_GetTick();
+  uint8_t  found = 0;                                                  //第1个坑：是否已看到目标在右侧
+  while((HAL_GetTick() - t0) < JIETI_ALIGN_MS){                        //单坑对准总超时(超时按已对准处理)
+    JieTi_FwdService();                                               //实时测距/屏幕/超标校准(会临时停车)
+    if(!JieTi_GetVision(JIETI_VIS_MS)) continue;                      //这一拍没收到帧：接着等
+    if(first_pit && !found){
+      if(jieti_cam_x > JIETI_ALIGN_BAND) found = 1;                   //目标已经在右边出现，开始对准
+      JieTi_MoveSpeed(JIETI_ALIGN_SPEED, 0);                          //没确认前一直往右找
+      continue;
+    }
+    if(jieti_cam_x > JIETI_ALIGN_BAND)        JieTi_MoveSpeed(JIETI_ALIGN_SPEED, 0);   //目标偏右 → 右移
+    else if(jieti_cam_x < -JIETI_ALIGN_BAND)  JieTi_MoveSpeed(-JIETI_ALIGN_SPEED, 0);  //目标偏左 → 左移
+    else { JieTi_MoveSpeed(0, 0); break; }                            //进了对准带 → 对准完成
+  }
+  JieTi_MoveSpeed(0, 0);                                              //对准完/超时：停车
+  JieTi_GetVision(JIETI_VIS_MS);                                      //再取最新一帧：拿它对这一坑的判断
 }
 
 /**
@@ -1136,7 +1220,7 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
                     ZM_Nibble2Char(ZhengMian_Letter[0]), ZM_Nibble2Char(ZhengMian_Letter[1]));
         OLED_Printf(0, 16, OLED_8X16_HALF, "scan & grab...");
         OLED_Update();
-        JieTi_ShowBlockNo(0, 8);   //第4行先显示"BLK 0/8"，之后每数到一个物块就更新
+        JieTi_ShowBlockNo(0, 8, 0);   //第4行先显示"BLK -/8"，对准第1个坑后就变成 1/8
         
         //先左右再前后，因为激光太近的话，会直接以为是没有障碍物
         //定位操作：向左慢平移到左前光电感应到无障碍物
@@ -1179,133 +1263,54 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
         //左前光电无障碍物就开始从左往右走，边走边找目标，抓完一个继续抓下一个
         JieTi_MoveSpeed(JIETI_ALIGN_SPEED, 0);   //右扫描起步(原来10太快，容易走歪)
 
-        /* ============ 阶梯连续抓取：主视觉(串口2)实时坐标包 ============
+        /* ============ 阶梯连续抓取：8个坑固定位移步进 ============
            数据包(7字节)：A3 | cmd | x低 | x高 | y低 | y高 | 0x0B包尾
-           x为像素坐标(16位,低字节在前,0~320)，程序里减160转成画面中心偏移(-160~160)；y是0~240(本阶段不用)
+           x为像素坐标(16位,低字节在前,0~320)，程序里减160 = 距画面中心偏移(-160~160)；y是0~240(本阶段不用)
            cmd含义由全局变量 JieTi_Grab_Mode 决定：
-             Mode=1 按顺序计数：cmd==0x00 → 不需要夹，保持右走；cmd==0x01 → 需要夹，x对准停车夹取
-                 物块计数：车右走时，x每从"偏右(>50)"进入"对准带(|x|<=50)"一次就算路过1个
-                 物块（不需要夹的也会路过，所以编号才是连续的1~8）
-             Mode=2 视觉反馈编号：cmd==0xMN（M=高4位=第几个物块1~8，N=低4位=1要夹/0不要）
-                 例：0x11=第1个物块需要夹；0x60=第6个物块不需要夹
-           夹取动作组：第1~2个(中阶梯)→57；第3~6个(高阶梯)→60；第7~8个(矮阶梯)→63；
-                       夹完每一个都要调用66(回到识别状态)；两个动作组各约5秒(delay_ms(5000))
-           结束条件：阶梯上一共8个物块都扫描完毕(grab_cnt数到8)就退出，不再看光电
+             Mode=1 cmd==0x00 → 这个坑不用夹；cmd==0x01 → 这个坑要夹
+             Mode=2 cmd==0xMN(M=第几个坑1~8，N=低4位1要夹/0不要)，例：0x11=第1个要夹、0x60=第6个不要
+           流程(8个坑逐个来)：
+             第1个坑：从左往右边走边找，等目标进入对准带(|x|<=50) = 第1个
+             第2~8个：先走固定位移(JIETI_STEP_CM)到下一个坑(粗定位)，再用视觉x对准(|x|<=50)
+             对准之后(不管夹不夹都已经对准)：要夹就按坑号选动作组夹 + 66回识别状态；不夹直接下一个
+           计数：对准第1个=1，之后每走一段固定位移就+1(屏幕第4行显示 "BLK n/8 X±xx")；
+                 记满8且第8个处理完 → 阶梯结束(不再看光电)
+           夹取动作组：第1~2个(中阶梯)→57；第3~6个(高阶梯)→60；第7~8个(矮阶梯)→63
         */
         {
-          int16_t cam_x = 0;      // 当前目标x(有符号，车身右为正)
-          uint8_t grab_cnt = 0;   // 已扫描到的物块数(1~8)，数到8个就退出本阶段
-          uint8_t x_state = 1;    // 计数模式辅助：1=偏右(x>10) 2=对准带(|x|<=10) 3=偏左(x<-10)
-          uint8_t cnt_en  = 1;    // 计数模式辅助：1=允许给当前物块计数(防止同一个物块重复数)
-          uint8_t seen_msk = 0;   // 编号模式辅助：已扫描到的物块编号(bit0~bit7对应第1~8个)
-          uint32_t fwd_chk_tick = 0;  // 实时前后测距的节流时刻(ms)
-          uint32_t fwd_oled_tick = 0; // 屏幕上实时测距的刷新节流时刻(ms)
-          uint8_t cur_blk  = 0;       // 当前是第几个物块(1~8，0=还没数到)：屏幕显示用
-          uint8_t blk_shown = 0xFF;   // 屏幕上已经显示的物块编号(变了才重画第4行)
-
-          /* 退出条件：阶梯上一共8个物块都扫描完毕就可以退出(8个都扫过，需要夹的也夹完了)
-             原来用"左前光电3还有障碍物=还在阶梯区域"判断，但左前光电太靠前，会提前以为
-             没有障碍物而误退出，所以改成按物块个数退出。
-             若还想保留"走出阶梯区域"的安全兜底，把下面这行改成：
-             while((grab_cnt < 8) && (LASER_Barrier(LASER3_GPIO_Port,LASER3_Pin)==1)){ */
-          while(grab_cnt < 8){//还有物块没扫描完：继续右走扫描
-            if(VISION1_RxFlag){                    // 主视觉DMA收到一帧
-              VISION1_RxFlag = 0;                  // 必须立即清零
-              /* 在缓冲区里找 A3...0B 的完整包，兼容可能的多帧黏包 */
-              for(uint8_t i = 0; i + 7 <= VISION1_RxRealLength; i++){
-                if(VISION1_RxBuf[i] == 0xA3        // 包头
-                    && VISION1_RxBuf[i + 6] == 0x0B){// 包尾
-                  cam_x = (int16_t)((uint16_t)VISION1_RxBuf[i + 2]
-                                  | ((uint16_t)VISION1_RxBuf[i + 3] << 8));//x低字节在前(0~320像素)
-                  cam_x -= JIETI_IMG_CX;   //减画面中心160 → 距画面中心的偏移：负=目标偏左(要左移) / 正=目标偏右(要右移)
-                  uint8_t cmd = VISION1_RxBuf[i + 1];
-
-                  /* ---------- 解析：第几个物块num / 要不要夹need ---------- */
-                  uint8_t need = 0;
-                  uint8_t num  = 0;
-                  if(JieTi_Grab_Mode == 1){              // 模式1：按顺序计数
-                    need = (cmd == 0x01);                // 0x01=需要夹
-                    /* 计数：x从偏右(x>50)进入对准带(|x|<=50)=车对准/路过1个物块 */
-                    if(x_state == 1 && cam_x <= JIETI_ALIGN_BAND && cam_x >= -JIETI_ALIGN_BAND && cnt_en){
-                      if(grab_cnt < 8) grab_cnt++;
-                      cnt_en = 0;                        // 这个物块已数过
-                    }
-                    if(cam_x > JIETI_ALIGN_BAND){        x_state = 1; }
-                    else if(cam_x < -JIETI_ALIGN_BAND){  x_state = 3; cnt_en = 1; }//已从左边离开,允许数下一个
-                    else{                                x_state = 2; }
-                    /* 保险：需要夹却因跳帧没数到时，补数一次 */
-                    if(need && cam_x <= JIETI_ALIGN_BAND && cam_x >= -JIETI_ALIGN_BAND && cnt_en && grab_cnt < 8){
-                      grab_cnt++;
-                      cnt_en = 0;
-                    }
-                    num = (grab_cnt == 0) ? 1 : grab_cnt;
-                  }else{                                 // 模式2：视觉反馈编号
-                    num  = (cmd >> 4) & 0x0F;            // 高4位=第几个物块
-                    need = (cmd & 0x0F) != 0;            // 低4位=1要夹/0不要
-                    /* 计数：视觉每报出一个新编号(第1~8个)就算扫描到1个物块，
-                       用位图去重(同一个编号重复上报只算一次)，8个编号都出现过=8个物块扫描完毕 */
-                    if(num >= 1 && num <= 8 && (seen_msk & (uint8_t)(1u << (num - 1))) == 0){
-                      seen_msk |= (uint8_t)(1u << (num - 1));
-                      if(grab_cnt < 8) grab_cnt++;
-                    }
-                  }
-                  if(num >= 1 && num <= 8) cur_blk = num;   //记录"当前是第几个物块"，给屏幕显示用
-
-                  /* ---------- 按物块编号选择动作组，对准后夹取 ---------- */
-                  if(need && num >= 1 && num <= 8){
-                    if(cam_x > JIETI_ALIGN_BAND){          // 目标偏车身右 → 往右走
-                      JieTi_MoveSpeed(JIETI_ALIGN_SPEED, 0);
-                    }else if(cam_x < -JIETI_ALIGN_BAND){   // 目标偏车身左 → 往左走
-                      JieTi_MoveSpeed(-JIETI_ALIGN_SPEED, 0);
-                    }else{                   // |x|<=50 → 已在对准带内，把当前这个夹走
-                      JieTi_MoveSpeed(0, 0); // 停车
-
-                      /* 第1~2个→57中阶梯夹；第3~6个→60高阶梯夹；第7~8个→63矮阶梯夹 */
-                      uint8_t act = (num <= 2) ? 57 : ((num <= 6) ? 60 : 63);
-                      runActionGroup(act, 1);   // 夹取动作组
-                      delay_ms(7500);           // 夹取动作约6秒，不够时间会跳过下一个动作（矮阶梯会更慢，要7.5秒）
-                      runActionGroup(66, 1);    // 夹完回到识别状态
-                      delay_ms(3000);           // 识别动作约3秒,回到识别动作很快
-
-                      /* 夹取+回识别状态共约9秒，这期间的旧帧(目标已对准、cmd=0x01)会滞留在接收缓冲里，
-                         不清掉的话下一轮会被当成"又对准了一个物块"重复计数，导致没扫完8个就提前退出 */
-                      VISION1_RxFlag = 0;
-                      VISION1_RxRealLength = 0;
-                      memset(VISION1_RxBuf, 0, VISION1_RxLength);
-
-                      if(JieTi_Grab_Mode == 1){ x_state = 3; cnt_en = 1; }//这个已处理完，准备数下一个
-                      JieTi_MoveSpeed(JIETI_ALIGN_SPEED, 0);   // 继续往右走，看下一个是否需要夹
-                    }
-                  }else{
-                    JieTi_MoveSpeed(JIETI_ALIGN_SPEED, 0);   // 不需要夹：不动机械臂，继续右走
-                  }
-                  break;                         // 一帧只处理第一个完整包
-                }
-              }
+          /* ===== 8个坑固定位移步进：对准(计数) → 夹/不夹 → 走固定位移 → 下一个 =====
+             第1个坑：从左往右边走边找，等目标进入对准带 = 第1个
+             第2~8个：先 ROBOT_Move 走 JIETI_STEP_CM 到下一个坑(粗定位)，再用视觉x对准
+             对准之后不论夹不夹都已经对准；要夹就按坑号选动作组(57/60/63)+66回识别状态 */
+          for(uint8_t idx = 1; idx <= 8; idx++){                  //第1~8个坑
+            if(idx > 1){
+              /* 到下一个坑：先停稳，再走一段固定位移 */
+              JieTi_MoveSpeed(0, 0);
+              ROBOT_Move(JIETI_STEP_CM, 0, JIETI_STEP_SPEED, 0, JIETI_STEP_ACC, 0);
+              JieTi_FlushVision();                                //丢掉移动途中的旧帧，只用站定后的新坐标
             }
 
-            /* ===== 实时监测前后距离 + 屏幕上实时显示测距 =====
-               按 JIETI_FWD_CHK_MS 的周期测一次；屏幕按 JIETI_FWD_OLED_MS 刷一次，只刷第3行。
-               偏离超过 JIETI_FWD_TRIG_MM 才停车校准(内部是"置零→脉冲式微调→置零"，不挂速度、不留累计)，
-               校准完再把原来的扫描速度给回去继续扫。 */
-            if(HAL_GetTick() - fwd_chk_tick >= JIETI_FWD_CHK_MS){
-              fwd_chk_tick = HAL_GetTick();
-              uint16_t d_mm = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin); //实时测距(mm)
-              if(HAL_GetTick() - fwd_oled_tick >= JIETI_FWD_OLED_MS){             //屏幕实时刷测距
-                fwd_oled_tick = HAL_GetTick();
-                JieTi_ShowFwdMm(d_mm);
-                if(cur_blk != blk_shown){                                        //物块编号变了才重画第4行
-                  blk_shown = cur_blk;
-                  JieTi_ShowBlockNo(cur_blk, 8);                                 //第4行：当前第几个物块
-                }
-              }
-              float vx_keep = chassis.v_x;      // 先记住校准前的状态(右走5 / 左移对准-5)
-              if(JieTi_FwdFixIfNeeded(d_mm)){   // 返回1=超标停过车(内部已把速度置零)
-                if(vx_keep > -0.01f && vx_keep < 0.01f) vx_keep = JIETI_ALIGN_SPEED; //本来停着(刚夹完)→按扫描方向继续
-                JieTi_MoveSpeed(vx_keep, 0);    // 好了再重新给速度，回到原来的状态继续扫
-              }
+            /* ---- 视觉对准(内部边走边实时测距，前后偏了就停下校准) ---- */
+            JieTi_GoAlign(idx == 1);
+
+            /* ---- 对准了就是第 idx 个坑：计数 + 屏幕显示 ---- */
+            jieti_blk_now = idx;
+            JieTi_ShowBlockNo(idx, 8, jieti_cam_x);
+
+            /* ---- 要不要夹：Mode1 cmd==0x01；Mode2 cmd低4位非0 ---- */
+            uint8_t need = (JieTi_Grab_Mode == 1) ? (jieti_cmd == 0x01)
+                                                  : ((jieti_cmd & 0x0F) != 0);
+            if(need){
+              /* 第1~2个→57中阶梯夹；第3~6个→60高阶梯夹；第7~8个→63矮阶梯夹 */
+              uint8_t act = (idx <= 2) ? 57 : ((idx <= 6) ? 60 : 63);
+              runActionGroup(act, 1);                             //夹取动作组
+              delay_ms(7500);                                     //夹取动作约7.5秒(矮阶梯更慢)
+              runActionGroup(66, 1);                              //夹完回到识别状态
+              delay_ms(3000);                                     //识别动作约3秒
+              JieTi_FlushVision();                                //清掉夹取期间滞留的旧帧
             }
           }
+
         }
         JieTi_MoveSpeed(0, 0);
         HAL_Delay(100);
