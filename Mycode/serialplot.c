@@ -8,10 +8,8 @@
 #include "uart.h"
 #include "chassis.h"
 #include "hwt101ct.h"
-#include "circle.h"
-#include "NewCircle.h"
 
-#define PARAM_Number 39             //参数个数（航向环 + 整车速度 + 规划 + 启动裕量 + 到位判停提前量 + 精细/常规分档 + 圆周运动参数 + 新圆周(NewCircle)参数）
+#define PARAM_Number 13             //参数个数（航向环 + 整车速度 + 规划 + 启动裕量 + 到位判停提前量 + 精细/常规分档）
 #define YAW_Loop  chassis.yaw_pid   //要调参的pid环：整车航向环
 /* 死区无需在线调：控制循环按是否平移自动切换 —— 静止旋转 YAW_DEAD_ZONE_TURN(1.0°) 防来回飘，
    走直线(有平移) YAW_DEAD_ZONE_MOVE(0.3°) 让1°内偏航也被纠正 */
@@ -35,36 +33,7 @@ Param param[PARAM_Number] = { //可以修改的变量列表（名字匹配后按
   {&chassis.start_margin, "stm", 0},// 启动阈值整形裕量（落地整定：15cm 前进确认4轮同步起转）
   {&chassis.brake_decel, "brkd", 0},// 判停断电后自然滑停等效减速度cm/s²（默认100；滑过头调小、差一点到调大）
   {&chassis.fine_max_dist, "sdist", 0}, // 短距精细档判定阈值 cm：Start_Move 两轴距离均≤它才用 提前判停+整形；大距离走纯时间开环（默认20）
-  {&chassis.fine_max_spd,  "lspd",  0}, // 低速精细档判定阈值 cm/s：恒速手动设速合速度≤它才用 启动整形（默认15）
-  /* 圆周运动（CIRCLE_Run）在线调参：绕圈期间通过 UART1 下发，如 "ckp f 0.6" / "cstage i 3" */
-  {&circle_param.stage, "cstage", 1},      // 圆周调试阶段 0~4（0纯开环→4全开，分步调试）
-  {&circle_param.kp, "ckp", 0},       // 圆周距离环比例（1/s，默认0.5）
-  {&circle_param.ki, "cki", 0},       // 圆周距离环积分（1/s，默认0.08）
-  {&circle_param.kd, "ckd", 0},       // 圆周距离环微分（默认0.1）
-  {&circle_param.vy_max, "cvy", 0},   // 圆周径向速度限幅 cm/s（默认8）
-  {&circle_param.yaw_kp, "cyawkp", 0},// 圆周航向同步环比例（负，默认-0.03）
-  {&circle_param.alpha, "calpha", 0}, // 圆周测距低通滤波系数（0~1，默认0.8）
-  {&circle_param.drift_step, "cstep", 0},   // 圆周漂移修正步长 °（默认0.2）
-  {&circle_param.drift_period_ms, "cdriftper", 1}, // 圆周漂移修正周期 ms（默认200）
-  {&circle_param.print_period_ms, "cprint", 1},      // 圆周串口打印周期 ms（默认200，0关闭）
-  /* 新圆周运动（NewCircle.c：激光左右微调 + 测距前后微调）在线调参：
-     例："nstage i 1" 切阶段 / "nlrmv f 6" 左右补 6cm/s / "nfbtol i 8" 前后容差 8mm */
-  {&nc_param.stage, "nstage", 1},        // 新圆周调试阶段 0~3（0纯开环→3加航向环）
-  {&nc_param.lr_speed, "nlrmv", 0},      // 左右(激光)微调速度 cm/s（默认5）
-  {&nc_param.lr_chk_ms, "nlrchk", 1},    // 左右微调采样周期 ms（默认200=多久重新决定一次）
-  {&nc_param.lr_ms, "nlrms", 1},         // 单次左右微调最长持续 ms（默认400）
-  {&nc_param.fb_speed, "nfbmv", 0},      // 前后(测距)微调速度 cm/s（默认5）
-  {&nc_param.fb_target_mm, "nfbmm", 1},  // 前后微调目标测距 mm（默认200；NCIRCLE_Run 入参也会覆盖它）
-  {&nc_param.fb_tol_mm, "nfbtol", 1},    // 前后容差 mm（默认5，±5mm 就算到位）
-  {&nc_param.fb_trig_mm, "nfbtrig", 1},  // 前后触发阈值 mm（默认10，超过才补）
-  {&nc_param.fb_chk_ms, "nfbchk", 1},    // 前后微调决策周期 ms（默认100）
-  {&nc_param.fb_ms, "nfbms", 1},         // 单次前后微调最长持续 ms（默认600）
-  {&nc_param.dist_read_ms, "nrd", 1},    // 测距读取节流 ms（默认50）
-  {&nc_param.alpha, "nalpha", 0},        // 测距低通滤波系数 0~1（默认0.7）
-  {&nc_param.yaw_kp, "nyawkp", 0},       // 新圆周航向同步环比例（负，默认-0.03，stage>=3 生效）
-  {&nc_param.w_max, "nwmax", 0},         // 新圆周 w 总限幅 rad/s（默认2.8）
-  {&nc_param.lost_ms, "nloss", 1},       // 丢目标停车阈值 ms（默认3000，0=关闭）
-  {&nc_param.print_ms, "nprint", 1}      // 新圆周串口打印周期 ms（默认200，0关闭）
+  {&chassis.fine_max_spd,  "lspd",  0}  // 低速精细档判定阈值 cm/s：恒速手动设速合速度≤它才用 启动整形（默认15）
 };
 
 /**

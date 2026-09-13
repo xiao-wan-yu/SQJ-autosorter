@@ -1,7 +1,6 @@
 #include "robot.h"
 #include "chassis.h"
 #include "hwt101ct.h"
-#include "circle.h"
 #include "main.h"
 #include "stm32f4xx_hal.h"
 #include <math.h>
@@ -77,23 +76,4 @@ void ROBOT_MoveSpeed(float x_speed, float y_speed){
   chassis.v_y = y_speed;
 }
 
-/**
-  * @brief 绕车头前方一点做圆周运动（阻塞式，车头始终面向圆心，车头距圆心距离固定）
-  * @param radius  车中心到圆心的距离 cm（= 目标测距 + 传感器偏置8cm + 管半径4cm）
-  * @param arc_deg 绕行弧角（°）：绕满该角度自动停（360 = 整圈）
-  * @param speed   切向速度 cm/s（>0 逆时针 / <0 顺时针 / 0 不转）
-  * @note  前置条件：底盘控制循环运行（flag.chassis=1）且陀螺仪在更新（flag.hwt101ct=1），
-  *        否则直接返回。底层调用 CIRCLE_Run（三层闭环：径向距离环 PID + 航向同步环
-  *        + 切向速度前馈），用 GY53_2 测距实时保半径、陀螺仪做航向同步，并带测距低通
-  *        滤波与极值搜索漂移修正，绕满弧角自动停。调用前请确保车头已正对水管
-  *        （测距读到的是 传感器→管壁 的距离，不是斜距）。
-  */
-void ROBOT_Circle(float radius, uint32_t arc_deg, float speed){
-  if(!flag.chassis || !flag.hwt101ct) return;                 // 前置条件不满足：直接返回
-  if(radius <= 12.0f || arc_deg == 0 || speed == 0.0f) return;// 非法参数（radius 须 > 传感器偏置+管半径）
-  /* 车中心→圆心距离 radius → 目标测距 mm（传感器→管壁） */
-  uint16_t d_target_mm = (uint16_t)((radius - CIRCLE_SENSOR_OFFSET_CM - CIRCLE_PIPE_RADIUS_CM) * 10.0f + 0.5f);
-  float omega = fabsf(speed) / radius;                         // 切向速度 speed → 公转角速度 rad/s
-  int8_t dir  = (speed > 0) ? 1 : -1;                          // speed>0 逆时针 / <0 顺时针
-  CIRCLE_Run(GY53_2_GPIO_Port, GY53_2_Pin, d_target_mm, omega, arc_deg, dir);
-}
+/* 绕圈（圆周/绕柱）：走 Core/Src/main.c 的 LiZhu_Circle_Run()（8.28"绕柱闭环"原版） */

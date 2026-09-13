@@ -34,12 +34,6 @@ void ROBOT_Move(int32_t x_distance, int32_t y_distance,
   */
 void ROBOT_MoveSpeed(float x_speed, float y_speed);
 
-/**
-  * @brief 绕车头前方一点做圆周运动（阻塞式，车头始终面向圆心，车头距圆心距离固定）
-  * @param radius  车中心到圆心的距离 cm（= 目标测距 + 传感器偏置8cm + 管半径4cm）
-  * @param arc_deg 绕行弧角（°）：绕满该角度自动停（360 = 整圈）
-  * @param speed   切向速度 cm/s（>0 逆时针 / <0 顺时针 / 0 不转）
-  */
-void ROBOT_Circle(float radius, uint32_t arc_deg, float speed);
+/* 绕圈（圆周/绕柱）：走 Core/Src/main.c 的 LiZhu_Circle_Run()（8.28"绕柱闭环"原版） */
 
 #endif /* __ROBOT_H */
