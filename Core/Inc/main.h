@@ -91,6 +91,8 @@ void Error_Handler(void);
 #define TB6612_STBY_GPIO_Port GPIOE
 #define OLED_SCL_Pin GPIO_PIN_13
 #define OLED_SCL_GPIO_Port GPIOB
+#define LASER3_Pin GPIO_PIN_14
+#define LASER3_GPIO_Port GPIOB
 #define OLED_SDA_Pin GPIO_PIN_15
 #define OLED_SDA_GPIO_Port GPIOB
 #define GY53_2_Pin GPIO_PIN_6
@@ -101,8 +103,8 @@ void Error_Handler(void);
 #define LASER2_GPIO_Port GPIOC
 #define LASER1_Pin GPIO_PIN_9
 #define LASER1_GPIO_Port GPIOC
-#define LASER3_Pin GPIO_PIN_14
-#define LASER3_GPIO_Port GPIOB
+#define LASER4_Pin GPIO_PIN_7
+#define LASER4_GPIO_Port GPIOD
 #define GRAY1_DATA_Pin GPIO_PIN_4
 #define GRAY1_DATA_GPIO_Port GPIOB
 #define GRAY3_DATA_Pin GPIO_PIN_6

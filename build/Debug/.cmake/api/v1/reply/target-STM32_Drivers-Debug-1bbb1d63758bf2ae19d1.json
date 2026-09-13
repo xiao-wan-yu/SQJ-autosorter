@@ -76,7 +76,7 @@
 			{
 				"command" : 0,
 				"file" : 0,
-				"line" : 77,
+				"line" : 80,
 				"parent" : 0
 			},
 			{
@@ -97,13 +97,13 @@
 			{
 				"command" : 2,
 				"file" : 0,
-				"line" : 79,
+				"line" : 82,
 				"parent" : 0
 			},
 			{
 				"command" : 3,
 				"file" : 0,
-				"line" : 78,
+				"line" : 81,
 				"parent" : 0
 			}
 		]
@@ -164,27 +164,27 @@
 			[
 				{
 					"backtrace" : 5,
-					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Core/Inc"
+					"path" : "G:/STM32/7_AutomatedSortingRobot_26/cmake/stm32cubemx/../../Core/Inc"
 				},
 				{
 					"backtrace" : 5,
-					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Drivers/STM32F4xx_HAL_Driver/Inc"
+					"path" : "G:/STM32/7_AutomatedSortingRobot_26/cmake/stm32cubemx/../../Drivers/STM32F4xx_HAL_Driver/Inc"
 				},
 				{
 					"backtrace" : 5,
-					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy"
+					"path" : "G:/STM32/7_AutomatedSortingRobot_26/cmake/stm32cubemx/../../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy"
 				},
 				{
 					"backtrace" : 5,
-					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Drivers/CMSIS/Device/ST/STM32F4xx/Include"
+					"path" : "G:/STM32/7_AutomatedSortingRobot_26/cmake/stm32cubemx/../../Drivers/CMSIS/Device/ST/STM32F4xx/Include"
 				},
 				{
 					"backtrace" : 5,
-					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Drivers/CMSIS/Include"
+					"path" : "G:/STM32/7_AutomatedSortingRobot_26/cmake/stm32cubemx/../../Drivers/CMSIS/Include"
 				},
 				{
 					"backtrace" : 5,
-					"path" : "G:/STM32/7_AutomatedSortingRobot_26/Middlewares/ST/ARM/DSP/Inc"
+					"path" : "G:/STM32/7_AutomatedSortingRobot_26/cmake/stm32cubemx/../../Middlewares/ST/ARM/DSP/Inc"
 				}
 			],
 			"language" : "C",

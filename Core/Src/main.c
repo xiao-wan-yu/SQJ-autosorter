@@ -19,8 +19,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "dma.h"
-#include "oled_ui/oled.h"
-#include "oled_ui/oled_driver.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
@@ -53,6 +51,7 @@
 #include "./../../Mycode/vision.h"
 #include "./../../Mycode/lobot_servo.h"
 #include "./../../Mycode/circle.h"
+#include "./../../Mycode/NewCircle.h"   // 新圆周运动：激光左右微调 + 测距前后微调（circle.c 旧方案保留）
 
 #include <math.h>
 #include <stdint.h>
@@ -417,7 +416,7 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-//  HAL_Init();
+  HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -599,10 +598,10 @@ int main(void)
   // SERIALPLOT_PIDAdjustParam();
 //
 //
-  /*// USER CODE END 2 */
-//
-  /*// Infinite loop */
-  /*// USER CODE BEGIN WHILE */
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
   //
 //
   ////   HAL_Delay(2000);
@@ -777,65 +776,9 @@ int main(void)
       }
 
       if(KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){
-        /* ================= 【调试】按钮1(KEY1)：按下就进入"等待备用串口(UART4)接收"状态 =================
-           用途：不跑整车流程，单独验证备用串口(副视觉 UART4)能不能把字母结果发过来。
-           流程：按下KEY1 → 屏幕显示 WAIT → 备用串口收到"单字节0xAB" → 把这一字节拆成两个字母打到屏幕上
-                 (高4位=第1个字母、低4位=第2个字母；0xA~0xD 对应字母 A~D，所以 0xAB → "AB")，
-                 同时往电脑串口1打一条日志；收到后自动退出等待，回到"红蓝方选择"界面。
-           说明：收到别的单字节 / 帧长不是1：都不算成功，只在屏幕上显示 BAD 后继续等；
-                 等满30秒还没等到就自动退出(屏幕显示 TIMEOUT)，避免一直卡在这里。
-           ★若副视觉要先收到0xA2才开始识别/发字母，把下面那行被注释掉的 UART4_Printf 打开即可。 */
-        UART4_RxFlag = 0;                                    //清掉进入等待前残留的接收帧
-        UART4_RxRealLength = 0;
-        OLED_Clear();
-        OLED_Printf(0,  0, OLED_8X16_HALF, "KEY1 : WAIT 0xAB");
-        OLED_Printf(0, 16, OLED_8X16_HALF, "UART4 waiting...");
+
+        OLED_Printf(0, 0, OLED_8X16_HALF, "barrier:%1d", LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin));
         OLED_Update();
-        UART1_Printf("KEY1: wait UART4 single byte 0xAB\r\n");
-        //UART4_Printf("%c", 0xA2);                          //若副视觉要收到0xA2才开始识别，把本行打开
-
-        {
-          uint32_t uart4_wait_t0 = HAL_GetTick();            //等待起始时刻(算超时用)
-          while(1){
-            /* 自愈：备用串口万一因为ORE/FE出错停了接收，这里立刻重新拉起来(同正面识别里的做法) */
-            if((huart4.RxState != HAL_UART_STATE_BUSY_RX) || ((hdma_uart4_rx.Instance->CR & DMA_SxCR_EN) == 0U)){
-              HAL_UART_AbortReceive(&huart4);
-              UART4_RxFlag = 0;
-              HAL_UARTEx_ReceiveToIdle_DMA(&huart4, UART4_RxBuf, UART4_RxLength);
-              __HAL_DMA_DISABLE_IT(&hdma_uart4_rx, DMA_IT_HT);
-            }
-
-            if(UART4_RxFlag){                                //备用串口收到一帧
-              UART4_RxFlag = 0;                              //必须立即清零
-              UART1_Printf("KEY1 RX4 len=%d: 0x%02X\r\n", UART4_RxRealLength, UART4_RxBuf[0]);
-              if(UART4_RxRealLength == 1 && UART4_RxBuf[0] == 0xAB){
-                /* ===== 成功：单字节0xAB，拆出两个字母打到屏幕上 ===== */
-                char letter0 = (char)('A' + (((UART4_RxBuf[0] >> 4) & 0x0F) - 0x0A));   //高4位=第1个字母
-                char letter1 = (char)('A' + ((UART4_RxBuf[0] & 0x0F) - 0x0A));         //低4位=第2个字母
-                OLED_ClearArea(0, 0, OLED_WIDTH, 48);
-                OLED_Printf(0,  0, OLED_8X16_HALF, "RX   : 0x%02X OK", UART4_RxBuf[0]);
-                OLED_Printf(0, 16, OLED_8X16_HALF, "letter:%c, %c", letter0, letter1);
-                OLED_Printf(0, 32, OLED_8X16_HALF, "hi:%X  lo:%X", (UART4_RxBuf[0] >> 4) & 0x0F, UART4_RxBuf[0] & 0x0F);
-                OLED_Update();
-                UART1_Printf("KEY1 got 0x%02X -> letter %c %c\r\n", UART4_RxBuf[0], letter0, letter1);
-                break;                                       //收到就退出等待，回红蓝方选择界面
-              }else{
-                /* 不是"单字节0xAB"：不算成功，显示出来继续等 */
-                OLED_ClearArea(0, 32, OLED_WIDTH, 16);
-                OLED_Printf(0, 32, OLED_8X16_HALF, "NOT 0xAB: 0x%02X", UART4_RxBuf[0]);
-                OLED_Update();
-              }
-            }
-
-            if(HAL_GetTick() - uart4_wait_t0 >= 30000U){     //超时保护：30秒没等到0xAB就自动退出
-              OLED_ClearArea(0, 32, OLED_WIDTH, 16);
-              OLED_Printf(0, 32, OLED_8X16_HALF, "TIMEOUT 30s");
-              OLED_Update();
-              UART1_Printf("KEY1: wait 0xAB timeout\r\n");
-              break;
-            }
-          }
-        }
 
         /* ================= 旧代码开始（原来的按键1"倒球调试"，先整段注释保留）=================
            要恢复原来的倒球调试：把本行与下面"旧代码结束"那一行的注释符去掉，并把上面的等待接收测试删掉即可。
@@ -1453,6 +1396,27 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
       CIRCLE_Run(GY53_2_GPIO_Port, GY53_2_Pin, 175, 0.35f, 360, 1);
 
       UART1_Printf("circle done\r\n");
+    }
+
+    //单独测试转圈(新方案 NewCircle)：激光矫正左右 + 测距矫正前后 + 名义圆周运动
+    //  几何：测距镜头在车中心前 14cm、读"镜头→水管表面"20cm、水管半径 4cm → 车中心→管心半径 38cm
+    //  逻辑：激光3没障碍物→车偏右→往左补；激光4没障碍物→车偏左→往右补；两个都有障碍物→测距才可信，
+    //        用测距前后微调。左右/前后微调速度都是 5cm/s，脉冲式（多久补一次、一次最长多久见 NewCircle.h）
+    //  在线调参：串口指令 nstage i N（N=0~3 分步调试：0纯开环→1加激光左右→2加测距前后(默认)→3加航向环）
+    //            nlrmv/nlrchk/nlrms/nfbmv/nfbmm/nfbtol/nfbtrig/nfbchk/nfbms/nrd/nalpha/nyawkp/nwmax/nloss/nprint
+    //  前提：调用前车头已正对水管（GY53_2 读到的是 传感器→水管表面 的距离，不是斜距）
+    if(UART1_Data[0]==7)
+    {
+      UART1_Data[0]=0;                            // 立即清指令，防止循环重复触发
+      UART1_Printf("newcircle start\r\n");
+
+      /* 目标测距 200mm(20cm)、公转角速度 0.35rad/s（切向速度≈0.35×38≈13.3cm/s）、
+         绕满整圈、逆时针。NCIRCLE_Run 内部：先静止采测距定滤波初值 → 按当前 nstage 分阶段
+         绕圈（激光左右补 + 测距前后补）→ 绕满弧角/超时/丢目标自动停；
+         期间每 nprint(默认200)ms 串口打印一次 10 通道状态，SerialPlot 直接看。 */
+      NCIRCLE_Run(200, 0.35f, 360, 1);
+
+      UART1_Printf("newcircle done\r\n");
     }
 
     if(UART1_Data[0]==6)
