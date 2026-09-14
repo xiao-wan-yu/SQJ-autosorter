@@ -101,6 +101,19 @@ bool mode_red = true;  // 红蓝模式标志：true=红方，false=蓝方
 //阶梯(8物块)夹取工作模式：1=按顺序计数(第二字节 0x00不夹/0x01夹)；2=视觉反馈编号(0xMN: M=第几个物块1~8, N=1夹/0不夹, 如0x11=第1个夹、0x60=第6个不夹)
 uint8_t JieTi_Grab_Mode = 1;   // 现场切换时改这里（置1/置2）
 
+/* ===== 红蓝镜像说明（2026规则：场地中间一条中线，红方右半场、蓝方左半场；两车都停在本方出发区，
+   出发时车头都朝同一条中线方向 = 陀螺仪上电 0°）=====
+   蓝方 = 红方关于中线的镜像，所以同一段流程对蓝方就是：
+     · 位移/速度的 x（车身左右）取反，y（前进后退）不变
+     · 目标角度 θ → 360-θ（270↔90；0/180 不变）
+     · 左右扫描方向、绕柱方向反过来；光电/灰度探头换镜像的那一路
+   不用镜像、两边照抄的：动作组号、各段延时、视觉协议(0xA1/A2/A3/A6/A7，红0xAA/蓝0xBB)、
+   视觉给的 cam_x 判据、y 方向的走距与测距阈值、角度 0/180
+   光电分工（按车上实际装法）：LASER3 = 红方各阶段用的那路前光电；LASER4 = 另一路前光电
+   （蓝方镜像后用它）；LASER1 = 后方唯一一路（红蓝共用）；LASER2 是注释里"右边坏了"的那路，已不用
+   ★蓝方第一次上场现场看三点：①白线探头索引(代码里是 mode_red ? 1 : 6，读不到就把 6 改 1)；
+     ②8个坑的顺序(蓝方阶梯若是掉头180°装的，坑号会反)；③视觉 cam_x 有没有被左右镜像 */
+
 
 /* USER CODE END PV */
 
@@ -443,14 +456,14 @@ static uint8_t JieTi_WaitCoord(uint32_t wait_ms){
      挪完停下再等 JIETI_NOVIS2_MS(2s) → 还是没有：这个坑放过，直接返回(调用方计数+1进下一个)
    对准过程中反复调用 JieTi_FwdService()：前后距离偏了就停下校准，校准完继续对准 */
 static void JieTi_GoAlign(uint8_t first_pit){
-  uint8_t found = 0;                                     //第1个坑：是否已看到目标在右侧
+  uint8_t found = 0;                                     //第1个坑：是否已看到目标从"扫描方向那一侧"进画面(红:右 / 蓝:左)
   jieti_cmd = 0;                                         //★先按"不夹"待着：没收到帧就不会拿上一坑的旧值乱夹
 
   /* ---- ① 先等坐标 ---- */
   if(!JieTi_WaitCoord(JIETI_NOVIS_MS)){
     /* ---- ② 1s还没坐标：往右挪2cm换位置，挪完停下再等 ---- */
     JieTi_MoveSpeed(0, 0);
-    ROBOT_Move(JIETI_NOVIS_MOVE_CM, 0, JIETI_STEP_SPEED, 0, JIETI_STEP_ACC, 0);   //右移一点，换个位置再看
+    ROBOT_Move(mode_red ? JIETI_NOVIS_MOVE_CM : -JIETI_NOVIS_MOVE_CM, 0, JIETI_STEP_SPEED, 0, JIETI_STEP_ACC, 0);   //红:往右挪一点换位置 → 蓝:往左挪(镜像)
     if(!JieTi_WaitCoord(JIETI_NOVIS2_MS)){
       JieTi_MoveSpeed(0, 0);
       return;                                            //③ 还是没有坐标：这个坑不要了，进下一个
@@ -463,8 +476,8 @@ static void JieTi_GoAlign(uint8_t first_pit){
     JieTi_FwdService();                                  //实时测距/屏幕/超标校准(会临时停车)
     if(!JieTi_GetVision(JIETI_VIS_MS)) continue;         //这一拍没收到帧：接着等
     if(first_pit && !found){
-      if(jieti_cam_x > JIETI_ALIGN_BAND) found = 1;      //目标已经在右边出现，开始对准
-      JieTi_MoveSpeed(JIETI_ALIGN_SPEED, 0);             //没确认前一直往右找
+      if((mode_red ? (jieti_cam_x > JIETI_ALIGN_BAND) : (jieti_cam_x < -JIETI_ALIGN_BAND))) found = 1;   //红:目标从画面右边进 → 蓝:从左边进(镜像)
+      JieTi_MoveSpeed(mode_red ? JIETI_ALIGN_SPEED : -JIETI_ALIGN_SPEED, 0);      //红:没确认前一直往右找 → 蓝:往左找
       continue;
     }
     if(jieti_cam_x > JIETI_ALIGN_BAND)        JieTi_MoveSpeed(JIETI_ALIGN_SPEED, 0);   //目标偏右 → 右移
@@ -604,10 +617,14 @@ static void LiZhu_Circle_Run(void)
               ★万一接上后反而"越绕越偏"（越转越往一个方向跑）→ 说明这台车的 w/麦轮符号链跟我推的
                 相反，把 KD_W 取负(-0.05)再试一次，哪边能收住就用哪边。
      ==================================================================== */
-  const float v_t    = 6.0f;                // 切向速度 cm/s（>0逆时针 / <0顺时针）
-  const float KP_R   = 1.0f;                // 径向纠偏增益 1/s（半径误差cm → 径向速度cm/s）
-  const float VY_MAX = 2.5f;                // 径向速度限幅 cm/s（别超 v_t/2，径向不抢切向）
-  const float KD_W   = 0.05f;               // 半径误差→w 修正 (rad/s)/cm（★9.13 换符号+换来源）
+  /* ★红蓝镜像（蓝方 = 反方向绕圈）：v_t 和 KD_W 都要取负 ——
+     镜像后绕行方向反过来（v_t 变号），而"远了(e>0)就要往圈里多转一点"这条规律在反方向下同样反号，
+     所以"半径误差→w 修正"那一路(KD_W)也得跟着取负；只改 v_t 不改 KD_W 的话蓝方会越绕越偏（半径单边跑飞）。
+     KP_R(径向那一路前进/后退) 和 VY_MAX 镜像不变。 */
+  const float v_t    = mode_red ? 6.0f : -6.0f;   // 切向速度 cm/s（红>0逆时针 / 蓝取负=顺时针，镜像）
+  const float KP_R   = 1.0f;                // 径向纠偏增益 1/s（半径误差cm → 径向速度cm/s）★镜像不变
+  const float VY_MAX = 2.5f;                // 径向速度限幅 cm/s（别超 v_t/2，径向不抢切向）★镜像不变
+  const float KD_W   = mode_red ? 0.05f : -0.05f;  // 半径误差→w 修正 (rad/s)/cm（★蓝方取负=镜像：w_蓝=-w_红）
 
   while(fabsf(yaw_acc) < 355.0f){           // 绕满一整圈
     uint16_t dd = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);
@@ -636,7 +653,7 @@ static void LiZhu_Circle_Run(void)
     float r_est = d_cm + GY53_2_OFFSET_CM + PIPE_RADIUS_CM;
     if(r_est < 10.0f) r_est = 10.0f;        // 防小半径产生过大 w
     float w_corr     = KD_W * e;            // 半径误差 → 车头角速度修正(rad/s)
-    float w_corr_max = 0.5f * v_t / r_est;  // 修正量最多到前馈的一半，别把车头拧歪
+    float w_corr_max = 0.5f * fabsf(v_t) / r_est;  // 修正量最多到前馈的一半，别把车头拧歪（用|v_t|兼容蓝方反向）
     if(w_corr >  w_corr_max) w_corr =  w_corr_max;
     else if(w_corr < -w_corr_max) w_corr = -w_corr_max;
     chassis.w = v_t / r_est + w_corr;
@@ -1158,16 +1175,16 @@ int main(void)
     runActionGroup(1, 1);//不需要延时，因为和出发一起
     
     //先盲走到圆盘机中心+面向
-    ROBOT_Move(mode_red?-58:58,417,100,100,100,100);
+    ROBOT_Move(mode_red ? -58 : 58,417,100,100,100,100);   //红:圆盘机在出发位左边58cm；蓝:镜像到右边58cm
     HAL_Delay(100);
-    mode_red ? ROBOT_Angle(270) : ROBOT_Angle(90);
+    mode_red ? ROBOT_Angle(270) : ROBOT_Angle(90);//红:面向圆盘机(270=朝左) → 蓝:(90=朝右)
     HAL_Delay(100);
 
     
-    //向前慢走，直到灰度传感器第三路(探头3)感应到白线
+    //向前慢走，直到灰度探头读到白线(红方用索引1那一路；蓝方镜像用索引6那一路)
     GRAY_Update();
     ROBOT_MoveSpeed(0, 10);//15太快了，很容易没看到直接冲过去
-    while(GRAY_Data[GRAY3][1] == 0)//探头3为0(黑)继续走，读到1(白)即停
+    while(GRAY_Data[GRAY3][mode_red ? 1 : 6] == 0)//探头为0(黑)继续走，读到1(白)即停(红:索引1 蓝:索引6)
 
     {
       GRAY_Update();
@@ -1175,7 +1192,7 @@ int main(void)
     ROBOT_MoveSpeed(0, 0);
 
     //再次校准
-    mode_red ? ROBOT_Angle(270) : ROBOT_Angle(90);
+    mode_red ? ROBOT_Angle(270) : ROBOT_Angle(90);//再次校准（红270=朝左 / 蓝90=朝右）
     HAL_Delay(100);
 
     //往前走一点点（好像不用往后退）（往前会拍不到球）
@@ -1368,10 +1385,10 @@ int main(void)
       //收起机械臂
       //重复了runActionGroup(0, 1);
       //向左平行到仓库
-      ROBOT_Move(mode_red ? -185 : 192,0,100,0,100,0);
+      ROBOT_Move(mode_red ? -185 : 192,0,100,0,100,0);   //★蓝方镜像值是192(现场调过)，不是硬镜像的185
       //转身
       HAL_Delay(100);
-      mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
+      mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);//红:面向仓库(90=朝右) → 蓝:(270=朝左)
       
       //往后慢退，直到测距测得合适距离（适合倒球的距离）
       ROBOT_MoveSpeed(0, -10);
@@ -1381,18 +1398,18 @@ int main(void)
       HAL_Delay(100);//延时一下提高稳定性
 
       //加一次角度校准（这些地方的角度很重要）
-      mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
+      mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);//加一次角度校准（红90 / 蓝270）
       HAL_Delay(100);//延时一下提高稳定性
 
       //定位操作：向左慢平移到左后光电感应到无障碍物
       //新：更改激光位置，让它在没对到障碍物时直接就已经是合适的位置，不需要调整
-      ROBOT_MoveSpeed(-5, 0);
-      while (LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1);
+      ROBOT_MoveSpeed(mode_red ? -5 : 5, 0);//红:向左平移找仓库边 → 蓝:向右平移
+      while (LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1);//后左光电看到障碍就一直走(车上只有这一路后方光电，蓝方也用它)
       ROBOT_MoveSpeed(0,0);
       HAL_Delay(100);//延时一下提高稳定性
 
       //加一次角度校准
-      mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
+      mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);//加一次角度校准（红90 / 蓝270）
       HAL_Delay(100);//延时一下提高稳定性
       //往右走固定距离（刚到对上仓库的距离）
       //if(mode_red) ROBOT_Move(5, 0, 10, 0, 10, 0);//20太大，速度100会飘，12太远
@@ -1429,17 +1446,17 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
         delay_ms(2000);
 
         //右+前，移动到阶梯附近,要往右多走点，不然撞到了，y160太远了，不利于视觉识别
-        ROBOT_Move(100, 150, 100, 50, 100, 50);
+        ROBOT_Move(mode_red ? 100 : -100, 150, 100, 50, 100, 50);//红:右+前 去阶梯附近 → 蓝:左+前(镜像)
 
         //向左慢走，直到前面的两个光电都感应到障碍物（右边坏了）
-        ROBOT_MoveSpeed(-10, 0);
+        ROBOT_MoveSpeed(mode_red ? -10 : 10, 0);//红:向左慢走 → 蓝:向右慢走
         //while(LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin)==0);
-        while(LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin)==0);//左后是1，右边为2，左前是3
+        while((mode_red ? LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin) : LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin))==0);//红:前左光电碰到阶梯就停 → 蓝:前右光电(镜像)
         HAL_Delay(100);//延时一下提高稳定性
 
         //往左走一定距离，视觉中能完整看到两个字母（可以省去测距前后校准）
         //短距离太快速，走的斜斜的，不要100速度，50还算可以
-        ROBOT_Move(-35, 0, 50, 0, 50, 0);
+        ROBOT_Move(mode_red ? -35 : 35, 0, 50, 0, 50, 0);//红:再向左35cm(能看到两个字母) → 蓝:向右35cm
         //停车准备识别
         ROBOT_MoveSpeed(0,0);
         HAL_Delay(100);//延时一下提高稳定性
@@ -1584,17 +1601,17 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
         JieTi_ShowBlockNo(0, 8, 0);   //第4行先显示"BLK -/8"，对准第1个坑后就变成 1/8
         
         //先左右再前后，因为激光太近的话，会直接以为是没有障碍物
-        //定位操作：向左慢平移到左前光电感应到无障碍物
-        ROBOT_MoveSpeed(-10, 0);//这里容易识别到字母上的黑，然后停下来
+        //定位操作：平移到"前侧光电"感应到无障碍物(红:向左+前左光电 / 蓝:向右+前右光电，镜像)
+        ROBOT_MoveSpeed(mode_red ? -10 : 10, 0);//红:向左平移找阶梯端头 → 蓝:向右(这里容易识别到字母上的黑，然后停下来)
         //HAL_Delay(1000);//避免路上识别到字母然后停下来
-        while(LASER_Barrier(LASER3_GPIO_Port,LASER3_Pin)==1);
+        while((mode_red ? LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin) : LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin))==1);//红:前左光电离开阶梯就停 → 蓝:前右光电(镜像)
         ROBOT_MoveSpeed(0, 0);
         HAL_Delay(100);//延时一下提高稳定性
 
         //加一次角度校准，否则很歪影响测距（如果是start过来的，那就要改为如下的0）
         //ROBOT_Angle(0);
         //正常流程
-        mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
+        mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);//红:正对阶梯(90=朝右) → 蓝:(270=朝左)
         /* 记住这次校好的朝向 = 整个阶梯阶段的目标朝向：后面每次设速都用 JieTi_MoveSpeed()
            把它恢复回去，角度环才会一直按这个朝向纠偏(否则每设一次速就把当前歪掉的朝向当新目标) */
         jieti_keep_yaw = chassis.target_yaw;
@@ -1607,7 +1624,7 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
         HAL_Delay(100);//延时一下提高稳定性
 
         //激光校准（激光刚离开时，位置偏右）
-        ROBOT_Move(-8, 0, 10, 0, 10, 0);//走多也没事，10走多了，会导致测距可能在外面
+        ROBOT_Move(mode_red ? -8 : 8, 0, 10, 0, 10, 0);//激光校准(激光刚离开时位置偏右)：红左移8 → 蓝右移8
 
         //机械臂变成识别状态
         runActionGroup(54, 1);
@@ -1620,7 +1637,7 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
         UART2_Printf("%c", 0xA3);//发0xA3告诉主视觉进入"阶梯目标对准"阶段(惯例同0xA1圆盘机/0xA2正面识别；若视觉端在收到0xA7后已自行上报A3帧，此行可删)
 
         //左前光电无障碍物就开始从左往右走，边走边找目标，抓完一个继续抓下一个
-        JieTi_MoveSpeed(JIETI_ALIGN_SPEED, 0);   //右扫描起步(原来10太快，容易走歪)
+        JieTi_MoveSpeed(mode_red ? JIETI_ALIGN_SPEED : -JIETI_ALIGN_SPEED, 0);   //红:从左往右扫描起步 → 蓝:从右往左扫(原来10太快，容易走歪)
 
         /* ============ 阶梯连续抓取：8个坑固定位移步进 ============
            数据包(7字节)：A3 | cmd | x低 | x高 | y低 | y高 | 0x0B包尾
@@ -1654,7 +1671,7 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
               /* 到下一个坑走多远：换阶梯那一步(第2→3个、第6→7个，就是动作组57/60/63切换处)隔得远，走10cm；
                  同一个阶梯里相邻坑走8cm */
               int32_t step_cm = (idx == 3 || idx == 7) ? JIETI_STEP_CROSS_CM : JIETI_STEP_CM;
-              ROBOT_Move(step_cm, 0, JIETI_STEP_SPEED, 0, JIETI_STEP_ACC, 0);
+              ROBOT_Move(mode_red ? step_cm : -step_cm, 0, JIETI_STEP_SPEED, 0, JIETI_STEP_ACC, 0);//到下一个坑(蓝方镜像走法，距离一样)
               if(jieti_keep_yaw >= 0.0f) ROBOT_Angle((uint32_t)(jieti_keep_yaw + 0.5f));  //走完：再摆正一次，消掉这段走歪的角度
               JieTi_FlushVision();                                //丢掉移动途中的旧帧，只用站定后的新坐标
             }
@@ -1702,18 +1719,18 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
           
           runActionGroup(0, 1);//复位
           //右前光电无障碍物，就开始向左走固定距离（走到阶梯平面中间）
-          ROBOT_Move(-45, -35, 50, 50, 50, 50);
+          ROBOT_Move(mode_red ? -45 : 45, -35, 50, 50, 50, 50);//红:左+后 走到阶梯平面中间 → 蓝:右+后(镜像)
           
           //好像前面把角度清0了，此时正对阶梯为0（不对，依然是正对阶梯为90呢）
-          ROBOT_Angle(270);
+          mode_red ? ROBOT_Angle(270) : ROBOT_Angle(90);//红:正对立柱(270=朝左) → 蓝:(90=朝右)
           //ROBOT_Angle(180);
           
           //这里是校准到正对立柱
           /* ====== 立柱前校准：先左右(激光)再前后(测距)，校准完再转圈 ======
-             前提(现场保证)：车在立柱右边、一开始前测距 > 200mm。
-             左右：10cm/s 往左走，右激光(激光3)看到柱面就停；停下检验两个激光：
-                   两个都有=左右正对；只有右有(往左走多了)→往右补 2cm；只有左有/都没有→往左补 2cm；
-                   每次停下都再检验一遍，直到两个都有。
+             前提(现场保证)：车在立柱右边、一开始前测距 > 200mm。★蓝方镜像：车在立柱左边、往右走、两个光电左右互换。
+             左右：10cm/s 往一边走(红方用 LASER3、蓝方镜像后用 LASER4)，看到柱面就停；停下检验两个光电：
+                   两个都有=左右正对；只有主侧有(走多了)→往另一侧补 2cm；只有另一侧有/都没有→往主侧补 2cm；
+                   每次停下都再检验一遍，直到两个都有。★蓝方镜像：走的方向、光电角色左右互换，补的方向也跟着反。
              前后：往前走，测距进 190~210mm 就停；停下再验一次，不在 200 附近就按差值用 ROBOT_Move 补。 */
           {
             float    lz_yaw = chassis.target_yaw;      //270°(ROBOT_Angle 校好的朝向)：置零后锁回来，
@@ -1721,8 +1738,8 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
             uint32_t lz_t0  = HAL_GetTick();
 
             //---- 第一步：10cm/s 往左走，右激光(激光3)有障碍物就停 ----
-            ROBOT_MoveSpeed(-10.0f, 0.0f);
-            while(LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin) == 0){   //右激光看到柱面 → 跳出
+            ROBOT_MoveSpeed(mode_red ? -10.0f : 10.0f, 0.0f);//红:向左走近立柱 → 蓝:向右(镜像)
+            while((mode_red ? LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin) : LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin)) == 0){   //红:前左光电看到柱面 → 蓝:前右光电(镜像)
               if(HAL_GetTick() - lz_t0 > 5000U) break;                  //5s 还没看到：别一直往左跑(防异常)
             }
             ROBOT_MoveSpeed(0.0f, 0.0f);
@@ -1731,11 +1748,11 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
 
             //---- 停下检验：两个激光都有障碍物才算左右正对，不然往另一边补 2cm，每次停下都再验 ----
             for(uint8_t k = 0; k < 6; k++){            //最多补 6 次(防死循环)
-              uint8_t b3 = LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin);   //右激光
-              uint8_t b4 = LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin);   //左激光
+              uint8_t b3 = (mode_red ? LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin) : LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin));                                 //红:前左(主) → 蓝:前右(镜像)
+              uint8_t b4 = (mode_red ? LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin) : LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin));                                 //红:前右    → 蓝:前左(镜像)
               if(b3 && b4) break;                                         //★两个都有 → 左右校准完成
-              if(b3) ROBOT_Move( 2, 0, 5, 0, 5, 0);                       //只有右有(往左走多了) → 往右 2cm
-              else   ROBOT_Move(-2, 0, 5, 0, 5, 0);                       //只有左有/都没有 → 往左 2cm
+              if(b3) ROBOT_Move(mode_red ? 2 : -2, 0, 5, 0, 5, 0);                //红:只有主侧有(走多了) → 往另一侧补2cm；蓝方向镜像
+              else   ROBOT_Move(mode_red ? -2 : 2, 0, 5, 0, 5, 0);                //红:只有另一侧有/都没有 → 往主侧补2cm；蓝方向镜像
               HAL_Delay(150);
             }
 
@@ -1772,21 +1789,21 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
           */
 
           //转完一圈，收起机械臂，然后往左转身走到仓库中间倒方块
-          ROBOT_Move(-60, 0, 100, 100, 100, 100);
-          ROBOT_Angle(90);//车子前面朝右
+          ROBOT_Move(mode_red ? -60 : 60, 0, 100, 100, 100, 100);//红:往左 → 蓝:往右(镜像)
+          mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);//红:车子前面朝右 → 蓝:朝左(镜像)
           ROBOT_Move(0, -138, 50, 50, 50, 50);
-          ROBOT_Move(-45, 0, 50, 50, 50, 50);
+          ROBOT_Move(mode_red ? -45 : 45, 0, 50, 50, 50, 50);//红:往左 → 蓝:往右(镜像)
 
           //定位操作：向左慢平移到左后光电感应到无障碍物，之后再往右走固定距离（刚到仓库中间的距离）
-          ROBOT_MoveSpeed(-10, 0);
-          while (LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1);
+          ROBOT_MoveSpeed(mode_red ? -10 : 10, 0);//红:向左平移到仓库边 → 蓝:向右(镜像)
+          while (LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1);//后左光电看到仓库就一直走(车上只有这一路后方光电，蓝方也用它)
           ROBOT_MoveSpeed(0,0);
 
-          ROBOT_Move(25, 0, 10, 0, 0, 0);
+          ROBOT_Move(mode_red ? 25 : -25, 0, 10, 0, 0, 0);//红:往右25cm(刚对上仓库中间) → 蓝:往左25cm(镜像)
 
           //得走远一点才能转身倒方块
           ROBOT_Move(0, 10, 0, 10, 0, 10);
-          ROBOT_Angle(270);//车子前面朝左
+          mode_red ? ROBOT_Angle(270) : ROBOT_Angle(90);//红:车子前面朝左倒方块 → 蓝:朝右(镜像)
           UART1_Printf("10");
           
           //这里放倒方块的代码
@@ -1797,7 +1814,7 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
           //倒完方块转个身再回家
           ROBOT_Angle(0);
           //往后多走一点，必须保证，前后在左右移动后能进入红色区域
-          ROBOT_Move(35, -225, 50, 100, 100, 100);//60，-240能进
+          ROBOT_Move(mode_red ? 35 : -35, -225, 50, 100, 100, 100);//红:右+后 回出发区方向 → 蓝:左+后(镜像)(红60/-240也能进)
           LiZhu_Flag = 0;//立柱结束，回家开始
           HuiJia_Flag = 1;
         }
@@ -1811,7 +1828,7 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
     */
     //如果为黑色，匀速往右走，直到传感器进入红/蓝区域
     //去抖：连续3次(约150ms)都读到红/蓝才确认，交界处"红黑红黑"抖动不会误停
-    ROBOT_MoveSpeed(10, 0);
+    ROBOT_MoveSpeed(mode_red ? 10 : -10, 0);//红:向右找本区 → 蓝:向左(镜像)
     {
       uint8_t stable = 0;
       while(1){
@@ -1828,7 +1845,7 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
     //因为加了消抖，所以会稍微多走一小点，再减少一点盲走的距离
 
     //进入红/蓝后，继续向右多走11.5，确保停在红/蓝区域内部（避免停在边缘抖动；距离按区域宽度调整），而且确保车身左右都在红/蓝区域内
-    ROBOT_Move(11.5, 0, 10, 10, 100, 100);
+    ROBOT_Move(mode_red ? 11.5 : -11.5, 0, 10, 10, 100, 100);//红:向右11.5cm 停到区域内部 → 蓝:向左(镜像)
     
     //往前走，走到颜色传感器一定在黑色区域内（同样连续3次确认）
     ROBOT_MoveSpeed(0, 10);
@@ -1889,7 +1906,7 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
       */
       //如果为黑色，匀速往右走，直到传感器进入红/蓝区域
       //去抖：连续3次(约150ms)都读到红/蓝才确认，交界处"红黑红黑"抖动不会误停
-      ROBOT_MoveSpeed(10, 0);
+      ROBOT_MoveSpeed(mode_red ? 10 : -10, 0);//红:向右找本区 → 蓝:向左(镜像)
       {
         uint8_t stable = 0;
         while(1){
@@ -1906,7 +1923,7 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
       //因为加了消抖，所以会稍微多走一小点，再减少一点盲走的距离
 
       //进入红/蓝后，继续向右多走12，确保停在红/蓝区域内部（避免停在边缘抖动；距离按区域宽度调整），而且确保车身左右都在红/蓝区域内
-      ROBOT_Move(12, 0, 10, 10, 100, 100);
+      ROBOT_Move(mode_red ? 12 : -12, 0, 10, 10, 100, 100);//红:向右12cm 停到区域内部 → 蓝:向左(镜像)
       
       //往前走，走到颜色传感器一定在黑色区域内（同样连续3次确认）
       ROBOT_MoveSpeed(0, 10);
