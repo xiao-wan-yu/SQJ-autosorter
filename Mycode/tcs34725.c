@@ -7,6 +7,7 @@
   *            VCC = 3.3V、GND = GND、LED/INT 悬空
   *          软件 I2C 100kHz（半位延时 5us，开漏输出 + 内部上拉，支持时钟拉伸）。
   *          与感为灰度驱动（gw_softi2c，10kHz）相互独立，互不影响。
+  *          ★使用前必须先初始化一次 TCS34725_Init()（见 tcs34725.h 的说明）。
   */
 
 #include "tcs34725.h"
@@ -21,6 +22,7 @@
 #define TCS_I2C_HALF_DELAY_US   5u    /* 半位周期延时 5us => 约 100kHz */
 
 static uint8_t g_tcs_id = 0;         /* 上电后读到的芯片 ID */
+static uint8_t g_tcs_ready = 0;      /* 1=PB9/PB4 已配成开漏 + PON/AEN 已使能，可以读数据 */
 
 /* ==================== 引脚电平操作 ==================== */
 static inline void tcs_scl_hi(void){ HAL_GPIO_WritePin(TCS34725_SCL_GPIO_Port, TCS34725_SCL_Pin, GPIO_PIN_SET); }
@@ -221,6 +223,7 @@ uint8_t TCS34725_Init(void)
 {
   uint8_t id = 0;
 
+  g_tcs_ready = 0;                               /* 重来一遍：全部成功后再置 1 */
   tcs_i2c_gpio_init();
   delay_ms(5);                                   /* 让上拉稳定 */
 
@@ -231,6 +234,26 @@ uint8_t TCS34725_Init(void)
   TCS34725_SetIntegrationTime(TCS34725_INTEGRATIONTIME_50MS);
   TCS34725_SetGain(TCS34725_GAIN_1X);
   TCS34725_Enable();
+  g_tcs_ready = 1;
+  return 1;
+}
+
+/* 确保硬件就绪（PB9/PB4 配成开漏 + 上电使能）；返回 1=可以读数据
+   ★2026-09-14 修复（"颜色传感器又坏了"的根因）：
+     以前完全依赖调用方记得调用 TCS34725_Init()。cf20b8f(8.31 圆盘机视觉通信) 那次
+     整理调试代码时，把 main.c 里那句 uint8_t tcs_online = TCS34725_Init(); 一起注释掉了，于是：
+       · PB9(SCL) 还是 CubeMX 配的推挽输出 —— 能翻转，看着"有波形"；
+       · PB4(SDA) 还是 CubeMX 配的"输入上拉" —— 主机根本拉不低 SDA；
+     起始条件发不出去、从机地址收不到 ACK → 整条 I2C 读流程全部失败 → C/R/G/B 全是 0
+     → S=0、V=0 → ClassifyColor() 走"低饱和 + 低亮度"分支恒判 BLUE
+     → 回家阶段"读到红/蓝才停""等到黑才停"全错，表现就是颜色传感器坏了。
+     现在读数据前会自动补一次初始化，调用方忘了 Init 也不会再"悄悄坏掉"。
+     模块没插好/没上电时这里返回 0，GetRawData() 会把数据清 0 并返回 0，别当成"读到黑/红蓝"。 */
+static uint8_t tcs_ensure_ready(void)
+{
+  if(g_tcs_ready) return 1;
+  if(!TCS34725_Init()) return 0;     /* 读 ID 失败：保持未就绪，下次读数据再试 */
+  g_tcs_ready = 1;
   return 1;
 }
 
@@ -238,6 +261,15 @@ uint8_t TCS34725_GetRawData(TCS34725_RGBC *rgbc)
 {
   float c;
   if(!rgbc) return 0;
+
+  if(!tcs_ensure_ready()){
+    /* 没就绪：I2C 不可用，读出来必然是 0；显式清 0 再返回 0，免得调用方拿上一次的旧值当新数据 */
+    rgbc->c = 0; rgbc->r = 0; rgbc->g = 0; rgbc->b = 0;
+    rgbc->rn = 0.0f; rgbc->gn = 0.0f; rgbc->bn = 0.0f;
+    rgbc->h = 0.0f;  rgbc->s  = 0.0f; rgbc->v  = 0.0f;
+    rgbc->lux = 0.0f;
+    return 0;
+  }
 
   /* 循环积分模式下数据持续更新，直接读最近一次积分结果；
      上电初期/刚 AEN 时数据可能为 0，用返回值 + C 值判断即可 */

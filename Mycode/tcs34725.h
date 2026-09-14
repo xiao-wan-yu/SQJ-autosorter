@@ -7,7 +7,11 @@
   *             VCC = 3.3V，GND = GND，LED / INT 悬空
   *          软件 I2C 100kHz（开漏输出 + 内部上拉），不依赖硬件 I2C 外设，
   *          因此不需要改动 CubeMX 工程。GRAY3 循线功能不受影响。
-  *          如需更换引脚，只需改本文件末尾的 TCS34725_XXX_Pin/Port 四个宏。
+  *          如需更换引脚，只需改 tcs34725.c 开头的 TCS34725_XXX_Pin/Port 四个宏。
+  *
+  *          ★使用前必须先初始化一次：TCS34725_Init()（把 PB9/PB4 配成开漏 + 上电使能）。
+  *            正常情况下由 main.c 上电处调用；万一调用方漏了，TCS34725_GetRawData()
+  *            也会自己补一次（见 tcs34725.c 的 tcs_ensure_ready），不会再"悄悄坏掉"。
   */
 
 #ifndef __TCS34725_H
