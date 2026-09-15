@@ -79,6 +79,17 @@
 /* USER CODE BEGIN PD */
 /* UART1 接收模板：帧格式 S;A;B;C;D;E;F;G（8个32位整数，分号分隔） */
 #define UART1_DATA_NUM 8                     // 每帧数据个数，按需修改
+
+/* ==================== ★★ 调试用"起始阶段"选择(按键0) ★★ ====================
+   开机进"红蓝方选择"界面后：按键0 = 循环切换起始阶段，按键3 = 按选好的阶段开始执行。
+   ★默认值(0=完整流程)时，主流程一条语句都不变，和不加这套调试入口时完全一样。
+   新增一个起点只需4步：① 这里加一个 DBG_START_xxx；② 在 DBG_START_NAME/DESC 表里加一项；
+                        ③ 在 main() 的"调试起点跳转"处加一个 goto；④ 在对应阶段开头打个标签(xxx_START:) */
+#define DBG_START_ALL        0      //完整流程：圆盘机→仓库倒球→正面识别→阶梯→回家(默认)
+#define DBG_START_ZHENGMIAN  1      //从"正面识别前"开始：跳过圆盘机+仓库倒球，车自己走到阶梯识别位
+#define DBG_START_HUIJIA     2      //从"回家"开始：跳过前面全部，直接跑回家那段(红蓝区找色→停进红蓝区)
+#define DBG_START_COLORCAL   3      //★颜色传感器单独校准：黑→红→蓝→白 四色重标定判色阈值(与比赛流程无关，跑完回菜单)
+#define DBG_START_MAX        DBG_START_COLORCAL  //按键0 循环切换的上限(=最后一个起点)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -101,18 +112,10 @@ bool mode_red = true;  // 红蓝模式标志：true=红方，false=蓝方
 //阶梯(8物块)夹取工作模式：1=按顺序计数(第二字节 0x00不夹/0x01夹)；2=视觉反馈编号(0xMN: M=第几个物块1~8, N=1夹/0不夹, 如0x11=第1个夹、0x60=第6个不夹)
 uint8_t JieTi_Grab_Mode = 1;   // 现场切换时改这里（置1/置2）
 
-/* ===== 红蓝镜像说明（2026规则：场地中间一条中线，红方右半场、蓝方左半场；两车都停在本方出发区，
-   出发时车头都朝同一条中线方向 = 陀螺仪上电 0°）=====
-   蓝方 = 红方关于中线的镜像，所以同一段流程对蓝方就是：
-     · 位移/速度的 x（车身左右）取反，y（前进后退）不变
-     · 目标角度 θ → 360-θ（270↔90；0/180 不变）
-     · 左右扫描方向、绕柱方向反过来；光电/灰度探头换镜像的那一路
-   不用镜像、两边照抄的：动作组号、各段延时、视觉协议(0xA1/A2/A3/A6/A7，红0xAA/蓝0xBB)、
-   视觉给的 cam_x 判据、y 方向的走距与测距阈值、角度 0/180
-   光电分工（按车上实际装法）：LASER3 = 红方各阶段用的那路前光电；LASER4 = 另一路前光电
-   （蓝方镜像后用它）；LASER1 = 后方唯一一路（红蓝共用）；LASER2 是注释里"右边坏了"的那路，已不用
-   ★蓝方第一次上场现场看三点：①白线探头索引(代码里是 mode_red ? 1 : 6，读不到就把 6 改 1)；
-     ②8个坑的顺序(蓝方阶梯若是掉头180°装的，坑号会反)；③视觉 cam_x 有没有被左右镜像 */
+/* ★调试起始阶段的名字/说明(顺序必须和 DBG_START_xxx 一致)：OLED 第3行"k3:GO xxx"+第4行说明用，
+   8x16半高字体一行最多16个字符，名字/说明都别写太长 */
+static const char * const DBG_START_NAME[] = { "ALL", "ZM", "HOME", "CAL" };
+static const char * const DBG_START_DESC[] = { "full flow", "front recog", "go home", "color calib" };
 
 
 /* USER CODE END PV */
@@ -257,7 +260,7 @@ static void ZM_ShowComm(int rx4, int rx2){
         车还没停、测距还是旧值就反向给速度，加上底盘低速精细档(≤15cm/s)起步会"启动整形"顶PWM，冲得更明显。
      ③ 回到 目标±容差 或 超过 JIETI_FWD_MS 就结束(结束时同样置零)，调用方重新给 JIETI_ALIGN_SPEED
    测距说明：GY53_2是前面的、GY53_1是后面的；GY53_GetDistance_PWM()返回mm，超量程/无目标返回2000 */
-#define JIETI_FWD_TARGET_MM   80      //目标前后距离(mm)：100靠太近，120太远,105也远，80才是合适
+#define JIETI_FWD_TARGET_MM   87      //目标前后距离(mm)：100靠太近，120太远,105也远，80才是合适
 #define JIETI_FWD_TOL_MM       10     //容差(mm)：|实测-目标|<=10 视为已校准好（原来5：GY53自己就有±10mm噪声，5比噪声还小→读数一直"差一点"，来回微调停不下来）
 #define JIETI_FWD_TRIG_MM      20     //触发阈值(mm)：偏离超过20mm才停下校准（原来10：噪声都能顶到，一有偏差就停车→校准太频繁）
 #define JIETI_FWD_MS        2500U     //单次校准最长耗时(ms)：每步等测距刷新的时间变长后要给足（原来1000：还没修到位就退出，下一轮又停，反而更频繁）
@@ -281,6 +284,48 @@ static void ZM_ShowComm(int rx4, int rx2){
 #define JIETI_NOVIS_MOVE_CM    2      //★没坐标兜底②：往右挪多少(cm)换位置；挪完车停下，再等 JIETI_NOVIS2_MS
 #define JIETI_NOVIS2_MS     2000U     //★没坐标兜底③：挪完停下再等2s，还是没有坐标 → 这个坑放过，直接进下一个
 #define JIETI_VIS_MS         200U     //等主视觉一帧的超时(ms)
+/* ---------------- ★坐标有效性闸门(修"没有东西也往左走") ----------------
+   现场现象：这一坑压根没有物块(或物块不用夹)，车却一路往左走、最后卡死在左边。
+   原因：视觉在"这一帧没找到目标"时有的固件照样发 A3 包，x 填 0 或 0xFFFF(=-1，常见"未检测到"约定)。
+        主控原来照单全收：cam_x = x - 160 → 0 变 -160、0xFFFF 回转成 -161 →
+        对准循环一律走"目标偏左 → 左移"那个分支 → 车一直往左追一个不存在的目标；
+        每个坑都这么左移一次(5cm/s×3s≈15cm)，而坑间步进只往右 8cm → 净往左 → 越跑越左 → 卡死。
+   做法：x 不在 [JIETI_IMG_XMIN, JIETI_IMG_XMAX] 就判为无效帧：只打日志、不更新坐标、不算收到
+        (等于"这一拍没收到坐标")，于是不会拿它对准、更不会往左走。 */
+#define JIETI_IMG_XMIN          8     //x像素有效下限：0(=没目标的常见填充值)会被挡在这里
+#define JIETI_IMG_XMAX        312     //x像素有效上限：0xFFFF(=65535)会先被挡在这里
+/* ---------------- ★对准阶段"往左"限幅(修"一直卡死在左边") ----------------
+   本阶段是"从左往右依次处理8个坑"，目标只应该出现在画面中间/右边，偏左基本只有一个解释：
+   画面里那个物块是"已经走过/不用夹却还在视野里的那个"，不是本坑要夹的目标。
+   所以往左只允许做小范围修正(走多了往回补)，连续往左超过 JIETI_ALIGN_LEFT_MS 就停车放弃这一坑：
+   5cm/s × 0.8s ≈ 4cm(够补"走多了一次"的量，又远小于一个坑间距 8cm，不会串到上一个坑)。 */
+#define JIETI_ALIGN_LEFT_MS   800U    //对准阶段"连续往左"的最长时间(ms)：超了=那个目标不是本坑的
+#define JIETI_ALIGN_LEFT_DROP   1     //左移超限后这一坑按"不夹"处理(1=改，防止对着空气/错目标夹；0=保留视觉原判断)
+#define JIETI_ALIGN_SKIP_NOGRAB 1     //★视觉这一帧说"不夹"时，不拿它的坐标左右挪车(1=跳过对位直接进下一个坑；0=老行为)
+/* ---------------- ★阶梯跑完去哪儿(修"跑完阶梯不回家/卡死在阶梯") ----------------
+   1 = 阶梯跑完直接进"回家"段(跳过被 if(0) 禁用的立柱段)；
+   0 = 老设计：不在这里置位，靠"立柱"段末尾置 HuiJia_Flag(前提是把立柱段的 if(0) 恢复成 if(LiZhu_Flag == 1))
+   ★注意"回家"段的头几步位移是按"立柱/仓库那边跑完"的位置写的，从阶梯旁直接进回家段时，
+     若落点不对，改回家段最前面那几条 ROBOT_Move 即可(见 HUIJIA_START 标签)。 */
+#define JIETI_GO_HOME_DIRECT    1     //阶梯跑完直接回家(1) / 走完立柱再回家(0)
+/* ---------------- ★"等到条件满足"类死等的超时保护(修"车停着不动=卡死") ----------------
+   阶梯/仓库/回家几个定位点都是 `while(激光或测距还没到位);` 这种原地空转等待：
+   设计上"走十几厘米就该满足"，但传感器没接好 / 读数卡住 / 车被顶住时永远出不来——
+   现场"车停在那儿不动、屏幕和串口也不动了"多半就是卡在这几行。
+   WAIT_WHILE(条件, 标识)：原地等到条件不再成立，最长等 WAIT_TIMEOUT_MS；超时就打一行 TIMEOUT 退出，
+   后面紧跟的"停车/刹车"语句照常执行 → 不会再永久卡死，而且串口能看出是哪一处超的。
+   ★6000ms 是按 10cm/s 走十几厘米给的余量；正常这些等待只要 1~4s，别把这个值改得太小。 */
+#define WAIT_TIMEOUT_MS     6000U     //"等条件"类循环的最长等待(ms)
+#define WAIT_WHILE(cond, tag)                                            \
+  do{                                                                    \
+    uint32_t _wait_t0 = HAL_GetTick();                                   \
+    while(cond){                                                         \
+      if(HAL_GetTick() - _wait_t0 > WAIT_TIMEOUT_MS){                    \
+        UART1_Printf("TIMEOUT: %s\r\n", tag);                            \
+        break;                                                           \
+      }                                                                  \
+    }                                                                    \
+  }while(0)
 
 /* ================== 阶梯阶段：保持锁向目标（否则越走越斜） ==================
    ★ROBOT_MoveSpeed() 内部会把 chassis.target_yaw 置成哨兵(YAW_TARGET_NONE)，
@@ -364,6 +409,15 @@ static uint8_t JieTi_VisionPoll(void){
                   | ((uint16_t)VISION1_RxBuf[i + 3] << 8);          //x像素(低字节在前,0~320)
       uint16_t py = (uint16_t)VISION1_RxBuf[i + 4]
                   | ((uint16_t)VISION1_RxBuf[i + 5] << 8);          //y像素(本阶段不用)
+      /* ★无效坐标帧闸门(见 JIETI_IMG_XMIN 上方说明)：
+         x=0 / x=0xFFFF(未检测到) / 越界 → 这一帧不算"收到坐标"，绝不拿去对准。
+         否则 cam_x 会变成 ≈-160 → 对准循环判"目标偏左" → 车一路往左走(现场那个现象) */
+      if(px < JIETI_IMG_XMIN || px > JIETI_IMG_XMAX){
+        if(JIETI_VIS_LOG)
+          UART1_Printf(" | A3 x=%u 无效帧(不在%u~%u) → 丢弃,不参与对准\r\n",
+                       (unsigned)px, (unsigned)JIETI_IMG_XMIN, (unsigned)JIETI_IMG_XMAX);
+        return 0;                                       //等于"这一拍没收到坐标"：继续等/走兜底
+      }
       jieti_cam_x = (int16_t)px - JIETI_IMG_CX;         //减160 → 目标距画面中心偏移
       jieti_cmd   = VISION1_RxBuf[i + 1];               //cmd(要不要夹，含义看 JieTi_Grab_Mode)
       if(JIETI_VIS_LOG)
@@ -456,35 +510,69 @@ static uint8_t JieTi_WaitCoord(uint32_t wait_ms){
      挪完停下再等 JIETI_NOVIS2_MS(2s) → 还是没有：这个坑放过，直接返回(调用方计数+1进下一个)
    对准过程中反复调用 JieTi_FwdService()：前后距离偏了就停下校准，校准完继续对准 */
 static void JieTi_GoAlign(uint8_t first_pit){
-  uint8_t found = 0;                                     //第1个坑：是否已看到目标从"扫描方向那一侧"进画面(红:右 / 蓝:左)
+  uint8_t found = 0;                                     //第1个坑：是否已看到目标在右侧
   jieti_cmd = 0;                                         //★先按"不夹"待着：没收到帧就不会拿上一坑的旧值乱夹
 
   /* ---- ① 先等坐标 ---- */
   if(!JieTi_WaitCoord(JIETI_NOVIS_MS)){
     /* ---- ② 1s还没坐标：往右挪2cm换位置，挪完停下再等 ---- */
     JieTi_MoveSpeed(0, 0);
-    ROBOT_Move(mode_red ? JIETI_NOVIS_MOVE_CM : -JIETI_NOVIS_MOVE_CM, 0, JIETI_STEP_SPEED, 0, JIETI_STEP_ACC, 0);   //红:往右挪一点换位置 → 蓝:往左挪(镜像)
+    ROBOT_Move(JIETI_NOVIS_MOVE_CM, 0, JIETI_STEP_SPEED, 0, JIETI_STEP_ACC, 0);   //右移一点，换个位置再看
     if(!JieTi_WaitCoord(JIETI_NOVIS2_MS)){
       JieTi_MoveSpeed(0, 0);
       return;                                            //③ 还是没有坐标：这个坑不要了，进下一个
     }
   }
 
-  /* ---- ④ 拿到坐标了：按视觉x对准(总超时 JIETI_ALIGN_MS，超时按已对准处理) ---- */
-  uint32_t t0 = HAL_GetTick();
+  /* ---- ④ 拿到坐标了：按视觉x对准(总超时 JIETI_ALIGN_MS，超时按已对准处理) ----
+     ★往左限幅(见 JIETI_ALIGN_LEFT_MS 上方说明)：连续往左超过上限 → 判定"画面里那个物块不是本坑目标"
+       (多半是刚夹完/不用夹却还留在视野里的那个) → 停车放弃这一坑，绝不一路往左追 */
+  uint32_t t0      = HAL_GetTick();
+  uint32_t t_loop  = t0;                                 //上一拍时刻：用来算"这一拍花了多久"
+  uint32_t left_ms = 0;                                  //★连续往左走的累计时间(ms)
+  uint8_t  left_giveup = 0;                              //★1=往左超限放弃(这一坑不夹)
   while((HAL_GetTick() - t0) < JIETI_ALIGN_MS){
     JieTi_FwdService();                                  //实时测距/屏幕/超标校准(会临时停车)
+    uint32_t dt = HAL_GetTick() - t_loop;                //这一拍耗时(等帧+可能的前后校准)
+    t_loop = HAL_GetTick();
+    if(dt > (JIETI_VIS_MS + JIETI_FWD_CHK_MS)) dt = 0;   //这一拍大半时间在停车校准/刷屏：不算"正在往左走"
     if(!JieTi_GetVision(JIETI_VIS_MS)) continue;         //这一拍没收到帧：接着等
     if(first_pit && !found){
-      if((mode_red ? (jieti_cam_x > JIETI_ALIGN_BAND) : (jieti_cam_x < -JIETI_ALIGN_BAND))) found = 1;   //红:目标从画面右边进 → 蓝:从左边进(镜像)
-      JieTi_MoveSpeed(mode_red ? JIETI_ALIGN_SPEED : -JIETI_ALIGN_SPEED, 0);      //红:没确认前一直往右找 → 蓝:往左找
+      if(jieti_cam_x > JIETI_ALIGN_BAND) found = 1;      //目标已经在右边出现，开始对准
+      JieTi_MoveSpeed(JIETI_ALIGN_SPEED, 0);             //没确认前一直往右找
       continue;
     }
-    if(jieti_cam_x > JIETI_ALIGN_BAND)        JieTi_MoveSpeed(JIETI_ALIGN_SPEED, 0);   //目标偏右 → 右移
-    else if(jieti_cam_x < -JIETI_ALIGN_BAND)  JieTi_MoveSpeed(-JIETI_ALIGN_SPEED, 0);  //目标偏左 → 左移
+    /* ★这一帧说"不夹" → 这一坑根本不需要对位：别拿它的坐标左右挪车
+       (现场"夹完之后画面里只剩下不用夹的那个，车却以它为准往左走"就是这里该拦住的；
+        它只影响"要不要挪车"，不影响 need 判定——need 用的还是同一个 cmd，行为只会更快、更稳) */
+    uint8_t need_cmd = (JieTi_Grab_Mode == 1) ? (jieti_cmd == 0x01)
+                                              : ((jieti_cmd & 0x0F) != 0);
+    if(JIETI_ALIGN_SKIP_NOGRAB && !need_cmd){
+      JieTi_MoveSpeed(0, 0);
+      break;                                             //不对位(也不夹)：直接进下一个坑
+    }
+    if(jieti_cam_x > JIETI_ALIGN_BAND){                  //目标偏右 → 右移(本阶段的主方向，不设限)
+      left_ms = 0;
+      JieTi_MoveSpeed(JIETI_ALIGN_SPEED, 0);
+    }
+    else if(jieti_cam_x < -JIETI_ALIGN_BAND){            //目标偏左 → 左移(只当"走多了往回补"用，限幅)
+      left_ms += dt;
+      if(left_ms > JIETI_ALIGN_LEFT_MS){                 //★往左太久：那个物块不是这一坑的目标
+        left_giveup = 1;
+        break;                                           //立刻停车，不再往左追
+      }
+      JieTi_MoveSpeed(-JIETI_ALIGN_SPEED, 0);
+    }
     else { JieTi_MoveSpeed(0, 0); break; }               //进了对准带 → 对准完成
   }
-  JieTi_MoveSpeed(0, 0);                                 //对准完/超时：停车
+  JieTi_MoveSpeed(0, 0);                                 //对准完/超时/放弃：停车
+  if(left_giveup){
+    if(JIETI_ALIGN_LEFT_DROP) jieti_cmd = 0;             //按"不夹"处理：避免对着错目标/空气夹
+    if(JIETI_VIS_LOG)
+      UART1_Printf("ALIGN left giveup blk%u -> cmd=0x%02X\r\n",
+                   (unsigned)jieti_blk_now, (unsigned)jieti_cmd);
+    return;
+  }
   JieTi_GetVision(JIETI_VIS_MS);                         //再取最新一帧：拿它对这一坑的判断
 }
 /* ==================== 立柱转圈：8.28"绕柱闭环"原版（commit b6fc0ab「2026.8.28好像看到转圈希望」）====================
@@ -617,14 +705,10 @@ static void LiZhu_Circle_Run(void)
               ★万一接上后反而"越绕越偏"（越转越往一个方向跑）→ 说明这台车的 w/麦轮符号链跟我推的
                 相反，把 KD_W 取负(-0.05)再试一次，哪边能收住就用哪边。
      ==================================================================== */
-  /* ★红蓝镜像（蓝方 = 反方向绕圈）：v_t 和 KD_W 都要取负 ——
-     镜像后绕行方向反过来（v_t 变号），而"远了(e>0)就要往圈里多转一点"这条规律在反方向下同样反号，
-     所以"半径误差→w 修正"那一路(KD_W)也得跟着取负；只改 v_t 不改 KD_W 的话蓝方会越绕越偏（半径单边跑飞）。
-     KP_R(径向那一路前进/后退) 和 VY_MAX 镜像不变。 */
-  const float v_t    = mode_red ? 6.0f : -6.0f;   // 切向速度 cm/s（红>0逆时针 / 蓝取负=顺时针，镜像）
-  const float KP_R   = 1.0f;                // 径向纠偏增益 1/s（半径误差cm → 径向速度cm/s）★镜像不变
-  const float VY_MAX = 2.5f;                // 径向速度限幅 cm/s（别超 v_t/2，径向不抢切向）★镜像不变
-  const float KD_W   = mode_red ? 0.05f : -0.05f;  // 半径误差→w 修正 (rad/s)/cm（★蓝方取负=镜像：w_蓝=-w_红）
+  const float v_t    = 6.0f;                // 切向速度 cm/s（>0逆时针 / <0顺时针）
+  const float KP_R   = 1.0f;                // 径向纠偏增益 1/s（半径误差cm → 径向速度cm/s）
+  const float VY_MAX = 2.5f;                // 径向速度限幅 cm/s（别超 v_t/2，径向不抢切向）
+  const float KD_W   = 0.05f;               // 半径误差→w 修正 (rad/s)/cm（★9.13 换符号+换来源）
 
   while(fabsf(yaw_acc) < 355.0f){           // 绕满一整圈
     uint16_t dd = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);
@@ -653,7 +737,7 @@ static void LiZhu_Circle_Run(void)
     float r_est = d_cm + GY53_2_OFFSET_CM + PIPE_RADIUS_CM;
     if(r_est < 10.0f) r_est = 10.0f;        // 防小半径产生过大 w
     float w_corr     = KD_W * e;            // 半径误差 → 车头角速度修正(rad/s)
-    float w_corr_max = 0.5f * fabsf(v_t) / r_est;  // 修正量最多到前馈的一半，别把车头拧歪（用|v_t|兼容蓝方反向）
+    float w_corr_max = 0.5f * v_t / r_est;  // 修正量最多到前馈的一半，别把车头拧歪
     if(w_corr >  w_corr_max) w_corr =  w_corr_max;
     else if(w_corr < -w_corr_max) w_corr = -w_corr_max;
     chassis.w = v_t / r_est + w_corr;
@@ -714,8 +798,25 @@ static void LiZhu_Circle_Run(void)
        3 = 车体走固定距离 + 转到指定角度（在本函数里不管，交给主循环下面的原逻辑）
        7 = 立柱绕圈 LiZhu_Circle_Run()（8.28"绕柱闭环"原版，实现在本函数上方）
    返回 1 = 这一帧已被本函数处理掉（7 绕圈已在里面阻塞跑完）；0 = 只是解析/回显，交给主循环原逻辑
-   要改绕圈参数（v_t/KP_R/VY_MAX/KD_W）就去改上面 LiZhu_Circle_Run() 函数里的 const，别改散落的其它地方 */
+   要改绕圈参数（v_t/KP_R/VY_MAX/KD_W）就去改上面 LiZhu_Circle_Run() 函数里的 const，别改散落的其它地方
+   ------------------------------------------------------------------------------------------
+   ★2026-09-15 新增【单键手动测试指令】（专门用来单独测 前/后/左/右 / 原地转）：
+     帧里没有逗号就按单键解释（外面那套 "S,A,B,..." 数值指令完全不受影响）：
+       w/s/a/d = 前进/后退/左移/右移（持续走，发 x 停）   W/S/A/D = 同上但只走 1 秒自动停
+       x 或空格或回车 = 停车     +/- = 测试速度 ±10cm/s（默认 30，10~100）
+       1/2/3/4 = 原地转到 0°/90°/180°/270°      p = 打印状态   o = 里程清零   h = 帮助
+     ★用法：上电后在"红蓝方选择"菜单界面直接发（这个函数菜单循环里也在调），不用进比赛流程。
+     ★这套指令只做"设恒速/转向"，不做任何位置闭环；测"走歪"就看 ST 行里的 yaw 和 now 实测速度。
+   ------------------------------------------------------------------------------------------ */
 static uint8_t UART1_DebugCmd(void){
+  /* ★单键手动测试用的状态（对应下面 ① 单字节快捷指令；静态变量在两次调用之间保持） */
+  static uint32_t cmd_stop_at = 0;      /* 定时自动停车的时刻（大写 W/S/A/D = 走 1 秒自动停） */
+  static float    cmd_spd     = 30.0f;  /* 单键测试速度 cm/s（+/- 每档 10，范围 10~100） */
+  if(cmd_stop_at != 0 && (int32_t)(HAL_GetTick() - cmd_stop_at) >= 0){
+    cmd_stop_at = 0;
+    ROBOT_MoveSpeed(0.0f, 0.0f);
+    UART1_Printf("AUTO STOP (1s)\r\n");
+  }
   if(!UART1_RxFlag) return 0;                       // DMA空闲中断没收到帧：什么都不做
   UART1_RxFlag = 0;                                 // 必须立即清零
   char line[UART1_RxLength + 1];                    // 拷贝一份并补'\0'（DMA缓冲末尾没有结束符）
@@ -723,6 +824,73 @@ static uint8_t UART1_DebugCmd(void){
   if(len > UART1_RxLength) len = UART1_RxLength;    // 防越界
   memcpy(line, UART1_RxBuf, len);
   line[len] = '\0';
+
+  /* ==================== ① 单字节快捷指令：手动测"前后左右单独动 / 原地转 / 调速" ====================
+     触发条件：这一帧里**没有逗号**（即不是 "S,A,B,..." 数值指令）→ 按"单键"解释。
+       w / s / a / d = 前进 / 后退 / 左移 / 右移（持续走，直到发 x 停）
+       W / S / A / D = 同上，但只走 1 秒自动停（配合 o 清零、p 看状态，能量出"走了多少、歪了多少"）
+       x 或 空格 或 回车 = 停车
+       + / -         = 测试速度 ±10cm/s（默认 30，范围 10~100）
+       1 2 3 4       = 原地转到 0° / 90° / 180° / 270°
+       p = 打印状态   o = 里程清零   h / ? = 帮助
+     ★注意：不带逗号的单键数字 1~4 现在是"原地转"；原流程的 3 指令请照旧带逗号发（3,distx,disty,...）。
+     ★所有移动都用 ROBOT_MoveSpeed()：它会开启航向环并**锁定发指令那一刻的朝向**（走直线），
+       所以"歪不歪"看状态行里的 yaw 有没有被拉住；低速度(≤15cm/s)会命中底盘"破静摩擦整形"，
+       命令 10 实际会跑到 16~29cm/s，属正常现象（详见 main 里圆盘机停车那段注释）。 */
+  if(strchr(line, ',') == NULL){
+    char    c     = line[0];
+    float   vx    = 0.0f, vy = 0.0f;
+    uint8_t timed = 0;
+    switch(c){
+      case 'w': vy =  cmd_spd; break;
+      case 'W': vy =  cmd_spd; timed = 1; break;
+      case 's': vy = -cmd_spd; break;
+      case 'S': vy = -cmd_spd; timed = 1; break;
+      case 'a': vx = -cmd_spd; break;
+      case 'A': vx = -cmd_spd; timed = 1; break;
+      case 'd': vx =  cmd_spd; break;
+      case 'D': vx =  cmd_spd; timed = 1; break;
+      case 'x': case 'X': case ' ': case '\r': case '\n':
+        cmd_stop_at = 0;
+        ROBOT_MoveSpeed(0.0f, 0.0f);
+        UART1_Printf("STOP (v=0)\r\n");
+        return 1;
+      case '+': cmd_spd += 10.0f; if(cmd_spd > 100.0f) cmd_spd = 100.0f;
+                UART1_Printf("test speed = %.0f cm/s\r\n", (double)cmd_spd); return 1;
+      case '-': cmd_spd -= 10.0f; if(cmd_spd <  10.0f) cmd_spd =  10.0f;
+                UART1_Printf("test speed = %.0f cm/s\r\n", (double)cmd_spd); return 1;
+      case '1': ROBOT_Angle(0);   UART1_Printf("angle -> 0\r\n");   return 1;
+      case '2': ROBOT_Angle(90);  UART1_Printf("angle -> 90\r\n");  return 1;
+      case '3': ROBOT_Angle(180); UART1_Printf("angle -> 180\r\n"); return 1;
+      case '4': ROBOT_Angle(270); UART1_Printf("angle -> 270\r\n"); return 1;
+      case 'o': chassis.pos_x = 0.0f; chassis.pos_y = 0.0f;
+                chassis.dist_acc_x = 0.0f; chassis.dist_acc_y = 0.0f;
+                UART1_Printf("odometry cleared (pos=0,0)\r\n"); return 1;
+      case 'p': break;                          /* 只打印状态，见下面统一打印 */
+      case 'h': case '?':
+        UART1_Printf("single-key: w/s/a/d=前进/后退/左移/右移  W/S/A/D=走1秒  x=停  +/-=调速\r\n");
+        UART1_Printf("            1/2/3/4=原地转0/90/180/270  o=里程清零  p=状态\r\n");
+        return 1;
+      default:
+        UART1_Printf("? unknown key '%c' (send h for help)\r\n", c);
+        return 1;
+    }
+    if(vx != 0.0f || vy != 0.0f){
+      ROBOT_MoveSpeed(vx, vy);                  /* 内部锁向当前朝向 → 走直线 */
+      cmd_stop_at = timed ? (HAL_GetTick() + 1000u) : 0u;
+      UART1_Printf("KEY '%c' -> v=(%+.0f,%+.0f) cm/s%s\r\n", c, (double)vx, (double)vy,
+                   timed ? "  [1s auto-stop]" : "");
+    }
+    /* 状态行：命令速度 / 实测速度 / 陀螺仪朝向(实测/目标) / 角速度输出 / 里程位置 */
+    UART1_Printf("ST tgt=(%+.0f,%+.0f) now=(%+.1f,%+.1f) yaw=%.1f/%.1f w=%+.2f pos=(%+.1f,%+.1f)\r\n",
+                 (double)chassis.v_x, (double)chassis.v_y,
+                 (double)chassis.now_v_x, (double)chassis.now_v_y,
+                 (double)HWT101CT_Data.yaw, (double)chassis.target_yaw,
+                 (double)chassis.w,
+                 (double)chassis.pos_x, (double)chassis.pos_y);
+    return 1;
+  }
+
   uint8_t i = 0;
   char *p = strtok(line, ",");                      // 按逗号切段
   while(p && i < UART1_DATA_NUM){                   // 逐段转成32位整数，支持负数
@@ -745,6 +913,127 @@ static uint8_t UART1_DebugCmd(void){
     return 1;
   }
   return 0;                                         // 其它命令：交给主循环下面的原逻辑
+}
+
+/* ==================== 通用"反向刹车"：把"传感器触发→直接断电自由滑行"换成受控急停 ====================
+   背景（2026-09-15 圆盘机白线停车实测结论，详见 main 里那段长注释）：
+     · 本车静摩擦要 PWM≈60~165 才转得动，低速恒速全靠控制循环里"破静摩擦整形"那一下
+       （把该轮 PWM 直接写成 START_PWM×chassis.start_margin）才动得起来；
+       所以低速行驶时的实际速度 ≈16~29cm/s，跟命令 5/10/15 关系不大；
+     · 而"停"是直接断电 → 自由滑行，滑停减速度实测只有 ≈20cm/s²：
+         16cm/s 滑 6.4cm、20cm/s 滑 10cm、29cm/s 滑 21cm
+       ← 这就是"激光/测距明明触发了却刹不住、冲过去"的根因。
+   本函数做法：给一个"与当前运动方向相反、且 |v|≤15"的目标速度一小段时间：
+     · 方向相反 → 命中整形分支，当拍就把该轮 PWM 写成反向值（= 反向力矩），主动吃掉动能；
+     · 裕量 margin 取 0.7（<1）→ 反向 PWM 低于"反向起转阈值"，只把车刹住，
+       不会把轮子倒着驱动（用默认 1.5 会越过阈值把车倒推走：实测圆盘机处倒滑 3~5cm）。
+   参数：x_brake / y_brake = 与当前运动**相反**方向的分量（谁在动就给谁，另一轴给 0）
+         ms     = 刹车时长（太长会被反向力矩慢慢倒推：实测 200ms 会出现 -2~-4.5cm/s 的倒爬，
+                  100ms 正好在"速度过零"附近收手，圆盘机处触发→停住位移 +0.39~+0.50cm）
+         margin = 反向力矩裕量（0.7 起步；还往前冲→0.85/1.0，还往后倒→0.55）
+   实测参考（圆盘机白线：ROBOT_MoveSpeed(0,10) 行进中触发，SENSOR_BRAKE(0,+12,100,0.7)）：
+     触发→停住 +0.39~+0.50cm，重复性 ±0.06cm（原来的"直接断电"是滑 6~21cm）。 */
+static void SENSOR_BRAKE(float x_brake, float y_brake, uint16_t ms, float margin)
+{
+  float    mrg_dft = chassis.start_margin;
+  float    x0      = chassis.pos_x, y0 = chassis.pos_y;
+  /* 原运动方向（= 刹车方向取反），用来算"沿原方向还冲了多少" */
+  float    ox = (x_brake > 0.0f) ? -1.0f : ((x_brake < 0.0f) ? 1.0f : 0.0f);
+  float    oy = (y_brake > 0.0f) ? -1.0f : ((y_brake < 0.0f) ? 1.0f : 0.0f);
+  uint32_t t0 = HAL_GetTick();
+
+  chassis.start_margin = margin;      /* 柔性反向力矩：刹车而不倒转（别用默认 1.5） */
+  ROBOT_MoveSpeed(x_brake, y_brake);  /* 反向目标速度 → 命中反向整形分支 = 反向力矩 */
+  HAL_Delay(ms);
+  ROBOT_MoveSpeed(0, 0);
+  chassis.start_margin = mrg_dft;     /* 还原裕量，不影响后面的正常移动 */
+
+  /* 刹车实测日志（串口1）：over=沿原运动方向还冲了多少cm（正=还冲，负=刹过头往回），
+     用它标定 ms/margin；也用来判断"触发点"是不是你想要的停车位置。 */
+  UART1_Printf("SBRAKE over=%+.2fcm dx=%+.2f dy=%+.2f ms=%u mrg=%.1f t=%lums\r\n",
+               (double)((chassis.pos_x - x0)*ox + (chassis.pos_y - y0)*oy),
+               (double)(chassis.pos_x - x0), (double)(chassis.pos_y - y0),
+               (unsigned)ms, (double)margin, (unsigned long)(HAL_GetTick() - t0));
+}
+
+
+/* ==================== ★★ 颜色传感器(TCS34725)校准模式（KEY0 起点选 CAL + KEY3 进入）★★ ====================
+   只做一件事：把 黑/红/蓝/白 四种颜色各采 5 次，原始值+H/S/V 打到串口1；
+   拿回来按实测数据重写 tcs34725.h 的三个判色阈值（★不写 Flash、不改运行时逻辑，
+   阈值永远是头文件里的编译期宏 TCS_BLUE_S_MAX / TCS_BLUE_V_MAX / TCS_BLACK_V_THRESH）。
+
+   按键： K1 = 切换颜色（黑→红→蓝→白→黑…，换颜色时采样计数清零）
+          K2 = 采样一次：串口打一行(C/R/G/B 原始值 + H/S/V + 当前判色结果)，屏幕同步显示
+          K3 = 返回（回"红蓝方选择"菜单）
+   用法： 每种颜色放好 → 按 K2 采 5 次（串口 5 行）→ K1 换下一个颜色 → 四色采完按 K3 退出；
+          串口那 20 行 `CAL[...]` 直接复制发回来即可。
+   ★要求：采的时候和比赛时保持同样的距离/灯光，不然量出来的值没意义。 */
+static const char * const COLORCAL_NAME[4] = { "BLACK", "RED", "BLUE", "WHITE" };  /* K1 的切换顺序 */
+
+static void COLOR_Calib_Run(void)
+{
+  TCS34725_RGBC rgbc;
+  uint8_t  idx    = 0;               /* 当前在采的颜色：0=黑 1=红 2=蓝 3=白 */
+  uint8_t  n      = 0;               /* 当前颜色已经采了几次 */
+  uint8_t  got    = 0;               /* 上一次采样是否有效（无效就不显示旧数据） */
+  uint32_t oled_t = 0;
+
+  UART1_Printf("\r\n--- TCS34725 CAL: K1=switch color, K2=sample+print, K3=exit ---\r\n");
+  UART1_Printf("order BLACK->RED->BLUE->WHITE, 5 samples each, then paste the CAL lines back\r\n");
+  UART1_Printf("TH in code (tcs34725.h): TCS_BLUE_S_MAX=%.3f TCS_BLUE_V_MAX=%.3f TCS_BLACK_V_THRESH=%.3f\r\n",
+               (double)TCS_BLUE_S_MAX, (double)TCS_BLUE_V_MAX, (double)TCS_BLACK_V_THRESH);
+  UART1_Printf("now target = %s (press K2)\r\n", COLORCAL_NAME[idx]);
+
+  while(1){
+    /* ---- K1：切换颜色（黑→红→蓝→白→黑…） ---- */
+    if(KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){
+      idx = (uint8_t)((idx + 1) & 0x03);
+      n   = 0;                                     /* 换颜色 → 计数清零（每种颜色都从 #1 开始） */
+      got = 0;
+      UART1_Printf("now target = %s (press K2)\r\n", COLORCAL_NAME[idx]);
+    }
+
+    /* ---- K2：采样一次并打串口 ---- */
+    if(KEY_ONE(KEY2_GPIO_Port, KEY2_Pin)){
+      if(TCS34725_GetRawData(&rgbc) && rgbc.c > 0){
+        got = 1;
+        n++;
+        UART1_Printf("CAL[%s] #%u C=%5u R=%5u G=%5u B=%5u H=%6.1f S=%.3f V=%.3f -> %s\r\n",
+                     COLORCAL_NAME[idx], (unsigned)n,
+                     (unsigned)rgbc.c, (unsigned)rgbc.r, (unsigned)rgbc.g, (unsigned)rgbc.b,
+                     (double)rgbc.h, (double)rgbc.s, (double)rgbc.v,
+                     TCS34725_ColorName(TCS34725_ClassifyColor(&rgbc)));
+      }else{
+        got = 0;
+        UART1_Printf("CAL[%s] READ FAIL (C=0): check VCC=3.3V / SCL=PB9 / SDA=PB4\r\n", COLORCAL_NAME[idx]);
+      }
+    }
+
+    /* ---- K3：返回菜单 ---- */
+    if(KEY_ONE(KEY3_GPIO_Port, KEY3_Pin)){
+      UART1_Printf("CAL exit\r\n");
+      break;
+    }
+
+    /* ---- 屏幕(100ms)：当前颜色 + 上次采样结果 + 按键说明 ---- */
+    if(HAL_GetTick() - oled_t >= 100U){
+      oled_t = HAL_GetTick();
+      OLED_Clear();
+      OLED_Printf(0,  0, OLED_8X16_HALF, "CAL %s", COLORCAL_NAME[idx]);
+      OLED_Printf(0, 16, OLED_6X8_HALF, "K1:col K2:sam K3:ex");
+      if(got){
+        OLED_Printf(0, 24, OLED_6X8_HALF, "S:%.2f V:%.2f H:%.0f",
+                    (double)rgbc.s, (double)rgbc.v, (double)rgbc.h);
+        OLED_Printf(0, 32, OLED_6X8_HALF, "C:%5u R:%5u", (unsigned)rgbc.c, (unsigned)rgbc.r);
+        OLED_Printf(0, 40, OLED_6X8_HALF, "G:%5u B:%5u", (unsigned)rgbc.g, (unsigned)rgbc.b);
+      }else{
+        OLED_Printf(0, 24, OLED_6X8_HALF, "press K2 to sample");
+      }
+      OLED_Printf(0, 48, OLED_6X8_HALF, "n=%u (5 each)", (unsigned)n);
+      OLED_Update();
+    }
+    HAL_Delay(10);
+  }
 }
 
 /**
@@ -995,6 +1284,16 @@ int main(void)
                  tcs_online ? "ONLINE" : "OFFLINE", TCS34725_GetID());
   }
 
+  /* 判色阈值全部来自 tcs34725.h 的编译期宏（不读/不写 Flash）：
+     标定 = 进 KEY0 起点里的 CAL 模式把四色各采 5 次，按实测值重写那三个宏后重新编译烧录。 */
+
+  /* ★★ 固件版本标记（开机就打，用来确认"烧进去的到底是不是最新代码"）★★
+     ★2026-09-15 踩过的坑：改了 main.c 但没重新 build+flash（或编辑器把旧内容覆盖回去），
+       串口看到的还是旧行为，白折腾半天。以后看这一行的 build 时间就知道固件新旧：
+       · 有 "dfwd=" / "margin=" → 是柔性力矩刹车版（当前版本）；
+       · 只有 "dy=" / "brake=120ms" → 还是最早那版硬反接（会往后滑 3~5cm）。 */
+  UART1_Printf("FW: disc-line-stop v2 soft-brake  built %s %s\r\n", __DATE__, __TIME__);
+
   while (1)
   {
     ///* GRAY3 仍走串行更新（循线数据 GRAY_Data[GRAY3] 保持有效） */
@@ -1081,6 +1380,7 @@ int main(void)
     uint8_t LiZhu_Flag = 0;
     uint8_t HuiJia_Flag = 0; 
 
+    uint8_t dbg_start = DBG_START_ALL;   //★按键0选好的"调试起始阶段"(0=完整流程；取值见文件上方 DBG_START_xxx)
     //完整走
     //if(UART1_Data[0]==4)
 
@@ -1090,31 +1390,33 @@ int main(void)
          不用先按 KEY3 进流程。解析/回显/执行都在 UART1_DebugCmd() 里（见文件上方） */
       UART1_DebugCmd();
       OLED_Printf(0, 0, OLED_8X16_HALF, "mode:%s", mode_red?"red ":"blue");
-      OLED_Printf(0, 16, OLED_8X16_HALF, "key2:change mode");
-      OLED_Printf(0, 32, OLED_8X16_HALF, "key3:next");
-      OLED_Printf(0, 48, OLED_8X16_HALF, "key0:jump ZM");
+      OLED_Printf(0, 16, OLED_8X16_HALF, "k2:mode k0:sel");  //按键2=切红/蓝方，按键0=选起始阶段
+      OLED_Printf(0, 32, OLED_8X16_HALF, "k3:GO %s", DBG_START_NAME[dbg_start]);   //按键3=从选好的起点开始跑
+      OLED_Printf(0, 48, OLED_8X16_HALF, "%s", DBG_START_DESC[dbg_start]);   //当前起点说明
       OLED_Update();
       if(KEY_ONE(KEY2_GPIO_Port, KEY2_Pin)){//按键2--更改模式
         mode_red = !mode_red;
       }
-      if(KEY_ONE(KEY3_GPIO_Port, KEY3_Pin)){//按键3--下一步
+      if(KEY_ONE(KEY3_GPIO_Port, KEY3_Pin)){//按键3--按选好的起始阶段开始(默认=完整流程，与以前完全一样)
         break;
       }
 
-      //0和1专用于调试
+      /* ============== ★★ 按键0：选择"调试起始阶段"（想单独调哪一段，就让车从哪一段开始跑）★★ ==============
+         每按一次 KEY0 往后切一个：0=ALL → 1=ZM → 2=HOME → 回到 0=ALL
+           0=ALL  完整流程：圆盘机→仓库倒球→正面识别→阶梯→回家（默认，主流程一字不变）
+           1=ZM   从"正面识别前"开始：跳过圆盘机+仓库倒球，车自己先走到阶梯识别位再开始正面识别；
+                  车放在圆盘机/仓库方向随便一点的位置即可（会先补发红/蓝方给视觉）
+           2=HOME 从"回家"开始：跳过前面全部阶段，直接跑回家那段；
+                  车放在"回家"的起始位置附近（红蓝区旁边）即可
+         ★当前选择显示在第3/4行("k3:GO ZM" + "front recog")；选好后按 KEY3 才开始跑。
+           真正的跳转代码在菜单while外面（见下面"调试起点跳转"），所以起始阶段=ALL 时它什么都不做。 */
       if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)){
-        /* 【调试入口】按键0：跳过圆盘机、跳过仓库倒球，直接跳到"正面识别"开头执行
-           （就是跳到下面 ZhengMian_Flag = 1 那一行，从那里往下依次是：
-             发0xA2给主/副视觉 → 收倒球槽 → 走到阶梯附近 → 左前光电对准 → 清串口残留
-             → 正面识别通信流程(5步) → 阶梯抓取 → 立柱 → 回红蓝区）
-           ★用法：在"红蓝方选择"界面按 KEY2 先选好红/蓝，再按 KEY0 就从中途开始跑；
-             车会先自己走到阶梯附近对准，所以先把车放在圆盘机/仓库方向随便一点的位置即可 */
-        UART1_Printf("DEBUG: KEY0 jump to ZhengMian start\r\n");
-        OLED_Printf(0, 48, OLED_8X16_HALF, "jump to ZM...");
-        OLED_Update();
-        //如果跳过了发送红蓝方给视觉的步骤，直接告诉视觉红(0xAA)蓝(0xBB)方
-        UART2_Printf("%c", mode_red ? 0xAA : 0xBB);//告诉视觉红(0xAA)蓝(0xBB)方
-        goto ZHENGMIAN_START;
+        dbg_start++;
+        if(dbg_start > DBG_START_MAX) dbg_start = DBG_START_ALL;    //切到最后一个再按 → 回到"完整流程"
+        UART1_Printf("DEBUG: KEY0 start stage = %u (%s) %s\r\n",
+                     (unsigned)dbg_start, DBG_START_NAME[dbg_start], DBG_START_DESC[dbg_start]);
+      }
+      //按键0/按键1专用于调试（按键0=选起始阶段；按键1=显示左后激光，见下面那段）
 
         /* ---- 原来的按键0调试(手动把车开到阶梯对准位)已由上面跳转代替，保留备用 ----
         //右+前，移动到阶梯附近,要往右速度快点，不然撞到了
@@ -1132,7 +1434,6 @@ int main(void)
         ROBOT_MoveSpeed(0,0);
         HAL_Delay(100);//延时一下提高稳定性
         -------------------------------------------------------------------------- */
-      }
 
       if(KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){
 
@@ -1163,6 +1464,35 @@ int main(void)
 
       }
     }
+    /* ============== ★★ 调试起点跳转（在"红蓝方选择"界面按 KEY0 选、再按 KEY3 开始后才会走到这里）★★ ==============
+       dbg_start==DBG_START_ALL(0)：一个字都不执行，原样往下跑完整流程（圆盘机→仓库倒球→正面识别→阶梯→回家）
+                                     → 和"没有这套调试入口"时完全一致；
+       ★跳转代码放在菜单while外面，就是为了让"完整流程"连一条语句都不变。 */
+    if(dbg_start == DBG_START_ZHENGMIAN){
+      /* 从"正面识别前"开始：跳过圆盘机+仓库倒球，直接跳到 ZHENGMIAN_START 标签往下执行
+         （往下依次是：收倒球槽 → 走到阶梯识别位 → 左前光电对准 → 清串口残留 → 发0xA2通信流程 → 阶梯 → 回家）
+         ★车会先自己走到阶梯识别位，所以先把车放在圆盘机/仓库方向随便一点的位置即可 */
+      UART1_Printf("DEBUG: start from ZHENGMIAN (before front recognize)\r\n");
+      //跳过了圆盘机，就没走"告诉视觉红(0xAA)蓝(0xBB)方"那一步，这里补上（视觉也得知道红/蓝方）
+      UART2_Printf("%c", mode_red ? 0xAA : 0xBB);//告诉视觉红(0xAA)蓝(0xBB)方
+      goto ZHENGMIAN_START;
+    }
+    else if(dbg_start == DBG_START_HUIJIA){
+      /* 从"回家"开始：跳过前面全部阶段，直接跳到 HUIJIA_START 标签往下执行（红蓝区找色→停进红蓝区） */
+      UART1_Printf("DEBUG: start from HUIJIA (go home)\r\n");
+      HuiJia_Flag = 1;   //"回家"那段的进入条件是 HuiJia_Flag==1：正常流程由前面阶段置位，这里跳转就先自己立好
+                         //(其余阶段标志 YuanPanJi_Flag/JieTi_Flag/LiZhu_Flag 出菜单时本来就都是0，不用管)
+      goto HUIJIA_START;
+    }
+    else if(dbg_start == DBG_START_COLORCAL){
+      /* 从"颜色校准"开始：跟比赛流程完全无关（只读颜色传感器 + 按键 + 打串口），
+         跑完 continue 回"红蓝方选择"菜单，不会往下走圆盘机/仓库等任何比赛阶段。
+         用法：KEY0 切到 CAL → KEY3 进入 → K1 切颜色、K2 采一次并打串口、K3 返回。 */
+      UART1_Printf("DEBUG: start COLOR CALIBRATION\r\n");
+      COLOR_Calib_Run();
+      continue;                 /* 回菜单：想继续跑比赛流程，把起点切回 ALL 再按 KEY3 */
+    }
+
     //？后面，左蓝右红
     
       
@@ -1175,28 +1505,178 @@ int main(void)
     runActionGroup(1, 1);//不需要延时，因为和出发一起
     
     //先盲走到圆盘机中心+面向
-    ROBOT_Move(mode_red ? -58 : 58,417,100,100,100,100);   //红:圆盘机在出发位左边58cm；蓝:镜像到右边58cm
+    ROBOT_Move(mode_red?-65:65,418,100,100,100,100);//58太靠右
     HAL_Delay(100);
-    mode_red ? ROBOT_Angle(270) : ROBOT_Angle(90);//红:面向圆盘机(270=朝左) → 蓝:(90=朝右)
+    mode_red ? ROBOT_Angle(270) : ROBOT_Angle(90);
     HAL_Delay(100);
 
     
-    //向前慢走，直到灰度探头读到白线(红方用索引1那一路；蓝方镜像用索引6那一路)
-    GRAY_Update();
-    ROBOT_MoveSpeed(0, 10);//15太快了，很容易没看到直接冲过去
-    while(GRAY_Data[GRAY3][mode_red ? 1 : 6] == 0)//探头为0(黑)继续走，读到1(白)即停(红:索引1 蓝:索引6)
+    /* ==================== 向前慢走，直到灰度(探头2)感应到白线 ====================
+       ★★★ 2026-09-15 修复"停不下来"的根因：运算符优先级 ★★★
+         上一版写成了 while(GRAY_Data[GRAY3][1] | GRAY_Data[GRAY3][2] == 0)，而 C 里
+         == 的优先级 高于 |，它其实等价于：
+             GRAY_Data[GRAY3][1] | (GRAY_Data[GRAY3][2] == 0)
+         于是"退出循环＝停车"的充要条件被悄悄改成【探头2是黑 且 探头3是白】：
+           · 探头2变白（探头3任意）→ 1 | …  = 1 → 继续走，不停；
+           · 两个探头都变白        → 1 | 0  = 1 → 还是继续走，不停！（＝你看到的现象）
+         更坑的是：只要探头2这一位恒为 1（探头没压到线/通道坏/DAT线松或模块没电——串行
+         DAT 上拉到 3.3V，脱线时全读 1），这行表达式恒为真 → 车永远不停、一直往前冲。
+         编译日志里本来就有这条警告，说的就是它：
+             warning: suggest parentheses around comparison in operand of '|' [-Wparentheses]
+         现在按你的要求只用一个探头（序号1＝探头2）：读到黑(0)继续走，读到白(1)立刻停。 */
+    /* ==================== 慢速逼近白线 + ★反向急刹停车（2026-09-15 第2版）====================
+       ★上一版"小步规划逼近"为什么车一步不动（记录/records-2026-09-15-06-44-40.json 实测）：
+         100 步 × 1cm 跑满 26s，串口全程 "STEP n=1..100 v=0.0 tgt=0 pwm=0/0/0/0"，车没动。
+       根因＝本车底盘的硬约束（务必记住）：
+         · 静摩擦要 PWM≈60~165 才转得动（chassis.h START_PWM：左前110/左后90/右后80/右前60）；
+         · 增量式速度环在"小目标速度"下第一拍输出只有 kp·Δerr ≈ 0.8×7.75 ≈ 6，要靠积分
+           爬到 60~165 得几百拍(5~10s)，远超过 0.26s 的一步 → 轮子根本起不来；
+         · 所以【低速/短距唯一的启动手段就是"破静摩擦整形"那一下】(把该轮 PWM 直接写成
+           START_PWM×1.5 = 165/135/120/90)；上一版我把 fine_max_dist 置 0 = 把它关掉 = 不动。
+         → 结论：低速逼近必须保留整形；"小步慢走"方案作废。
+       ★本版：恒速逼近（保留整形，车走得动）+ 检测到白线后【反向通电急刹】而不是直接断电。
+       为什么必须急刹：
+         · 整形那一下会把轮子瞬间带到 ≈16~29cm/s（跟命令 5/10/15 关系不大，这也是"5/10/15
+           体感差不多、还一顿一顿"的原因）；
+         · 原来的停车是"直接断电自由滑行"，滑停减速度实测仅 ≈20cm/s²（按 mv15 超5.5cm 反推）：
+              v=16cm/s → 滑 6.4cm ； v=20 → 10cm ； v=29 → 21cm
+           ← 这就是"滑了好远、停下时探头早就回到黑区"的原因；
+         · 给出反向力矩后是受控减速（TB6612 反接），几十 ms 就停住：
+             20cm/s、反向制动≈300cm/s² → 只走 ≈0.7cm，而且每次都在同样条件下停 → 落点重复。
+       ★刹车力矩由 LINE_BRAKE_MARGIN 控制（关键，别沿用 chassis 默认的 1.5）：
+          刹车走的就是"低速档反向整形"分支（ROBOT_MoveSpeed(0,-12)，|v|≤15），反向 PWM = START_PWM.rev × chassis.start_margin：
+           · margin=1.5(默认) → -195/-195/-165/-105 ≥ 反向起转阈值 → 轮子真被倒着转，实测"刹停后又往后滑 3~5cm"；
+           · margin=0.7(本版) → -91/-91/-77/49 < 反向起转阈值 → 只给刹车力矩、不倒转，车被刹住并按在原地。 */
+    const uint8_t  LINE_DBG_LOG  = 1;    /* ★诊断日志：1=开 0=关（把停车调好后改0） */
+    const int32_t  LINE_CRUISE_V = 10;   /* 逼近速度 cm/s（必须≤15 才在低速档=有整形，车才动得起来） */
+    const int32_t  LINE_BRAKE_V  = -12;  /* ★刹车用"反向目标速度" cm/s（|值|≤15 才进反向整形分支） */
+    const float    LINE_BRAKE_MARGIN = 0.7f; /* ★刹车力矩裕量(默认1.5)：0.7×反向起转阈值 → 只刹车不倒转 */
+    const uint16_t LINE_BRAKE_MS = 100;  /* ★刹车时长 ms（200实测过刹：v_after=-2~-4.5cm/s → 车被倒推着后退，收到100） */
+    const int32_t  LINE_TRIM_CM  = 0;    /* ★落点微调 cm（正=往前/负=后退）：在"转正之后"执行，补整体落点 */
+    const uint32_t LINE_MAX_MS   = 6000; /* ★兜底：逼近最多 6s（正常 ≤2s），到点还没白线就停下报错 */
+    uint8_t  line_g3_last = 0xFF;        /* 上一次打印过的 GRAY3 八位数字量 */
+    uint32_t line_dbg_t   = 0;           /* 速度日志节流（每150ms一行） */
+    uint32_t line_t0      = HAL_GetTick();
+    float    line_v_hit   = 0.0f;        /* 触发瞬间前向速度(正=还在往前) */
+    float    line_c_th    = 0.0f;        /* 触发时车头朝向的 cos/sin：把全局量投影到"车前方" */
+    float    line_s_th    = 0.0f;
+    float    line_x0      = 0.0f;        /* 触发瞬间的全局位置：用来算落点位移(正=还往前) */
+    float    line_y0      = 0.0f;
 
+    GRAY_Update();
+    ROBOT_MoveSpeed(0, LINE_CRUISE_V);
+    while(GRAY_Data[GRAY3][1] == 0)//探头2为0(黑)继续走，读到1(白)即停
     {
       GRAY_Update();
+      if((HAL_GetTick() - line_t0) > LINE_MAX_MS){    /* ★兜底：一直没白线也别无限走 */
+        if(LINE_DBG_LOG)
+          UART1_Printf("LINE timeout %lums, g3=0x%02X -> check sensor!\r\n",
+                       (unsigned long)(HAL_GetTick() - line_t0), (unsigned)GRAY_Data[GRAY3][1]);
+        break;
+      }
+      if(LINE_DBG_LOG){
+        uint32_t now = HAL_GetTick();
+        uint8_t  g3  = 0;
+        for(uint8_t i = 0; i < 8; i++) g3 |= (uint8_t)((GRAY_Data[GRAY3][i] & 0x01) << i);
+        /* ① 每150ms一行：逼近时的实测速度 + 4轮PWM。正常应看到 tgt=10、PWM 被整形顶到
+              60~165 的区间（说明车在动）；若 tgt=0/pwm 全 0 → 车没动，先查底盘。
+              v 明显大于 10（16~29）是正常的：低速档就是靠整形把 PWM 顶起来才转得动。 */
+        if((now - line_dbg_t) >= 150){
+          line_dbg_t = now;
+          float v_now = sqrtf(chassis.now_v_x*chassis.now_v_x + chassis.now_v_y*chassis.now_v_y);
+          UART1_Printf("CRUISE v=%.1f tgt=%.0f pwm=%d/%d/%d/%d g3=0x%02X\r\n",
+                       (double)v_now, (double)chassis.speed_pid[CHASSIS_MOTOR_LF].target,
+                       (int)chassis.speed_pid[CHASSIS_MOTOR_LF].out,
+                       (int)chassis.speed_pid[CHASSIS_MOTOR_LB].out,
+                       (int)chassis.speed_pid[CHASSIS_MOTOR_RB].out,
+                       (int)chassis.speed_pid[CHASSIS_MOTOR_RF].out,
+                       (unsigned)g3);
+        }
+        /* ② 灰度 8 位数字量变化（压过白线时该看到某一位变1；p2/bit1 就是 while 里用的探头2）：
+             · 一路不打变化行 / g3 恒 0x00 → 模块没识别出白线（竖着装后高度/角度、阈值、环境光）
+             · g3 恒 0xFF → DAT 线松/模块没供电（输入上拉全读1）
+             · g3 有 1 但不落在 p2 → 探头编号与竖装后的朝向不符，换 while 里的下标即可 */
+        if(g3 != line_g3_last){
+          line_g3_last = g3;
+          UART1_Printf("LINE g3=0x%02X p2=%u\r\n", (unsigned)g3, (unsigned)GRAY_Data[GRAY3][1]);
+        }
+      }
     }
-    ROBOT_MoveSpeed(0, 0);
+
+
+    /* ★★ 柔性反向刹车（取代"直接断电自由滑行"）★★
+       ★为什么改成"柔性"：第一版用 chassis 默认裕量 1.5（反向 PWM = -195/-195/-165/-105，硬反接）
+         刹 120ms，实测"刹停了但往后滑 3~5cm"——硬反接超过反向起转阈值(130/130/110/70)，会把轮子
+         真的倒着驱动，再叠加断电后的自由滑行，就变成往后滚。现在把刹车期间的整形裕量降到
+         LINE_BRAKE_MARGIN(0.7)：反向 PWM = 0.7×(130/130/110/70) = 91/91/77/49 < 起转阈值
+         → **只产生刹车力矩、不会倒转轮子**，但"按太久也会被慢慢倒推走"：
+         ★实测（margin=0.7、brake=200ms，三次）：dfwd=+0.32/-0.05/-0.02cm（编码器上几乎没位移），
+       ★STOP / STOP2 日志：STOP.dfwd=触发→刹车完的前向位移；STOP.v_after=刹车刚结束的前向速度（应≈0，
+       明显为负=刹过头在往回爬）；STOP2.dfwd_total=再算上"原地转正校准+稳定100ms"整段（两次差值=转正段蹭掉的位移）：
+         · dfwd 仍明显为正（还往前冲）→ 提高 LINE_BRAKE_MARGIN（0.85/1.0 更硬）或加长 LINE_BRAKE_MS；
+         · dfwd 明显为负（往后退）      → 降低 LINE_BRAKE_MARGIN（0.55/0.5 更柔）或缩短 LINE_BRAKE_MS；
+         · 落点整体偏前/偏后（拍球位置不对）→ 只改 LINE_TRIM_CM（从静止走规划，重复性好）。 */
+    {
+      /* 本段车头朝向固定(锁向保持)，把"全局速度/位移"投影到车头前方才是真正的前向量：
+         body_forward = -global_x*sin(θ) + global_y*cos(θ)，θ = chassis.now_the
+         （上一版直接打全局 pos_y 是错的：本段车头朝 270/90°，前进方向对应全局 x！） */
+      line_c_th  = cosf(chassis.now_the);
+      line_s_th  = sinf(chassis.now_the);
+      line_v_hit = -chassis.now_v_x*line_s_th + chassis.now_v_y*line_c_th;  /* 触发瞬间前向速度 */
+      line_x0    = chassis.pos_x;
+      line_y0    = chassis.pos_y;
+      float margin_dft = chassis.start_margin;
+
+      chassis.start_margin = LINE_BRAKE_MARGIN;  /* ★本段用柔的反向力矩：刹车而不到倒转 */
+      ROBOT_MoveSpeed(0, LINE_BRAKE_V);          /* 反向目标速度 → 命中反向整形分支，给出刹车力矩 */
+      HAL_Delay(LINE_BRAKE_MS);                  /* 先耗掉动能，再按住 */
+      ROBOT_MoveSpeed(0, 0);                     /* 收尾：目标速度0 */
+
+      chassis.start_margin = margin_dft;         /* 还原裕量，别影响后面的正常移动 */
+      /* ★落点微调不在这里做了：转正会蹭掉 0~3cm，必须"先转正、再补"，否则补的量会被吃掉。
+         见下面"再次校准"之后的 LINE_TRIM_CM 段。 */
+
+      if(LINE_DBG_LOG){
+        float d_fwd = -((chassis.pos_x - line_x0)*line_s_th) + ((chassis.pos_y - line_y0)*line_c_th);
+        float v_aft = -chassis.now_v_x*line_s_th + chassis.now_v_y*line_c_th;
+        UART1_Printf("STOP v_hit=%.1f v_after=%.1f dfwd=%+.2fcm margin=%.1f brake=%ums total=%lums\r\n",
+                     (double)line_v_hit, (double)v_aft, (double)d_fwd, (double)LINE_BRAKE_MARGIN,
+                     (unsigned)LINE_BRAKE_MS, (unsigned long)(HAL_GetTick() - line_t0));
+      }
+    }
 
     //再次校准
-    mode_red ? ROBOT_Angle(270) : ROBOT_Angle(90);//再次校准（红270=朝左 / 蓝90=朝右）
+    mode_red ? ROBOT_Angle(270) : ROBOT_Angle(90);
     HAL_Delay(100);
 
+    /* ★第二次落点测量（STOP2）：把"刹车完 → 原地转正校准 → 稳定100ms"整段都算进去。
+       用来区分"往后滑"到底发生在刹车段，还是发生在原地转正那一小段（麦轮原地转也会蹭位移）：
+         两次 dfwd 的差值 = 掉头校准段贡献的位移；若 STOP 的 dfwd 已经≈0 而 STOP2 变成负好几 cm，
+         那就说明是转正那一下蹭的，跟刹车参数无关（改用 LINE_TRIM_CM 补回来即可）。 */
+    if(LINE_DBG_LOG)
+      UART1_Printf("STOP2 dfwd_total=%+.2fcm dxy=%+.2f/%+.2f\r\n",
+                   (double)(-((chassis.pos_x - line_x0)*line_s_th) + ((chassis.pos_y - line_y0)*line_c_th)),
+                   (double)(chassis.pos_x - line_x0), (double)(chassis.pos_y - line_y0));
+
+    /* ★落点微调（放在转正之后做，先转正再补，补的量才不会被转正吃掉）
+       LINE_TRIM_CM：正=往车头方向走，负=往后退；用来把"整体落点"对齐到拍球位置。
+       注意：本车低速小位移必须靠"破静摩擦整形"那一下（会冲到 16~29cm/s），所以这种小规划
+       本身也有 ±1cm 级误差——它只负责把**平均值**挪到位，压不掉转正那一下的随机性。
+       这里临时把 brake_decel 设成实测值(20)，让"到位提前量"算对，1cm 微调才不会冲过头。 */
+    if(LINE_TRIM_CM != 0){
+      float brkd_dft = chassis.brake_decel;
+      chassis.brake_decel = 20.0f;                       /* 实测滑停减速度，见 chassis.h 注释 */
+      ROBOT_Move(0, LINE_TRIM_CM, 15, 15, 60, 60);
+      HAL_Delay(100);
+      chassis.brake_decel = brkd_dft;
+    }
+    if(LINE_DBG_LOG)
+      UART1_Printf("STOP3 dfwd_final=%+.2fcm trim=%dcm\r\n",
+                   (double)(-((chassis.pos_x - line_x0)*line_s_th) + ((chassis.pos_y - line_y0)*line_c_th)),
+                   (int)LINE_TRIM_CM);
+
     //往前走一点点（好像不用往后退）（往前会拍不到球）
-    //ROBOT_Move(0, mode_red ? 2 : 2, 0, 10, 0, 10);
+    ROBOT_Move(0, mode_red ? 2 : 2, 0, 10, 0, 10);
     //HAL_Delay(100);
 
     //往后退到可以拍球，要快（不需要后退了，直接灰度校准更准确）
@@ -1213,6 +1693,8 @@ int main(void)
         结束条件：收到单字节指令0xA6，则退出本while循环 
         ★新增：本机自己给"拍球"计数，每真拍一个球 +1，累计到 YPJ_HIT_MAX(10) 个后，
           不论视觉是否发来"需要夹"的信息(0xA6)，都强制退出本while循环（见循环末尾强制退出段）
+        ★★再新增：连续 YPJ_NO_HIT_TIMEOUT_MS(9s) 一次都没触发过拍球（视觉不发/球流断了/没对位），
+          也走同一段强制退出，防止一台球都拍不到时一直卡在圆盘机（细节见该常量处的注释）
         视觉屏幕320*240*/
     /* ==================== 圆盘机拍球防连拍（重点！） ====================
        ★现象解释（先看这里再调参）：
@@ -1261,11 +1743,22 @@ int main(void)
     const uint8_t  YPJ_HIT_LOG = 1;            /* 1=开日志 0=关 */
     const uint8_t  YPJ_HIT_MAX = 10;           /* ★拍球次数上限：实拍够10个球就不再等视觉，强制退出圆盘机阶段 */
     const uint32_t YPJ_HIT_EXIT_WAIT_MS = 450; /* ★第10拍之后等动作组跑完(约400ms)再抬臂退出，避免把最后一拍打断 */
+    /* ★★ 新增"9秒没有触发拍球就强行结束圆盘机" ★★
+       为什么要它：视觉掉线/球流断了/车没对好位时，一台球都没得拍，以前会一直卡在
+       本while里，后面去仓库倒球、正面识别、阶梯全都跑不到，等于整场比赛报废。
+       为什么取9秒：圆盘 8s 一圈、12个球 → 只要视觉正常，最多8s 转一圈之内必然有球
+       经过可拍位置（球间隔667ms），所以"连续9s一次都触发不了拍球"就一定不是球还没转
+       过来，而是异常了，此时强行结束圆盘机、把比赛流程往下走。
+       计时基准 ypj_no_hit_ref_t：进入拍球阶段的时刻，之后每次触发"拍"（包括识别到的
+       第一个只跳过不拍的球）都刷新一次，所以判的是"连续9s无触发"，不是"总耗时9s"。
+       想改时长只改这一个常量。 */
+    const uint32_t YPJ_NO_HIT_TIMEOUT_MS = 9000;/* ★连续9s没有触发过拍球 → 强行结束圆盘机 */
     uint32_t ypj_t_start      = HAL_GetTick(); /* ★进入拍球阶段的时刻，退出时打印总耗时(10个球约6.7s) */
     uint32_t ypj_last_hit_t   = 0;             /* 上一次真正触发"拍"的时刻(ms) */
     uint32_t ypj_last_frame_t = 0;             /* 上一次收到"有球"帧的时刻(ms)，日志看发帧间隔 */
     uint32_t ypj_run_t0       = 0;             /* ★本轮"有球"帧的第一个帧时刻（算球在画面停留时长） */
     uint32_t ypj_run_end_t    = 0;             /* ★本轮"有球"帧的最后一个帧时刻 */
+    uint32_t ypj_no_hit_ref_t = ypj_t_start;   /* ★9s无触发超时的基准时刻：进入阶段时=ypj_t_start，之后每触发一拍就刷新 */
     uint8_t  ypj_first_skipped = 0;            /* 0=还没跳过第一个球；1=第一个球已跳过，之后正常拍 */
     uint8_t  ypj_hit_cnt    = 0;               /* ★实拍计数：每执行一次动作组7/10就+1（冷却期忽略的帧、被跳过的第一个球都不计） */
 
@@ -1314,8 +1807,8 @@ int main(void)
           ypj_run_end_t    = now;
           ypj_last_frame_t = now;
 
-          if((cam_x >= 10 && cam_x <= 310)      // x为10~300，直接不限制，只要在屏幕内就拍
-              && (cam_y >= 10 && cam_y <= 230)){  // y为10~240
+          if((cam_x >= 0 && cam_x <= 320)      // x为10~300，直接不限制，只要在屏幕内就拍
+              && (cam_y >= 0 && cam_y <= 240)){  // y为10~240
             if((now - ypj_last_hit_t) < YPJ_HIT_COOLDOWN_MS){
               /* ===== 冷却期：还是同一个球 / 上一拍动作还没执行完 → 忽略（防连拍关键）===== */
               if(YPJ_HIT_LOG)
@@ -1326,6 +1819,10 @@ int main(void)
               /* ===== 冷却已过：这一帧当作"新球"，真正拍一次 ===== */
               uint32_t c_last = now - ypj_last_hit_t;   // ★距上一次"拍"的间隔：正常应≈球间隔667ms；若≈冷却值说明只是节拍在拍、不是新球
               ypj_last_hit_t = now;
+              /* ★9s无触发超时的基准时刻在这里刷新：
+                 不管是下面"第一个球只跳过不拍"还是真发了动作组，都算"触发过拍球"，
+                 所以只要球流不断就永远不会走到9s强制退出；球流一断，9s后自动收摊。 */
+              ypj_no_hit_ref_t = now;
               if(ypj_first_skipped == 0){      /* 识别到的第一个球：只跳过、不拍，从第二个球开始正常拍 */
                 ypj_first_skipped = 1;
                 if(YPJ_HIT_LOG)
@@ -1352,11 +1849,14 @@ int main(void)
         }
       }
 
-      /* ★★ 拍够 YPJ_HIT_MAX(10) 个球 → 强制退出 ★★
-         视觉那边可能一直不发（或晚发、漏发）"需要夹"的0xA6，这里由本机自己数：
-         ypj_hit_cnt 每真拍一球 +1，数到10就不再等0xA6，直接做和收到0xA6时一样的收尾：
-         等最后一拍动作组跑完 → 抬臂(151) → 延时 → 收臂(0) → break 出 while。
+      /* ★★ 强制退出圆盘机（两个条件，收尾动作完全一致）★★
+         视觉那边可能一直不发（或晚发、漏发）"需要夹"的0xA6，这里由本机自己兜底：
+         条件1：拍够 YPJ_HIT_MAX(10) 个球 —— ypj_hit_cnt 每真拍一球 +1，数到10就不再等0xA6；
+         条件2：★连续 YPJ_NO_HIT_TIMEOUT_MS(9s) 一次都没触发过拍球（视觉掉线/球流断了/
+                车没对上，一台球都没得拍）—— 由 ypj_no_hit_ref_t 计时，见上面常量说明。
+         两个条件走同一套收尾：等最后一拍动作组跑完 → 抬臂(151) → 延时 → 收臂(0) → break 出 while。
          退出后 YuanPanJi_Flag=0，下面"去仓库倒球"那一段照常执行，流程不断。 */
+      uint8_t ypj_force_exit = 0;        // 1=本次循环要强制退出圆盘机
       if(ypj_hit_cnt >= YPJ_HIT_MAX){
         if(YPJ_HIT_LOG)
           UART1_Printf("EXIT by hit count %u/%u t=%lu\r\n",
@@ -1364,7 +1864,19 @@ int main(void)
                        (unsigned long)(HAL_GetTick() - ypj_t_start));
 
         HAL_Delay(YPJ_HIT_EXIT_WAIT_MS);  // 等第10次拍球动作组跑完(约400ms)，否则会被下面的抬臂指令打断
+        ypj_force_exit = 1;
+      }else if((HAL_GetTick() - ypj_no_hit_ref_t) >= YPJ_NO_HIT_TIMEOUT_MS){
+        /* ★连续9s没触发过拍球 → 强行结束圆盘机
+           （这里没有拍球动作组在跑，不用等 YPJ_HIT_EXIT_WAIT_MS，直接收摊） */
+        if(YPJ_HIT_LOG)
+          UART1_Printf("EXIT by no-hit timeout %lums n=%u/%u t=%lu\r\n",
+                       (unsigned long)(HAL_GetTick() - ypj_no_hit_ref_t),
+                       (unsigned)ypj_hit_cnt, (unsigned)YPJ_HIT_MAX,
+                       (unsigned long)(HAL_GetTick() - ypj_t_start));
+        ypj_force_exit = 1;
+      }
 
+      if(ypj_force_exit){
         YuanPanJi_Flag = 0;//只是圆盘机结束，不代表阶梯开始，还要倒球
         //单独的机械臂抬起
         runActionGroup(151, 1);
@@ -1385,31 +1897,44 @@ int main(void)
       //收起机械臂
       //重复了runActionGroup(0, 1);
       //向左平行到仓库
-      ROBOT_Move(mode_red ? -185 : 192,0,100,0,100,0);   //★蓝方镜像值是192(现场调过)，不是硬镜像的185
+      ROBOT_Move(mode_red ? -185 : 195,0,100,0,100,0);//蓝要多走一点
       //转身
       HAL_Delay(100);
-      mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);//红:面向仓库(90=朝右) → 蓝:(270=朝左)
+      mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
       
       //往后慢退，直到测距测得合适距离（适合倒球的距离）
       ROBOT_MoveSpeed(0, -10);
-      while(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>85);//100有点远，距离小于90就退此循环，90也远
-      ROBOT_MoveSpeed(0,0);
+      WAIT_WHILE(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>85,
+                 "YuanPanJi back-to-wall(mm<=85)");//100有点远，距离小于90就退此循环，90也远
+      /* ★2026-09-15 修复"刹不住"：原来是 ROBOT_MoveSpeed(0,0) 直接断电 → 往后自由滑行 6~20cm。
+         现在改成反向刹车（车在后退 → 给一点"前进"力矩把它刹住）。注意副作用：
+         现在停在"测距刚 ≤85"那一刻，比老行为（含滑行）离墙远 6~20cm；
+         如果倒球距离不对：① 把上面的 85 调大（如 95），或 ② 在这里补一个固定后退：
+             ROBOT_Move(0, -X, 10, 10, 10, 10);   // X = 你想再退多少 cm
+         刹车效果看串口1的 SBRAKE 行（over=还冲了多少cm）。 */
+      SENSOR_BRAKE(0, +12, 100, 0.7f);
       
-      HAL_Delay(100);//延时一下提高稳定性
+      //HAL_Delay(100);//延时一下提高稳定性
 
       //加一次角度校准（这些地方的角度很重要）
-      mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);//加一次角度校准（红90 / 蓝270）
+      mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
       HAL_Delay(100);//延时一下提高稳定性
 
       //定位操作：向左慢平移到左后光电感应到无障碍物
       //新：更改激光位置，让它在没对到障碍物时直接就已经是合适的位置，不需要调整
-      ROBOT_MoveSpeed(mode_red ? -5 : 5, 0);//红:向左平移找仓库边 → 蓝:向右平移
-      while (LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1);//后左光电看到障碍就一直走(车上只有这一路后方光电，蓝方也用它)
-      ROBOT_MoveSpeed(0,0);
+      ROBOT_MoveSpeed(-10, 0);
+      WAIT_WHILE(LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1, "YuanPanJi laser1 no-obstacle");
+      /* ★2026-09-15 修复"刹不住"：原来是 ROBOT_MoveSpeed(0,0) 直接断电 → 继续往左自由滑行 6~20cm。
+         现在改成反向刹车（车在左移 → 给一点"右移"力矩把它刹住）。副作用：
+         现在停在"激光刚对到"那一刻，比老行为（含滑行）靠右 6~20cm；
+         若左边还差一点，在这里补一个固定左移：
+             ROBOT_Move(-X, 0, 10, 0, 10, 0);   // X = 你想再往左多少 cm
+         也可以直接把激光模块往右挪一点（等效）。刹车效果看串口1的 SBRAKE 行。 */
+      SENSOR_BRAKE(+12, 0, 100, 0.7f);
       HAL_Delay(100);//延时一下提高稳定性
 
       //加一次角度校准
-      mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);//加一次角度校准（红90 / 蓝270）
+      mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
       HAL_Delay(100);//延时一下提高稳定性
       //往右走固定距离（刚到对上仓库的距离）
       //if(mode_red) ROBOT_Move(5, 0, 10, 0, 10, 0);//20太大，速度100会飘，12太远
@@ -1417,7 +1942,7 @@ int main(void)
       runActionGroup(16, 1); 	//这里是倒球动作组
       delay_ms(2000);
 
-ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"界面按 KEY0，goto 跳到这一行往下执行
+ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto 跳到这一行往下执行 → 正面识别前
       ZhengMian_Flag = 1;//正面识别开始
 
       if(ZhengMian_Flag == 1){
@@ -1446,17 +1971,17 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
         delay_ms(2000);
 
         //右+前，移动到阶梯附近,要往右多走点，不然撞到了，y160太远了，不利于视觉识别
-        ROBOT_Move(mode_red ? 100 : -100, 150, 100, 50, 100, 50);//红:右+前 去阶梯附近 → 蓝:左+前(镜像)
+        ROBOT_Move(100, 150, 100, 50, 100, 50);
 
         //向左慢走，直到前面的两个光电都感应到障碍物（右边坏了）
-        ROBOT_MoveSpeed(mode_red ? -10 : 10, 0);//红:向左慢走 → 蓝:向右慢走
+        ROBOT_MoveSpeed(-10, 0);
         //while(LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin)==0);
-        while((mode_red ? LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin) : LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin))==0);//红:前左光电碰到阶梯就停 → 蓝:前右光电(镜像)
+        while(LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin)==0);//左后是1，右边为2，左前是3
         HAL_Delay(100);//延时一下提高稳定性
 
         //往左走一定距离，视觉中能完整看到两个字母（可以省去测距前后校准）
         //短距离太快速，走的斜斜的，不要100速度，50还算可以
-        ROBOT_Move(mode_red ? -35 : 35, 0, 50, 0, 50, 0);//红:再向左35cm(能看到两个字母) → 蓝:向右35cm
+        ROBOT_Move(-40, 0, 50, 0, 50, 0);
         //停车准备识别
         ROBOT_MoveSpeed(0,0);
         HAL_Delay(100);//延时一下提高稳定性
@@ -1601,17 +2126,19 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
         JieTi_ShowBlockNo(0, 8, 0);   //第4行先显示"BLK -/8"，对准第1个坑后就变成 1/8
         
         //先左右再前后，因为激光太近的话，会直接以为是没有障碍物
-        //定位操作：平移到"前侧光电"感应到无障碍物(红:向左+前左光电 / 蓝:向右+前右光电，镜像)
-        ROBOT_MoveSpeed(mode_red ? -10 : 10, 0);//红:向左平移找阶梯端头 → 蓝:向右(这里容易识别到字母上的黑，然后停下来)
+        //定位操作：向左慢平移到左前光电感应到无障碍物
+        ROBOT_MoveSpeed(-10, 0);//这里容易识别到字母上的黑，然后停下来
         //HAL_Delay(1000);//避免路上识别到字母然后停下来
-        while((mode_red ? LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin) : LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin))==1);//红:前左光电离开阶梯就停 → 蓝:前右光电(镜像)
+        /* ★超时保护：激光3(左前)一直报"有障碍物"时原来会无限往左走(车顶住左边不动=卡死)。
+           现在最多等 WAIT_TIMEOUT_MS，超时打 TIMEOUT 后照常停车继续走流程 */
+        WAIT_WHILE(LASER_Barrier(LASER3_GPIO_Port,LASER3_Pin)==1, "JIETI laser3 no-obstacle");
         ROBOT_MoveSpeed(0, 0);
         HAL_Delay(100);//延时一下提高稳定性
 
         //加一次角度校准，否则很歪影响测距（如果是start过来的，那就要改为如下的0）
         //ROBOT_Angle(0);
         //正常流程
-        mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);//红:正对阶梯(90=朝右) → 蓝:(270=朝左)
+        mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
         /* 记住这次校好的朝向 = 整个阶梯阶段的目标朝向：后面每次设速都用 JieTi_MoveSpeed()
            把它恢复回去，角度环才会一直按这个朝向纠偏(否则每设一次速就把当前歪掉的朝向当新目标) */
         jieti_keep_yaw = chassis.target_yaw;
@@ -1619,12 +2146,14 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
 
         //走近阶梯，走到合适距离（适合识别的距离）
         JieTi_MoveSpeed(0, 10);
-        while(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin)>JIETI_FWD_TARGET_MM);//105mm：100靠太近，120太远(和校准用的是同一个值)
+        /* ★超时保护：前测距一直读不到目标(≤80mm)时原来会无限往前走(顶住阶梯不动=卡死) */
+        WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin)>JIETI_FWD_TARGET_MM,
+                   "JIETI walk-to-ladder(mm<=80)");//105mm：100靠太近，120太远(和校准用的是同一个值)
         JieTi_MoveSpeed(0, 0);
         HAL_Delay(100);//延时一下提高稳定性
 
         //激光校准（激光刚离开时，位置偏右）
-        ROBOT_Move(mode_red ? -8 : 8, 0, 10, 0, 10, 0);//激光校准(激光刚离开时位置偏右)：红左移8 → 蓝右移8
+        ROBOT_Move(-8, 0, 10, 0, 10, 0);//走多也没事，10走多了，会导致测距可能在外面
 
         //机械臂变成识别状态
         runActionGroup(54, 1);
@@ -1637,7 +2166,7 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
         UART2_Printf("%c", 0xA3);//发0xA3告诉主视觉进入"阶梯目标对准"阶段(惯例同0xA1圆盘机/0xA2正面识别；若视觉端在收到0xA7后已自行上报A3帧，此行可删)
 
         //左前光电无障碍物就开始从左往右走，边走边找目标，抓完一个继续抓下一个
-        JieTi_MoveSpeed(mode_red ? JIETI_ALIGN_SPEED : -JIETI_ALIGN_SPEED, 0);   //红:从左往右扫描起步 → 蓝:从右往左扫(原来10太快，容易走歪)
+        JieTi_MoveSpeed(JIETI_ALIGN_SPEED, 0);   //右扫描起步(原来10太快，容易走歪)
 
         /* ============ 阶梯连续抓取：8个坑固定位移步进 ============
            数据包(7字节)：A3 | cmd | x低 | x高 | y低 | y高 | 0x0B包尾
@@ -1671,7 +2200,7 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
               /* 到下一个坑走多远：换阶梯那一步(第2→3个、第6→7个，就是动作组57/60/63切换处)隔得远，走10cm；
                  同一个阶梯里相邻坑走8cm */
               int32_t step_cm = (idx == 3 || idx == 7) ? JIETI_STEP_CROSS_CM : JIETI_STEP_CM;
-              ROBOT_Move(mode_red ? step_cm : -step_cm, 0, JIETI_STEP_SPEED, 0, JIETI_STEP_ACC, 0);//到下一个坑(蓝方镜像走法，距离一样)
+              ROBOT_Move(step_cm, 0, JIETI_STEP_SPEED, 0, JIETI_STEP_ACC, 0);
               if(jieti_keep_yaw >= 0.0f) ROBOT_Angle((uint32_t)(jieti_keep_yaw + 0.5f));  //走完：再摆正一次，消掉这段走歪的角度
               JieTi_FlushVision();                                //丢掉移动途中的旧帧，只用站定后的新坐标
             }
@@ -1694,7 +2223,7 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
                            (unsigned)idx, (unsigned)jieti_cmd, (unsigned)need);
             if(need){
               /* 第1~2个→57矮阶梯夹；第3~6个→60高阶梯夹；第7~8个→63中阶梯夹 */
-              uint8_t act = (idx <= 2) ? 63 : ((idx <= 6) ? 60 : 57);
+              uint8_t act = (idx <= 2) ? 57 : ((idx <= 6) ? 60 : 63);
               runActionGroup(act, 1);                             //夹取动作组
               delay_ms(7500);                                     //夹取动作约7.5秒(矮阶梯更慢)
               runActionGroup(66, 1);                              //夹完回到识别状态
@@ -1712,25 +2241,38 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
         HAL_Delay(1000);
         
         JieTi_Flag = 0;//阶梯结束，立柱开始
-        LiZhu_Flag = 1;//因为中途没去仓库，所以两个状态需要同时切换
+        /* ★2026-09-15 修复"跑完阶梯不回家、车停着像卡死在阶梯"：
+           原来这一行写的是 `HuiJia_Flag == 1;` —— 是"比较"，不是"赋值"，整条语句没有任何效果
+           (编译器其实早就警告过：main.c 里那句 "statement with no effect [-Wunused-value]")。
+           于是下面 `if(HuiJia_Flag == 1)` 的"回家"段永远不成立；
+           而唯一会把它置 1 的地方在"立柱"段末尾(本段更下面)，那段又被 `if(0)` 整段禁用 →
+           阶梯跑完后所有阶段标志全是 0，主循环一路空转回最上面的"红蓝方选择"菜单：
+           车停着不动、屏幕停在最后画面、串口也不再打印，看起来就是"卡死在阶梯"。
+           现在按 JIETI_GO_HOME_DIRECT 真正赋值：默认=阶梯跑完直接进"回家"段。
+           想走"阶梯→立柱→回家"的老流程：① 把 JIETI_GO_HOME_DIRECT 置 0
+                                        ② 打开下一行 //LiZhu_Flag = 1;
+                                        ③ 把下面 if(0) 改回 if(LiZhu_Flag == 1) */
+        if(JIETI_GO_HOME_DIRECT) HuiJia_Flag = 1;   //★必须是"赋值"：写成 == 就永远回不了家
+        //LiZhu_Flag = 1;//因为中途没去仓库，所以两个状态需要同时切换
 
-        if(LiZhu_Flag == 1)//立柱开始
+        if(0)
+        //if(LiZhu_Flag == 1)//立柱开始
         {
           
           runActionGroup(0, 1);//复位
           //右前光电无障碍物，就开始向左走固定距离（走到阶梯平面中间）
-          ROBOT_Move(mode_red ? -45 : 45, -35, 50, 50, 50, 50);//红:左+后 走到阶梯平面中间 → 蓝:右+后(镜像)
+          ROBOT_Move(-45, -35, 50, 50, 50, 50);
           
           //好像前面把角度清0了，此时正对阶梯为0（不对，依然是正对阶梯为90呢）
-          mode_red ? ROBOT_Angle(270) : ROBOT_Angle(90);//红:正对立柱(270=朝左) → 蓝:(90=朝右)
+          ROBOT_Angle(270);
           //ROBOT_Angle(180);
           
           //这里是校准到正对立柱
           /* ====== 立柱前校准：先左右(激光)再前后(测距)，校准完再转圈 ======
-             前提(现场保证)：车在立柱右边、一开始前测距 > 200mm。★蓝方镜像：车在立柱左边、往右走、两个光电左右互换。
-             左右：10cm/s 往一边走(红方用 LASER3、蓝方镜像后用 LASER4)，看到柱面就停；停下检验两个光电：
-                   两个都有=左右正对；只有主侧有(走多了)→往另一侧补 2cm；只有另一侧有/都没有→往主侧补 2cm；
-                   每次停下都再检验一遍，直到两个都有。★蓝方镜像：走的方向、光电角色左右互换，补的方向也跟着反。
+             前提(现场保证)：车在立柱右边、一开始前测距 > 200mm。
+             左右：10cm/s 往左走，右激光(激光3)看到柱面就停；停下检验两个激光：
+                   两个都有=左右正对；只有右有(往左走多了)→往右补 2cm；只有左有/都没有→往左补 2cm；
+                   每次停下都再检验一遍，直到两个都有。
              前后：往前走，测距进 190~210mm 就停；停下再验一次，不在 200 附近就按差值用 ROBOT_Move 补。 */
           {
             float    lz_yaw = chassis.target_yaw;      //270°(ROBOT_Angle 校好的朝向)：置零后锁回来，
@@ -1738,8 +2280,8 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
             uint32_t lz_t0  = HAL_GetTick();
 
             //---- 第一步：10cm/s 往左走，右激光(激光3)有障碍物就停 ----
-            ROBOT_MoveSpeed(mode_red ? -10.0f : 10.0f, 0.0f);//红:向左走近立柱 → 蓝:向右(镜像)
-            while((mode_red ? LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin) : LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin)) == 0){   //红:前左光电看到柱面 → 蓝:前右光电(镜像)
+            ROBOT_MoveSpeed(-10.0f, 0.0f);
+            while(LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin) == 0){   //右激光看到柱面 → 跳出
               if(HAL_GetTick() - lz_t0 > 5000U) break;                  //5s 还没看到：别一直往左跑(防异常)
             }
             ROBOT_MoveSpeed(0.0f, 0.0f);
@@ -1748,11 +2290,11 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
 
             //---- 停下检验：两个激光都有障碍物才算左右正对，不然往另一边补 2cm，每次停下都再验 ----
             for(uint8_t k = 0; k < 6; k++){            //最多补 6 次(防死循环)
-              uint8_t b3 = (mode_red ? LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin) : LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin));                                 //红:前左(主) → 蓝:前右(镜像)
-              uint8_t b4 = (mode_red ? LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin) : LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin));                                 //红:前右    → 蓝:前左(镜像)
+              uint8_t b3 = LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin);   //右激光
+              uint8_t b4 = LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin);   //左激光
               if(b3 && b4) break;                                         //★两个都有 → 左右校准完成
-              if(b3) ROBOT_Move(mode_red ? 2 : -2, 0, 5, 0, 5, 0);                //红:只有主侧有(走多了) → 往另一侧补2cm；蓝方向镜像
-              else   ROBOT_Move(mode_red ? -2 : 2, 0, 5, 0, 5, 0);                //红:只有另一侧有/都没有 → 往主侧补2cm；蓝方向镜像
+              if(b3) ROBOT_Move( 2, 0, 5, 0, 5, 0);                       //只有右有(往左走多了) → 往右 2cm
+              else   ROBOT_Move(-2, 0, 5, 0, 5, 0);                       //只有左有/都没有 → 往左 2cm
               HAL_Delay(150);
             }
 
@@ -1789,21 +2331,21 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
           */
 
           //转完一圈，收起机械臂，然后往左转身走到仓库中间倒方块
-          ROBOT_Move(mode_red ? -60 : 60, 0, 100, 100, 100, 100);//红:往左 → 蓝:往右(镜像)
-          mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);//红:车子前面朝右 → 蓝:朝左(镜像)
+          ROBOT_Move(-60, 0, 100, 100, 100, 100);
+          ROBOT_Angle(90);//车子前面朝右
           ROBOT_Move(0, -138, 50, 50, 50, 50);
-          ROBOT_Move(mode_red ? -45 : 45, 0, 50, 50, 50, 50);//红:往左 → 蓝:往右(镜像)
+          ROBOT_Move(-45, 0, 50, 50, 50, 50);
 
           //定位操作：向左慢平移到左后光电感应到无障碍物，之后再往右走固定距离（刚到仓库中间的距离）
-          ROBOT_MoveSpeed(mode_red ? -10 : 10, 0);//红:向左平移到仓库边 → 蓝:向右(镜像)
-          while (LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1);//后左光电看到仓库就一直走(车上只有这一路后方光电，蓝方也用它)
+          ROBOT_MoveSpeed(-10, 0);
+          while (LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1);
           ROBOT_MoveSpeed(0,0);
 
-          ROBOT_Move(mode_red ? 25 : -25, 0, 10, 0, 0, 0);//红:往右25cm(刚对上仓库中间) → 蓝:往左25cm(镜像)
+          ROBOT_Move(25, 0, 10, 0, 0, 0);
 
           //得走远一点才能转身倒方块
           ROBOT_Move(0, 10, 0, 10, 0, 10);
-          mode_red ? ROBOT_Angle(270) : ROBOT_Angle(90);//红:车子前面朝左倒方块 → 蓝:朝右(镜像)
+          ROBOT_Angle(270);//车子前面朝左
           UART1_Printf("10");
           
           //这里放倒方块的代码
@@ -1814,21 +2356,88 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
           //倒完方块转个身再回家
           ROBOT_Angle(0);
           //往后多走一点，必须保证，前后在左右移动后能进入红色区域
-          ROBOT_Move(mode_red ? 35 : -35, -225, 50, 100, 100, 100);//红:右+后 回出发区方向 → 蓝:左+后(镜像)(红60/-240也能进)
+          ROBOT_Move(35, -225, 50, 100, 100, 100);//60，-240能进
           LiZhu_Flag = 0;//立柱结束，回家开始
           HuiJia_Flag = 1;
         }
 
 
+
+
+    /* ★调试入口(KEY0选成HOME+KEY3开始)：goto 跳到下面 HUIJIA_START 标签往下执行"回家"
+       （HuiJia_Flag 已在跳转前立好；正常流程走到这里时一字不变） */
+HUIJIA_START:
     if(HuiJia_Flag == 1)//回家开始
     {
-    /*先校准左右再校准前后，左右走可能会抖，而且前后比左右的反馈更准
+    //暂时的
+          //ROBOT_Move(60, 0, 100, 100, 100, 100);
+          mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);//车子前面朝右/朝左
+          ROBOT_Move(30, -145, 50, 50, 50, 50);
+          ROBOT_Move(-75, 0, 50, 50, 50, 50);
+
+//往后慢退，直到测距测得合适距离（适合倒球的距离）
+      ROBOT_MoveSpeed(0, -10);
+      WAIT_WHILE(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>85,
+                 "HUIJIA back-to-wall(mm<=85)");//100有点远，距离小于90就退此循环，90也远
+      /* ★2026-09-15 修复"刹不住"：原来是 ROBOT_MoveSpeed(0,0) 直接断电 → 往后自由滑行 6~20cm。
+         现在改成反向刹车（车在后退 → 给一点"前进"力矩把它刹住）。注意副作用：
+         现在停在"测距刚 ≤85"那一刻，比老行为（含滑行）离墙远 6~20cm；
+         如果倒球距离不对：① 把上面的 85 调大（如 95），或 ② 在这里补一个固定后退：
+             ROBOT_Move(0, -X, 10, 10, 10, 10);   // X = 你想再退多少 cm
+         刹车效果看串口1的 SBRAKE 行（over=还冲了多少cm）。 */
+      SENSOR_BRAKE(0, +12, 100, 0.7f);
+
+          //定位操作：向左慢平移到左后光电感应到无障碍物
+      //新：更改激光位置，让它在没对到障碍物时直接就已经是合适的位置，不需要调整
+      ROBOT_MoveSpeed(-10, 0);
+      WAIT_WHILE(LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1, "HUIJIA laser1 no-obstacle");
+      /* ★2026-09-15 修复"刹不住"：原来是 ROBOT_MoveSpeed(0,0) 直接断电 → 继续往左自由滑行 6~20cm。
+         现在改成反向刹车（车在左移 → 给一点"右移"力矩把它刹住）。副作用：
+         现在停在"激光刚对到"那一刻，比老行为（含滑行）靠右 6~20cm；
+         若左边还差一点，在这里补一个固定左移：
+             ROBOT_Move(-X, 0, 10, 0, 10, 0);   // X = 你想再往左多少 cm
+         也可以直接把激光模块往右挪一点（等效）。刹车效果看串口1的 SBRAKE 行。 */
+      SENSOR_BRAKE(+12, 0, 100, 0.7f);
+      //HAL_Delay(100);//延时一下提高稳定性
+
+      //加一次角度校准
+      mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
+      HAL_Delay(100);//延时一下提高稳定性
+      //往右走固定距离（刚到对上仓库的距离）
+      if(mode_red) ROBOT_Move(20, 0, 10, 0, 10, 0);//20太大，速度100会飘，12太远
+
+      runActionGroup(16, 1); 	//这里是倒球动作组（复用圆盘机）
+      delay_ms(2000);
+
+      for(uint8_t i = 0; i < 2; i++){//前后抖
+        ROBOT_Move(0, 2, 0, 100, 0, 100);
+        ROBOT_Move(0, -2, 0, 100, 0, 100);
+      }
+
+          runActionGroup(19, 1);//收倒球槽
+          //往前走确保转方向不卡脚
+          ROBOT_Move(0, 15, 0, 10, 0, 10);
+          ROBOT_Angle(0);//车子前面朝左
+          
+
+          //倒完方块转个身再回家
+          ROBOT_Angle(0);
+          //往后多走一点，必须保证，前后在左右移动后能进入红色区域
+          ROBOT_Move(mode_red ? 30 : -30, -230, 50, 100, 100, 100);//60，-240能进
+
+          ROBOT_Angle(0);
+          HAL_Delay(100);
+          HuiJia_Flag = 1;
+
+          //暂时的
+    
+      /*先校准左右再校准前后，左右走可能会抖，而且前后比左右的反馈更准
     注意！！！必须先让颜色传感器在左右移动之后一定能进入红/蓝区域，
     即前后距离必须能确保在红/蓝区域内（在哪里无所谓，后面再校准）
     */
     //如果为黑色，匀速往右走，直到传感器进入红/蓝区域
     //去抖：连续3次(约150ms)都读到红/蓝才确认，交界处"红黑红黑"抖动不会误停
-    ROBOT_MoveSpeed(mode_red ? 10 : -10, 0);//红:向右找本区 → 蓝:向左(镜像)
+    ROBOT_MoveSpeed(10, 0);
     {
       uint8_t stable = 0;
       while(1){
@@ -1845,7 +2454,7 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
     //因为加了消抖，所以会稍微多走一小点，再减少一点盲走的距离
 
     //进入红/蓝后，继续向右多走11.5，确保停在红/蓝区域内部（避免停在边缘抖动；距离按区域宽度调整），而且确保车身左右都在红/蓝区域内
-    ROBOT_Move(mode_red ? 11.5 : -11.5, 0, 10, 10, 100, 100);//红:向右11.5cm 停到区域内部 → 蓝:向左(镜像)
+    ROBOT_Move(mode_red ? 11.5 : -11.5, 0, 10, 10, 100, 100);
     
     //往前走，走到颜色传感器一定在黑色区域内（同样连续3次确认）
     ROBOT_MoveSpeed(0, 10);
@@ -1906,7 +2515,7 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
       */
       //如果为黑色，匀速往右走，直到传感器进入红/蓝区域
       //去抖：连续3次(约150ms)都读到红/蓝才确认，交界处"红黑红黑"抖动不会误停
-      ROBOT_MoveSpeed(mode_red ? 10 : -10, 0);//红:向右找本区 → 蓝:向左(镜像)
+      ROBOT_MoveSpeed(10, 0);
       {
         uint8_t stable = 0;
         while(1){
@@ -1923,7 +2532,7 @@ ZHENGMIAN_START:            //★按键0调试入口：开机"红蓝方选择"�
       //因为加了消抖，所以会稍微多走一小点，再减少一点盲走的距离
 
       //进入红/蓝后，继续向右多走12，确保停在红/蓝区域内部（避免停在边缘抖动；距离按区域宽度调整），而且确保车身左右都在红/蓝区域内
-      ROBOT_Move(mode_red ? 12 : -12, 0, 10, 10, 100, 100);//红:向右12cm 停到区域内部 → 蓝:向左(镜像)
+      ROBOT_Move(12, 0, 10, 10, 100, 100);
       
       //往前走，走到颜色传感器一定在黑色区域内（同样连续3次确认）
       ROBOT_MoveSpeed(0, 10);
