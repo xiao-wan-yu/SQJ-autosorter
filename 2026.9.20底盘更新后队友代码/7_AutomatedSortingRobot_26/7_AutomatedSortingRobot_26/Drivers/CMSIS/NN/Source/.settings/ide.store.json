@@ -1,0 +1,5 @@
+{
+  "board": "STM32WB5MM-DK",
+  "device": "STM32WB5MMGH6",
+  "toolchain": "CLANG"
+}

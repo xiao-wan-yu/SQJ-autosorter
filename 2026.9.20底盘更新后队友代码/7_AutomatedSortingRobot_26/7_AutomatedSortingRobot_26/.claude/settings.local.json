@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmd //c build.bat)",
+      "Bash(cmd //c 'D:\\\\Programming code\\\\MCUProject\\\\STM32F407VET6Project\\\\DIY\\\\7_AutomatedSortingRobot_26\\\\build.bat' 2>&1)",
+      "Read(//d/STM32CubeIde/STM32CubeIDE_1.19.0/**)",
+      "Read(//c/ST/**)",
+      "Bash(arm-none-eabi-gcc --version)",
+      "Bash(cmake --version)",
+      "Bash(cmake --build --preset Debug)",
+      "Bash(cmd //c \"where cmake\")",
+      "Bash(cmd //c \"where arm-none-eabi-gcc\")",
+      "Bash(cmd //c \"where ninja\")",
+      "Bash(powershell.exe -NoProfile -Command '& \"D:\\\\Programming code\\\\MCUProject\\\\STM32F407VET6Project\\\\DIY\\\\7_AutomatedSortingRobot_26\\\\build.bat\"')",
+      "Bash(cmd //c \"cmake --build --preset Debug -- -j4\")"
+    ]
+  }
+}

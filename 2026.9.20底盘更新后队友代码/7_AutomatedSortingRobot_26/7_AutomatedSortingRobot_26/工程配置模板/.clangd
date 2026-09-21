@@ -1,0 +1,15 @@
+# clangd 配置文件（拷贝到新工程根目录）
+# 移植说明：
+#   - CompilationDatabase 用相对路径 build/Debug（clangd 以工作区根目录为起点），最省事
+#   - 如果换到别的盘/文件夹后提示失效，把这里改成绝对路径，例如 G:/你的工程/build/Debug
+CompileFlags:
+  Add:
+    - -ferror-limit=0
+    - -Wno-implicit-int
+  CompilationDatabase: build/Debug
+Diagnostics:
+  Suppress:
+    - unused-includes
+    - unknown_typename
+    - unknown_typename_suggest
+    - typename_requires_specqual

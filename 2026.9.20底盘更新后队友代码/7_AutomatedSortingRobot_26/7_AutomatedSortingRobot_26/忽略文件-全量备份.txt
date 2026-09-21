@@ -1,0 +1,17 @@
+# ============================================================
+# 【全量备份】把本文件全部内容复制粘贴到 .gitignore
+# 用途：所有文件（含 build/、.vscode/、配置文件等）都进 git，个人备份用
+#
+# 粘贴保存后执行：
+#   git remote set-url origin https://github.com/xiao-wan-yu/SQJ-autosorter.git
+#   git add -A
+#   git commit -m "全量备份 xxx"
+#   git push -u origin HEAD
+# ============================================================
+
+# 只忽略系统/编辑器临时文件
+Thumbs.db
+Desktop.ini
+.vs/
+*.swp
+*.tmp

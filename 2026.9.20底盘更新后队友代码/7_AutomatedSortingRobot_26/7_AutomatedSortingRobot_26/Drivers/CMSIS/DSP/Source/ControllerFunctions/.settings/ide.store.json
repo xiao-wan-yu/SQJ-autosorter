@@ -1,0 +1,4 @@
+{
+  "device": "STM32C5A3CGT6",
+  "toolchain": "GCC"
+}
