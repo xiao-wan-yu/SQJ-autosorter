@@ -110,10 +110,8 @@
         第一拍可能推不动（先迟滞、再靠积分窜出去）。现场若发现"走不到位"，把那一行的 max_a
         单独加大到 100~200（只影响那一条）。
      ② "前后抖"两条（ROBOT_Move(0,±2,0,100,0,100)）是故意快抖、不是走位，保留 100。
-   ★判断类里唯一"怕推不动"的一条：JIETI_FWD_SPEED 的脉冲式前后校准，每步只给
-     JIETI_FWD_STEP_MS(40ms)，10cm/s 在这段时间里积分还没爬上来、可能一步都不动。
-     若现场发现"前后校准不动作"：把 JIETI_FWD_STEP_MS 放到 150~200ms，
-     或单独把那一条的 JIETI_FWD_SPEED 改回 SPD_SHORT_V。 */
+   ★判断类里的"一步"（脉冲式：给速度+限时）原本用于阶梯的前后/左右校准，2026-09-21 已随校准一起删掉；
+     原因是 ROBOT_Move 单次 ≤3cm 走不动（实测 ≥4cm 才起得来），而校准要修的正是几厘米的偏差。 */
 #define SPD_SHORT_V   20     // ① 定点走位 目标速度 cm/s
 #define SPD_SHORT_A   30     // ① 定点走位 加减速 cm/s^2
 #define SPD_AVG_V     10     // ② 匀速靠近/边判边走 恒速 cm/s（5好像太慢了）
@@ -275,73 +273,33 @@ static void ZM_ShowComm(int rx4, int rx2){
   OLED_Update();
 }
 
-/* ================= 阶梯阶段参数 ================= */
-/* ★2026-09-20 速度三档（见文件上方 SPD_* 宏），这里几个速度按"用途"取：
-     · 视觉对准 / 前后脉冲校准 / 走近阶梯  → 都是"边判边走"，用 SPD_AVG_V(10)
-     · 走固定位移(JIETI_STEP_SPEED/ACC)   → 有终点，用 SPD_SHORT_V/A(20/30)
-   为什么判断类用 10：新底盘第一拍输出 ≈ kp×目标速度，10cm/s 的第一拍只有 ~55（低于起转 PWM 60~110），
-   要等积分项爬升 ≈0.2~0.3s 才动 —— 对"等传感器/等视觉"的场合无所谓（反正要等），
-   换来的是落点稳（测距 5Hz / 判色 150ms 去抖的滞后距离与速度成正比）。 */
-#define JIETI_ALIGN_SPEED    SPD_AVG_V    //★视觉对准=边判边走 → SPD_AVG_V(10)（原来5太慢，且老底盘靠整形才跑到16~29）
-#define JIETI_ALIGN_BAND       30     //对准带：|cam_x|<=30 就算对准(停车夹取)；原来10太严，50太宽
-#define JIETI_IMG_CX          160     //视觉x是0~320像素，减它转成相对画面中心的偏移
-/* ---------------- 前后距离：实时监测 + 超标才校准 ----------------
-   车向右扫描时容易前后漂移(离阶梯越来越远/越来越近)，夹取和视觉对准都会受影响。
-   做法：扫描途中实时读前测距(GY53_2)，只有偏离目标超过 JIETI_FWD_TRIG_MM 才停下来校准：
-     ① 先 ROBOT_MoveSpeed(0,0) 速度置零（新底盘下速度环 target=0 会主动反接刹车，比自由滑行刹得快）
-     ② 脉冲式一步步微调：给一小段速度 → 立刻置零 → 等车停稳+测距刷新 → 再判断。
-        每步都等车停稳、拿到"新读数"再判断，不会像"连续给速度+每拍判断"那样被测距滞后带着冲过头
-     ③ 回到 目标±容差 或 超过 JIETI_FWD_MS 就结束(结束时同样置零)，调用方重新给 JIETI_ALIGN_SPEED
-   测距说明：GY53_2是前面的、GY53_1是后面的；GY53_GetDistance_PWM()返回mm，超量程/无目标返回2000 */
-#define JIETI_FWD_TARGET_MM   87      //目标前后距离(mm)：100靠太近，120太远,105也远，80才是合适
-#define JIETI_FWD_TOL_MM       10     //容差(mm)：|实测-目标|<=10 视为已校准好（原来5：GY53自己就有±10mm噪声，5比噪声还小→读数一直"差一点"，来回微调停不下来）
-#define JIETI_FWD_TRIG_MM      20     //触发阈值(mm)：偏离超过20mm才停下校准（原来10：噪声都能顶到，一有偏差就停车→校准太频繁）
-#define JIETI_FWD_MS        2500U     //单次校准最长耗时(ms)：每步等测距刷新的时间变长后要给足（原来1000：还没修到位就退出，下一轮又停，反而更频繁）
-#define JIETI_FWD_SPEED      SPD_AVG_V    //★前后脉冲校准=边判边走 → SPD_AVG_V(10)
-                                         //★注意：10cm/s 起步要等积分爬升≈0.2~0.3s，而每步只给 JIETI_FWD_STEP_MS(40ms)
-                                         //  → 可能一步都不动。若现场发现"前后校准不动作"：把 JIETI_FWD_STEP_MS 放到 150~200ms，
-                                         //    或把本行单独改回 SPD_SHORT_V(=20，第一拍就压过起转PWM)
-#define JIETI_FWD_STEP_MS      40U    //★微调每步给速度的时间(ms)：20cm/s×~40ms≈5~8mm/步（原80ms配3cm/s≈2.4mm；新底盘起转快，步长改小才不冲过头）
-#define JIETI_FWD_SETTLE_MS   200U    //每步后置零等车停稳+测距刷新的时间(ms)（原来60太短：车还在滑、测距还是旧值就再给速度→连着同向走几步→过冲→反向，一前一后停不下来）
-#define JIETI_FWD_CHK_MS       200U    //扫描中每隔多少ms实时测一次距离（原来100配10mm阈值太勤；现在20mm阈值+200ms，停车校准次数大约降到1/4）
-#define JIETI_FWD_OLED_MS     100U    //屏幕上实时测距的刷新周期(ms)
+/* ================= 阶梯阶段参数（2026-09-21 再精简：只走固定距离）=================
+   阶梯阶段只做三件事：**读每坑"夹不夹" + 动作组 + 每个坑走固定距离并计数**。
+   ★原来的"左右对准(cam_x 挪车)"和"前后测距校准(走一步)"整块删掉了（连同下面这些参数）：
+     实测那套校准效果不好 —— 一步只有 1~2cm、落点靠测距/像素反推，来回摆还拖时间；
+     不如老老实实按固定距离走，位置由"进阶梯时的到位 + 坑间距"决定。
+   ★朝向不用额外管：底盘一直锁向（target_yaw = 进阶梯时校好的那个朝向），
+     走固定位移 20cm/s ≥ 介入阈值，走的过程中角度环一直在纠偏。
+   ★视觉协议：画面里没目标 → 视觉一个字节都不发；有目标但这一坑不用夹 → 照样发帧、坐标有效，只是 cmd 说不夹。
+     所以"等不到帧" = 视野里没目标 = 这一坑不夹；cmd **只用来决定夹不夹**，不再拿坐标挪车。 */
+#define JIETI_IMG_CX          160     //视觉x是0~320像素，减它转成相对画面中心的偏移（只用于屏幕显示）
+#define JIETI_VIS_MS         200U     //等主视觉一帧的超时(ms)：站在坑前读这一坑的 cmd 用（帧间隔约20~50ms，够）
+/* ---------------- 走近阶梯的前测距目标(GY53_2) ----------------
+   全阶段只剩"进阶梯时走近"用这一次：走到 90mm 附近就停（提前 20mm 停，补读数滞后）；
+   之后每个坑不再做任何测距校准（前后校准 2026-09-21 已删）。 */
+#define JIETI_FWD_TARGET_MM   90      //★目标前后距离(mm)：也是"走近阶梯"的停止距离
 
 /* ---------------- 8个坑固定位移步进(计数就靠它) ----------------
    ★两个"走多远"都是现场拿尺量出来的：
      JIETI_STEP_CM       = 同一个阶梯里相邻两个坑的距离
      JIETI_STEP_CROSS_CM = 换阶梯那一步的距离(第2→3个坑、第6→7个坑，就是动作组57/60/63切换的地方)
-   每走完一段固定位移 = 到了下一个坑(粗定位)，再用视觉x精细对准；对准了就算数到这一个 */
-#define JIETI_STEP_CM         8      //★阶梯内坑间距(cm)：同一个阶梯里每个坑之间固定走多远(现场量)（10好像会走多）
-#define JIETI_STEP_CROSS_CM  10      //★换阶梯那一步走多远(cm)：第2→3个、第6→7个坑(矮/中/高阶梯之间隔得远)(现场量)
-#define JIETI_STEP_SPEED      (float)SPD_SHORT_V   //走固定位移时的最大速度 = 短距标准(20cm/s)
-                                      //★新底盘"第一拍输出≈kp×v"，要≥20 才压得过起转PWM立刻走
-                                      //（原来 10/5/3 是靠老底盘的"破静摩擦整形"顶 PWM 才动得起来；新底盘没有整形了）
-#define JIETI_STEP_ACC        SPD_SHORT_A          //走固定位移时的加减速 = 短距标准(30cm/s^2)
-#define JIETI_ALIGN_MS      3000U     //单个坑"视觉对准"总超时(ms)：拿到坐标后才算，超时就按已对准处理，继续下一个
-#define JIETI_NOVIS_MS      1000U     //★没坐标兜底①：先等(车还在按扫描速度边走边找)1s，还没坐标 → 往右挪 JIETI_NOVIS_MOVE_CM
-#define JIETI_NOVIS_MOVE_CM    2      //★没坐标兜底②：往右挪多少(cm)换位置；挪完车停下，再等 JIETI_NOVIS2_MS
-#define JIETI_NOVIS2_MS     2000U     //★没坐标兜底③：挪完停下再等2s，还是没有坐标 → 这个坑放过，直接进下一个
-#define JIETI_VIS_MS         200U     //等主视觉一帧的超时(ms)
-/* ---------------- ★坐标有效性闸门(修"没有东西也往左走") ----------------
-   现场现象：这一坑压根没有物块(或物块不用夹)，车却一路往左走、最后卡死在左边。
-   原因：视觉在"这一帧没找到目标"时有的固件照样发 A3 包，x 填 0 或 0xFFFF(=-1，常见"未检测到"约定)。
-        主控原来照单全收：cam_x = x - 160 → 0 变 -160、0xFFFF 回转成 -161 →
-        对准循环一律走"目标偏左 → 左移"那个分支 → 车一直往左追一个不存在的目标；
-        每个坑都这么左移一次(5cm/s×3s≈15cm)，而坑间步进只往右 8cm → 净往左 → 越跑越左 → 卡死。
-   做法：x 不在 [JIETI_IMG_XMIN, JIETI_IMG_XMAX] 就判为无效帧：只打日志、不更新坐标、不算收到
-        (等于"这一拍没收到坐标")，于是不会拿它对准、更不会往左走。 */
-#define JIETI_IMG_XMIN          8     //x像素有效下限：0(=没目标的常见填充值)会被挡在这里
-#define JIETI_IMG_XMAX        312     //x像素有效上限：0xFFFF(=65535)会先被挡在这里
-/* ---------------- ★对准阶段"往左"限幅(修"一直卡死在左边") ----------------
-   本阶段是"从左往右依次处理8个坑"，目标只应该出现在画面中间/右边，偏左基本只有一个解释：
-   画面里那个物块是"已经走过/不用夹却还在视野里的那个"，不是本坑要夹的目标。
-   所以往左只允许做小范围修正(走多了往回补)，连续往左超过 JIETI_ALIGN_LEFT_MS 就停车放弃这一坑：
-   原来 5cm/s × 0.8s ≈ 4cm(够补"走多了一次"的量，又远小于一个坑间距 8cm，不会串到上一个坑)。
-   ★2026-09-20：JIETI_ALIGN_SPEED 由 5 提到 20(新底盘不整形了，5cm/s 太慢)，
-     同样的 0.8s 会走 ≈16cm —— 若现场发现"往左追得太多"，把这个值改小到 200~300ms 即可。 */
-#define JIETI_ALIGN_LEFT_MS   800U    //对准阶段"连续往左"的最长时间(ms)：超了=那个目标不是本坑的
-#define JIETI_ALIGN_LEFT_DROP   1     //左移超限后这一坑按"不夹"处理(1=改，防止对着空气/错目标夹；0=保留视觉原判断)
-#define JIETI_ALIGN_SKIP_NOGRAB 1     //★视觉这一帧说"不夹"时，不拿它的坐标左右挪车(1=跳过对位直接进下一个坑；0=老行为)
+   每走完一段固定位移 = 到了下一个坑；站定后等一帧读这个坑的 cmd(夹不夹)，处理完计数 +1 */
+#define JIETI_STEP_CM         15      //★阶梯内坑间距(cm)：实际是8,但是要给15
+#define JIETI_STEP_CROSS_CM  15.5      //★换阶梯那一步走多远(cm)：第2→3个、第6→7个坑(矮/中/高阶梯之间)实际是10,要给16
+#define JIETI_STEP_SPEED      (float)SPD_SHORT_V   //走固定位移速度 = 短距标准(20cm/s)：要≥20 才压得过起转PWM
+#define JIETI_STEP_ACC        30     //★加减速(cm/s^2)：8cm 按 20/30 走是三角波，峰值只有 √(30×8)=15.5cm/s(<20)，
+                                      //  第一拍 kp×v 压不过起转PWM → 每步会先迟滞一下再窜出去(能走，就是慢半拍)；
+                                      //  想"一拍就起转"把它提到 100~150（8cm 就变成正常梯形，2cm 内到 20cm/s）
 /* ---------------- ★阶梯跑完去哪儿(修"跑完阶梯不回家/卡死在阶梯") ----------------
    1 = 阶梯跑完直接进"回家"段(跳过被 if(0) 禁用的立柱段)；
    0 = 老设计：不在这里置位，靠"立柱"段末尾置 HuiJia_Flag(前提是把立柱段的 if(0) 恢复成 if(LiZhu_Flag == 1))
@@ -383,28 +341,35 @@ static void ZM_ShowComm(int rx4, int rx2){
      而不是让哨兵把"当前已经走歪的朝向"当新目标锁住。 */
 static float jieti_keep_yaw = -1.0f;   //阶梯阶段目标朝向(°)，-1=还没锁(没锁就不动它)
 
+/* ================== ★调试跳转的"角度基准换算"（2026-09-21）==================
+   为什么需要它（"单独测阶梯/回家角度乱套"的根因）：
+     · 正常发车：上电时车头朝前 → HWT101CT 的 0° 就是"前"，所以程序里的绝对角
+       0=前 / 90=右 / 180=后 / 270=左 都是按"场地"说的。
+     · 单独测阶梯/回家：车是**按"倒完球那一步的姿态"摆好再上电**的（正常流程在那一步车头朝"右"），
+       于是 0° 变成了"右" —— 整套绝对角相对场地都转过了 DBG_YAW_SHIFT(90°)，
+       再直接拿去 ROBOT_Angle 就会白转一个角度、越走越乱。
+   做法：跳转入口把 dbg_yaw_shift 置 1，之后**每一处绝对角都过一遍 Yaw_Abs()**：
+     Yaw_Abs(90)→0、Yaw_Abs(270)→180、Yaw_Abs(0)→270 …… 也就是"跳转进来就用另一套角度转"。
+   正常流程(dbg_yaw_shift=0)一律原样返回，行为一个字都不变。
+   ★摆车姿态必须是"倒完球那一步的样子"（红方车头朝右 / 蓝方朝左）SHIFT 才是 90；
+     换别的摆法只改 DBG_YAW_SHIFT 这一个数。 */
+#define DBG_YAW_SHIFT   90U          //跳转测试时"摆车姿态"相对正常"车头朝前"转过的角度(°)
+static uint8_t  dbg_yaw_shift = 0;   //1=本次是调试跳转进来的 → 绝对角按上面那套换算
+static uint32_t Yaw_Abs(uint32_t normal_angle){   //把"正常基准角"换算成本次实际该转的角度
+  if(!dbg_yaw_shift) return normal_angle;
+  return (normal_angle + (360U - DBG_YAW_SHIFT)) % 360U;
+}
+
 //在原有基础上加了锁定目标朝向的代码：设完速度立刻把目标朝向恢复回进入阶梯时校好的那个值
 static void JieTi_MoveSpeed(float x_speed, float y_speed){
   ROBOT_MoveSpeed(x_speed, y_speed);
   if(jieti_keep_yaw >= 0.0f) chassis.target_yaw = jieti_keep_yaw;  //恢复锁向目标(停车后角度环会按它纠偏)
 }
 
-/* 实时测距显示：只占第3行(y=32, 8x16)，先清这一行再画，
-   不动第1/2行("JIETI letter x y" / "scan & grab...")，也不动下面几行 */
-static void JieTi_ShowFwdMm(uint16_t d_mm){
-  const char *tag = (d_mm > (JIETI_FWD_TARGET_MM + JIETI_FWD_TRIG_MM)) ? "FAR "
-                  : ((d_mm + JIETI_FWD_TRIG_MM) < JIETI_FWD_TARGET_MM) ? "NEAR" : "OK  ";
-  OLED_ClearArea(0, 32, 128, 16);                              //只清第3行
-  OLED_Printf(0, 32, OLED_8X16_HALF, "D:%4umm %s", (unsigned)d_mm, tag);
-  OLED_Update();
-}
-
-/* ---------------- 阶梯阶段运行时状态(显示/对准/测距共用) ---------------- */
+/* ---------------- 阶梯阶段运行时状态(视觉/显示共用) ---------------- */
 static int16_t  jieti_cam_x     = 0;       //最近一帧：目标距画面中心偏移(负=偏左 / 正=偏右)
 static uint8_t  jieti_cmd       = 0;       //最近一帧：cmd(要不要夹)
 static uint8_t  jieti_blk_now   = 0;       //当前是第几个坑(1~8，0=还没对准第一个)
-static uint32_t jieti_chk_tick  = 0;       //实时测距节流时刻(ms)
-static uint32_t jieti_oled_tick = 0;       //屏幕刷新节流时刻(ms)
 
 /* 实时显示"当前是第几个坑(物块)"+最近一帧视觉x：只占第4行(y=48, 6x8)，
    不动第1/2行(JIETI letter x y / scan & grab...)和第3行(实时测距) */
@@ -455,15 +420,8 @@ static uint8_t JieTi_VisionPoll(void){
                   | ((uint16_t)VISION1_RxBuf[i + 3] << 8);          //x像素(低字节在前,0~320)
       uint16_t py = (uint16_t)VISION1_RxBuf[i + 4]
                   | ((uint16_t)VISION1_RxBuf[i + 5] << 8);          //y像素(本阶段不用)
-      /* ★无效坐标帧闸门(见 JIETI_IMG_XMIN 上方说明)：
-         x=0 / x=0xFFFF(未检测到) / 越界 → 这一帧不算"收到坐标"，绝不拿去对准。
-         否则 cam_x 会变成 ≈-160 → 对准循环判"目标偏左" → 车一路往左走(现场那个现象) */
-      if(px < JIETI_IMG_XMIN || px > JIETI_IMG_XMAX){
-        if(JIETI_VIS_LOG)
-          UART1_Printf(" | A3 x=%u 无效帧(不在%u~%u) → 丢弃,不参与对准\r\n",
-                       (unsigned)px, (unsigned)JIETI_IMG_XMIN, (unsigned)JIETI_IMG_XMAX);
-        return 0;                                       //等于"这一拍没收到坐标"：继续等/走兜底
-      }
+      /* ★不再做 x 范围过滤（2026-09-21 删）：协议里没有"未检测到"的填充帧(没目标根本不发帧)，
+         视觉给的坐标都是有效的，加个范围闸门反而可能把真坐标挡掉。 */
       jieti_cam_x = (int16_t)px - JIETI_IMG_CX;         //减160 → 目标距画面中心偏移
       jieti_cmd   = VISION1_RxBuf[i + 1];               //cmd(要不要夹，含义看 JieTi_Grab_Mode)
       if(JIETI_VIS_LOG)
@@ -494,133 +452,16 @@ static uint8_t JieTi_GetVision(uint32_t wait_ms){
   return 0;
 }
 
-/* 实时监测 + 超标才校准：入参是刚读到的距离(mm)；返回 1=确实停下校准过(调用方要重新给速度) */
-static uint8_t JieTi_FwdFixIfNeeded(uint16_t d_now){
-  if(d_now >= 2000U || d_now < 50U) return 0;                        //超量程/读数离谱：不处理，继续扫描
-  int16_t err = (int16_t)d_now - (int16_t)JIETI_FWD_TARGET_MM;
-  if(err <= JIETI_FWD_TRIG_MM && err >= -JIETI_FWD_TRIG_MM) return 0; //没超标：车照常走，不停不校
+/* ★2026-09-21 变更记录（阶梯阶段）：
+   · 删掉：左右视觉对准（JieTi_GoAlign，连同 JIETI_ALIGN_BAND / JIETI_ALIGN_MS / JIETI_NOVIS_MS）、
+     "走一步"的脉冲式校准（JieTi_Step / JieTi_WaitCoord / JIETI_STEP_MS / JIETI_STEP_SETTLE_MS）、
+     第3行测距显示（JieTi_ShowFwdMm）—— 实测那几套校准效果不好。
+   · 改成：位置靠"进阶梯到位 + 每个坑走固定距离"，朝向靠底盘锁向；
+     **前后距离校准也已删**（2026-09-21）—— 阶梯只走固定距离，位置全靠"到位 + 坑间距"。 */
 
-  /* ---- 超标：先直接速度置零(清掉速度环输出/积分)，再脉冲式一步步微调 ---- */
-  JieTi_MoveSpeed(0, 0);
-  uint32_t t0 = HAL_GetTick();
-  uint32_t oled_tick = t0;
-  while((HAL_GetTick() - t0) < JIETI_FWD_MS){                        //单次最多校准 JIETI_FWD_MS(现在2.5秒)
-    uint16_t d = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);
-    if(d >= 2000U || d < 50U) break;                                 //读数异常：不瞎走，直接结束
-    if(HAL_GetTick() - oled_tick >= JIETI_FWD_OLED_MS){              //校准时屏幕也实时刷测距
-      oled_tick = HAL_GetTick();
-      JieTi_ShowFwdMm(d);
-    }
-    err = (int16_t)d - (int16_t)JIETI_FWD_TARGET_MM;
-    if(err <= JIETI_FWD_TOL_MM && err >= -JIETI_FWD_TOL_MM) break;    //已回到目标±容差 → 立即结束
-    JieTi_MoveSpeed(0, (err > 0) ? JIETI_FWD_SPEED : -JIETI_FWD_SPEED);//离太远→前进 / 离太近→后退
-    HAL_Delay(JIETI_FWD_STEP_MS);                                    //只走一小步
-    JieTi_MoveSpeed(0, 0);                                           //立刻置零：不连续憋速度、不留累计
-    HAL_Delay(JIETI_FWD_SETTLE_MS);                                  //等车停稳 + 等测距刷出新值再判断
-  }
-  JieTi_MoveSpeed(0, 0);                                             //到位/超时/异常：统一置零
-  return 1;                                                          //告诉调用方"停过车了，要重新给速度"
-}
-
-/* 阶梯阶段"边走边服务"：按周期实时测距 + 刷屏幕 + 超标就停下校准
-   返回1 = 这次真停过车校准(调用方按需把速度再给回去) */
-static uint8_t JieTi_FwdService(void){
-  if(HAL_GetTick() - jieti_chk_tick < JIETI_FWD_CHK_MS) return 0;          //没到测距周期：先不测
-  jieti_chk_tick = HAL_GetTick();
-  uint16_t d_mm = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);     //实时测距(mm)
-  if(HAL_GetTick() - jieti_oled_tick >= JIETI_FWD_OLED_MS){               //屏幕按自己的周期刷
-    jieti_oled_tick = HAL_GetTick();
-    JieTi_ShowFwdMm(d_mm);                                               //第3行：实时测距
-    JieTi_ShowBlockNo(jieti_blk_now, 8, jieti_cam_x);                    //第4行：第几个坑 + 视觉x
-  }
-  return JieTi_FwdFixIfNeeded(d_mm);
-}
-
-/* 等一帧视觉坐标(等的过程照常实时测距/刷屏/超标校准)；返回1=等到了(坐标已存进 jieti_cam_x/jieti_cmd)
-   ★期间不主动停车：进来之前设的扫描速度一直保持着，所以对第1个坑来说"等"就是"继续往右扫着找" */
-static uint8_t JieTi_WaitCoord(uint32_t wait_ms){
-  uint32_t t0 = HAL_GetTick();
-  while((HAL_GetTick() - t0) < wait_ms){
-    JieTi_FwdService();                                  //实时测距/屏幕/超标校准(会临时停车)
-    if(JieTi_GetVision(JIETI_VIS_MS)) return 1;          //这一拍收到坐标：交给调用方去对准
-  }
-  return 0;                                              //一直没收到
-}
-
-/* 走向并对准当前坑：用视觉x对准，|cam_x|<=JIETI_ALIGN_BAND 就算对准(对准完停车)
-   first_pit=1：第1个坑要"先看到目标出现在画面右侧(x>对准带)"，再等它进入对准带(防止把别的东西当目标)
-   ★进来先把 jieti_cmd 清成 0(不夹)：这一坑万一一直没收到视觉帧(空坑/没识别到)，调用方就按"不夹"处理——
-     否则 jieti_cmd 还留着上一个坑的值 → 空坑也会被夹(现场"明明不用夹却夹了"就是它)
-   没坐标时的兜底(现场"这一坑视觉没返回"用)：
-     先等 JIETI_NOVIS_MS(1s、车边走边找) → 还没有：往右挪 JIETI_NOVIS_MOVE_CM(2cm) 换位置 →
-     挪完停下再等 JIETI_NOVIS2_MS(2s) → 还是没有：这个坑放过，直接返回(调用方计数+1进下一个)
-   对准过程中反复调用 JieTi_FwdService()：前后距离偏了就停下校准，校准完继续对准 */
-static void JieTi_GoAlign(uint8_t first_pit){
-  uint8_t found = 0;                                     //第1个坑：是否已看到目标在右侧
-  jieti_cmd = 0;                                         //★先按"不夹"待着：没收到帧就不会拿上一坑的旧值乱夹
-
-  /* ---- ① 先等坐标 ---- */
-  if(!JieTi_WaitCoord(JIETI_NOVIS_MS)){
-    /* ---- ② 1s还没坐标：往右挪2cm换位置，挪完停下再等 ---- */
-    JieTi_MoveSpeed(0, 0);
-    ROBOT_Move(JIETI_NOVIS_MOVE_CM, 0, JIETI_STEP_SPEED, 0, JIETI_STEP_ACC, 0);   //右移一点，换个位置再看
-    if(!JieTi_WaitCoord(JIETI_NOVIS2_MS)){
-      JieTi_MoveSpeed(0, 0);
-      return;                                            //③ 还是没有坐标：这个坑不要了，进下一个
-    }
-  }
-
-  /* ---- ④ 拿到坐标了：按视觉x对准(总超时 JIETI_ALIGN_MS，超时按已对准处理) ----
-     ★往左限幅(见 JIETI_ALIGN_LEFT_MS 上方说明)：连续往左超过上限 → 判定"画面里那个物块不是本坑目标"
-       (多半是刚夹完/不用夹却还留在视野里的那个) → 停车放弃这一坑，绝不一路往左追 */
-  uint32_t t0      = HAL_GetTick();
-  uint32_t t_loop  = t0;                                 //上一拍时刻：用来算"这一拍花了多久"
-  uint32_t left_ms = 0;                                  //★连续往左走的累计时间(ms)
-  uint8_t  left_giveup = 0;                              //★1=往左超限放弃(这一坑不夹)
-  while((HAL_GetTick() - t0) < JIETI_ALIGN_MS){
-    JieTi_FwdService();                                  //实时测距/屏幕/超标校准(会临时停车)
-    uint32_t dt = HAL_GetTick() - t_loop;                //这一拍耗时(等帧+可能的前后校准)
-    t_loop = HAL_GetTick();
-    if(dt > (JIETI_VIS_MS + JIETI_FWD_CHK_MS)) dt = 0;   //这一拍大半时间在停车校准/刷屏：不算"正在往左走"
-    if(!JieTi_GetVision(JIETI_VIS_MS)) continue;         //这一拍没收到帧：接着等
-    if(first_pit && !found){
-      if(jieti_cam_x > JIETI_ALIGN_BAND) found = 1;      //目标已经在右边出现，开始对准
-      JieTi_MoveSpeed(JIETI_ALIGN_SPEED, 0);             //没确认前一直往右找
-      continue;
-    }
-    /* ★这一帧说"不夹" → 这一坑根本不需要对位：别拿它的坐标左右挪车
-       (现场"夹完之后画面里只剩下不用夹的那个，车却以它为准往左走"就是这里该拦住的；
-        它只影响"要不要挪车"，不影响 need 判定——need 用的还是同一个 cmd，行为只会更快、更稳) */
-    uint8_t need_cmd = (JieTi_Grab_Mode == 1) ? (jieti_cmd == 0x01)
-                                              : ((jieti_cmd & 0x0F) != 0);
-    if(JIETI_ALIGN_SKIP_NOGRAB && !need_cmd){
-      JieTi_MoveSpeed(0, 0);
-      break;                                             //不对位(也不夹)：直接进下一个坑
-    }
-    if(jieti_cam_x > JIETI_ALIGN_BAND){                  //目标偏右 → 右移(本阶段的主方向，不设限)
-      left_ms = 0;
-      JieTi_MoveSpeed(JIETI_ALIGN_SPEED, 0);
-    }
-    else if(jieti_cam_x < -JIETI_ALIGN_BAND){            //目标偏左 → 左移(只当"走多了往回补"用，限幅)
-      left_ms += dt;
-      if(left_ms > JIETI_ALIGN_LEFT_MS){                 //★往左太久：那个物块不是这一坑的目标
-        left_giveup = 1;
-        break;                                           //立刻停车，不再往左追
-      }
-      JieTi_MoveSpeed(-JIETI_ALIGN_SPEED, 0);
-    }
-    else { JieTi_MoveSpeed(0, 0); break; }               //进了对准带 → 对准完成
-  }
-  JieTi_MoveSpeed(0, 0);                                 //对准完/超时/放弃：停车
-  if(left_giveup){
-    if(JIETI_ALIGN_LEFT_DROP) jieti_cmd = 0;             //按"不夹"处理：避免对着错目标/空气夹
-    if(JIETI_VIS_LOG)
-      UART1_Printf("ALIGN left giveup blk%u -> cmd=0x%02X\r\n",
-                   (unsigned)jieti_blk_now, (unsigned)jieti_cmd);
-    return;
-  }
-  JieTi_GetVision(JIETI_VIS_MS);                         //再取最新一帧：拿它对这一坑的判断
-}
+/* ★2026-09-21 删除：JieTi_FwdFix（阶梯的前后距离校准）—— 实测这套校准效果不好。
+   阶梯现在只走固定距离：前后位置由"进阶梯时走近到 90mm 附近（带 20mm 提前量）+ 坑间距"决定，
+   不再逐坑用测距精修；要恢复就把上面这段函数和坑循环里那一次调用加回来。 */
 /* ==================== 立柱转圈：8.28"绕柱闭环"原版（commit b6fc0ab「2026.8.28好像看到转圈希望」）====================
    来源：那段代码原来在 main 循环里，用串口指令 5 触发"单独测试转圈"。这里原封不动搬成函数：
    立柱阶段(LiZhu_Flag==1)直接调用；串口调试指令 7 也调它 —— 两处跑的是同一套代码。
@@ -1491,18 +1332,30 @@ int main(void)
        dbg_start==DBG_START_ALL(0)：一个字都不执行，原样往下跑完整流程（圆盘机→仓库倒球→正面识别→阶梯→回家）
                                      → 和"没有这套调试入口"时完全一致；
        ★跳转代码放在菜单while外面，就是为了让"完整流程"连一条语句都不变。 */
+    /* ★每次运行开始先把"角度基准换算"复位：它是静态变量，跑过一次跳转起点后若不清，
+       切回完整流程(dbg_start=ALL)时还会带着 dbg_yaw_shift=1 → 所有绝对角都被换算，那就错了。 */
+    dbg_yaw_shift = 0;
     if(dbg_start == DBG_START_ZHENGMIAN){
       /* 从"正面识别前"开始：跳过圆盘机+仓库倒球，直接跳到 ZHENGMIAN_START 标签往下执行
          （往下依次是：收倒球槽 → 走到阶梯识别位 → 左前光电对准 → 清串口残留 → 发0xA2通信流程 → 阶梯 → 回家）
          ★车会先自己走到阶梯识别位，所以先把车放在圆盘机/仓库方向随便一点的位置即可 */
       UART1_Printf("DEBUG: start from ZHENGMIAN (before front recognize)\r\n");
+      /* ★★ 角度基准：本次车是"按倒完球那一步的姿态"摆好再上电的（正常流程在那里车头朝右），
+         HWT101CT 的 0° 就变成了"右"，所有绝对角整体差 90° → 置位 dbg_yaw_shift，
+         之后每一处 ROBOT_Angle 都走 Yaw_Abs() 换算过的那一套角度（见文件上方说明）。
+         摆车要求：位置按"倒完球"那附近放、**车头朝向按那一步的姿态摆正**（红方朝右/蓝方朝左），
+         因为基准就是这么来的、程序不会再纠正你。 */
+      dbg_yaw_shift = 1;
+      UART1_Printf("DEBUG: yaw base shift ON (%u deg) for this run\r\n", (unsigned)DBG_YAW_SHIFT);
       //跳过了圆盘机，就没走"告诉视觉红(0xAA)蓝(0xBB)方"那一步，这里补上（视觉也得知道红/蓝方）
       UART2_Printf("%c", mode_red ? 0xAA : 0xBB);//告诉视觉红(0xAA)蓝(0xBB)方
       goto ZHENGMIAN_START;
     }
     else if(dbg_start == DBG_START_HUIJIA){
-      /* 从"回家"开始：跳过前面全部阶段，直接跳到 HUIJIA_START 标签往下执行（红蓝区找色→停进红蓝区） */
+      /* 从"回家"开始：跳过前面全部阶段，直接跳到 HUIJIA_START 标签往下执行（红蓝区找色→停进红蓝区）
+         ★同 ZM 起点：车是按"倒完球那一步的姿态"摆的，绝对角整体差 90° → 置位换算标志 */
       UART1_Printf("DEBUG: start from HUIJIA (go home)\r\n");
+      dbg_yaw_shift = 1;  //本段里的绝对角(90/270/0)都走 Yaw_Abs() 换算（见文件上方说明）
       HuiJia_Flag = 1;   //"回家"那段的进入条件是 HuiJia_Flag==1：正常流程由前面阶段置位，这里跳转就先自己立好
                          //(其余阶段标志 YuanPanJi_Flag/JieTi_Flag/LiZhu_Flag 出菜单时本来就都是0，不用管)
       goto HUIJIA_START;
@@ -1521,6 +1374,11 @@ int main(void)
       
     /**************圆盘机****************/
   
+//while(1){
+   // ROBOT_Move(15,0,20,0,30,0);
+    //HAL_Delay(1000);
+    //ROBOT_Move(-15,0,20,0,30,0);
+//}
     YuanPanJi_Flag = 1;//圆盘机开始
     UART2_Printf("%c", mode_red ? 0xAA : 0xBB);//告诉视觉红(0xAA)蓝(0xBB)方
 
@@ -1528,7 +1386,7 @@ int main(void)
     runActionGroup(1, 1);//不需要延时，因为和出发一起
     
     //先盲走到圆盘机中心+面向（★长距 418cm：两档标准里的 120/120）
-    ROBOT_Move(mode_red?-85:85,435,SPD_LONG_V,SPD_LONG_V,SPD_LONG_A,SPD_LONG_A);//58太靠右
+    ROBOT_Move(mode_red?-88:88,433,SPD_LONG_V,SPD_LONG_V,SPD_LONG_A,SPD_LONG_A);//58太靠右
     /* ★2026-09-20 新底盘：ROBOT_Move / ROBOT_Angle 都是阻塞式，且 ROBOT_Angle 会等到
        "航向到位 且 四轮真正停稳"才返回 —— 后面不用再补 HAL_Delay(100)"提高稳定性"了 */
     mode_red ? ROBOT_Angle(270) : ROBOT_Angle(90);
@@ -1557,8 +1415,7 @@ int main(void)
        ★现场核对：老注释里"滑 6~20cm 才停住"的现象应该消失；若落点整体偏前/偏后，
          直接改下面几条 ROBOT_Move 的固定位移量即可（不要再加反向冲/改裕量那类补丁）。 */
     const uint8_t  LINE_DBG_LOG  = 1;    /* ★诊断日志：1=开 0=关（把停车调好后改0） */
-    const int32_t  LINE_CRUISE_V = SPD_AVG_V;  /* 逼近速度 cm/s = SPD_AVG_V(匀速靠近档)：判断类只给 V（恒速），
-                                                    由灰度探头决定何时停；越慢落点越准，想调速就改 SPD_AVG_V */
+    /* 逼近速度直接用 SPD_AVG_V（见文件上方速度档）；原来这里有个 LINE_CRUISE_V，已被取代、删掉 */
     const uint32_t LINE_MAX_MS   = 6000; /* ★兜底：逼近最多 6s（正常 ≤2s），到点还没白线就停下报错 */
     uint8_t  line_g3_last = 0xFF;        /* 上一次打印过的 GRAY3 八位数字量 */
     uint32_t line_dbg_t   = 0;           /* 速度日志节流（每150ms一行） */
@@ -1776,7 +1633,7 @@ int main(void)
           ypj_last_frame_t = now;
 
           //右半边的球才拍，如果在左边那边触发拍球容易拍到下一个
-          if((cam_x >= 0 && cam_x <= 160)      // x为10~300，直接不限制，只要在屏幕内就拍
+          if((cam_x >= 100 && cam_x <= 320)      // x为10~300，直接不限制，只要在屏幕内就拍
               && (cam_y >= 0 && cam_y <= 240)){  // y为10~240
             if((now - ypj_last_hit_t) < YPJ_HIT_COOLDOWN_MS){
               /* ===== 冷却期：还是同一个球 / 上一拍动作还没执行完 → 忽略（防连拍关键）===== */
@@ -1866,7 +1723,7 @@ int main(void)
       //收起机械臂
       //重复了runActionGroup(0, 1);
       //向左平行到仓库（★长距 185/195cm：120/120）
-      ROBOT_Move(mode_red ? -185 : 195,0,SPD_LONG_V,SPD_LONG_V,SPD_LONG_A,SPD_LONG_A);//蓝要多走一点
+      ROBOT_Move(mode_red ? -190 : 195,0,SPD_SHORT_V,SPD_SHORT_V,SPD_SHORT_A,SPD_SHORT_A);//蓝要多走一点
       //转身（ROBOT_Move 已阻塞到车停稳，不用再补 HAL_Delay(100)）
       mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
       
@@ -1883,19 +1740,25 @@ int main(void)
 
       //定位操作：向左慢平移到左后光电感应到无障碍物
       //新：更改激光位置，让它在没对到障碍物时直接就已经是合适的位置，不需要调整
-      ROBOT_MoveSpeed(-SPD_AVG_V, 0);   //★匀速靠近：SPD_AVG_V
-      WAIT_WHILE(LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1, "YuanPanJi laser1 no-obstacle");
+      ROBOT_MoveSpeed(-5, 0);   //★匀速靠近：SPD_AVG_V
+      while(LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin));
+      // WAIT_WHILE(LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1, "YuanPanJi laser1 no-obstacle");
+
       SENSOR_STOP();      /* ★停车：速度环 target=0 主动反接刹车（不再自由滑行/不再反向冲）
                              ★若左边还差一点：在这里补一条固定左移
                                ROBOT_Move(-X, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A); */
 
       //加一次角度校准（ROBOT_Angle 已阻塞到停稳，不必再补延时）
-      mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
+      // mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
       //往右走固定距离（刚到对上仓库的距离）
-      //if(mode_red) ROBOT_Move(5, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);//20太大，速度100会飘，12太远
+      if(mode_red) ROBOT_Move(5, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);//20太大，速度100会飘，12太远
 
+      flag.angle = 0;
       runActionGroup(16, 1); 	//这里是倒球动作组
       delay_ms(2000);
+      flag.angle = 1;
+      //加一次角度校准（这些地方的角度很重要；ROBOT_Angle 已阻塞到停稳，不必再补延时）
+      mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
 
 ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto 跳到这一行往下执行 → 正面识别前
       ZhengMian_Flag = 1;//正面识别开始
@@ -1927,13 +1790,13 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
 
         //右+前，移动到阶梯附近,要往右多走点，不然撞到了，y160太远了，不利于视觉识别（★长距(100,150)：120/120）
         //要拆开两段走了，否则会撞到，先走x后走y
-        ROBOT_Move(100, 0, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
-        ROBOT_Move(0, 150, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
+        ROBOT_Move(70, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+        ROBOT_Move(0, 128, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
 
-        //向左慢走，直到前面的两个光电都感应到障碍物（右边坏了）
+        //向左慢走，直到前面的两个光电都感应到障碍物（右边坏了，左边拆了，复用立柱的）4左2右
         ROBOT_MoveSpeed(-SPD_AVG_V, 0);   //★匀速靠近：SPD_AVG_V
         //while(LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin)==0);
-        while(LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin)==0);//左后是1，右边为2，左前是3
+        while(LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin)==0);//左后是1，右边为2，左前是3
         ROBOT_MoveSpeed(0, 0);      //★停车（激光触发后立即给 0 速，速度环反接刹车）
 
         //往左走一定距离，视觉中能完整看到两个字母（可以省去测距前后校准）（★短距 40cm：20/30）
@@ -2072,127 +1935,110 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
       }
 
       if(JieTi_Flag == 1){//阶梯开始
-        /* 屏幕切到"阶梯"阶段：正面识别拿到的两个字母留在第1行(方便对照)，其余清掉；
-           阶梯阶段下面不再刷新屏幕，想加信息就在这几行后面加 */
-        OLED_Clear();
+        /* ==================== 阶梯阶段（模块化，序号与下面注释一一对应）====================
+           M1 视觉通信 : 收帧/解析(JieTi_VisionPoll) + 清帧 + 发 0xA3 + 读每坑的 cmd
+           M3 走位/计数: 每坑走固定距离(JIETI_STEP_CM / JIETI_STEP_CROSS_CM) + 计第几个坑
+           M5 动作组   : 识别位(54) / 夹取(57·60·63) / 回识别位(66) / 收尾抬臂(151)
+           M6 显示/收尾: OLED + 停车 + 交棒给"回家"
+           （原 M2 左右视觉对准、M4 前后距离校准 2026-09-21 都已删 —— 实测效果不好；
+             阶梯只走固定距离：位置 = 进阶梯时走近到 90mm 附近 + 每个坑走固定距离）
+           ============================================================================== */
+
+        /* ---- M6.1 屏幕初始化：字母留着，第2行标"step only"，第4行先显示 BLK -/8 ---- */
+        OLED_Clear();                                 //4行一起清掉（顺带清掉正面识别留在第3行的状态字）
         OLED_Printf(0,  0, OLED_8X16_HALF, "JIETI letter %c %c",
                     ZM_Nibble2Char(ZhengMian_Letter[0]), ZM_Nibble2Char(ZhengMian_Letter[1]));
-        OLED_Printf(0, 16, OLED_8X16_HALF, "scan & grab...");
+        OLED_Printf(0, 16, OLED_8X16_HALF, "step only");   //本阶段只走固定距离，不做逐坑校准
         OLED_Update();
-        JieTi_ShowBlockNo(0, 8, 0);   //第4行先显示"BLK -/8"，对准第1个坑后就变成 1/8
-        
-        //先左右再前后，因为激光太近的话，会直接以为是没有障碍物
-        //定位操作：向左慢平移到左前光电感应到无障碍物
-        ROBOT_MoveSpeed(-SPD_AVG_V, 0);//★匀速靠近：SPD_AVG_V（这里容易识别到字母上的黑，然后停下来）
-        //HAL_Delay(1000);//避免路上识别到字母然后停下来
-        /* ★超时保护：激光3(左前)一直报"有障碍物"时原来会无限往左走(车顶住左边不动=卡死)。
-           现在最多等 WAIT_TIMEOUT_MS，超时打 TIMEOUT 后照常停车继续走流程 */
-        WAIT_WHILE(LASER_Barrier(LASER3_GPIO_Port,LASER3_Pin)==1, "JIETI laser3 no-obstacle");
-        ROBOT_MoveSpeed(0, 0);      //★停车（速度环 target=0 反接刹车；ROBOT_Angle 会等到停稳）
+        JieTi_ShowBlockNo(0, 8, 0);   //第4行先显示"BLK -/8"，处理到第1个坑后就变成 1/8
 
-        //加一次角度校准，否则很歪影响测距（如果是start过来的，那就要改为如下的0）
-        //ROBOT_Angle(0);
-        //正常流程
-        mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
-        /* 记住这次校好的朝向 = 整个阶梯阶段的目标朝向：后面每次设速都用 JieTi_MoveSpeed()
-           把它恢复回去，角度环才会一直按这个朝向纠偏(否则每设一次速就把当前歪掉的朝向当新目标) */
+        /* ---- 到位①：左移找激光4（激光一离开障碍物就停）---- */
+        ROBOT_MoveSpeed(-SPD_AVG_V, 0);
+        /* ★超时保护：激光4一直报"有障碍物"时原来会无限往左走(顶住左边不动=卡死)，
+           现在最多等 WAIT_TIMEOUT_MS，超时打 TIMEOUT 后照常停车继续走流程 */
+        WAIT_WHILE(LASER_Barrier(LASER4_GPIO_Port,LASER4_Pin)==1, "JIETI laser4 no-obstacle");
+        ROBOT_MoveSpeed(0, 0);
+
+        /* ---- M3.1 朝向基准：转到"正对阶梯"的绝对角，并记住它当整段阶梯的锁向目标 ----
+           正常流程：红90/蓝270；跳转测阶梯(dbg_yaw_shift=1)：Yaw_Abs() 换算成 0/180（摆车时 0° 已是"右"）。
+           后面每次设速都用 JieTi_MoveSpeed() 把 target_yaw 恢复成这个值，角度环才会一直按它纠偏。 */
+        mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));
         jieti_keep_yaw = chassis.target_yaw;
 
-        //走近阶梯，走到合适距离（适合识别的距离）
-        JieTi_MoveSpeed(0, SPD_AVG_V);   //★匀速靠近：SPD_AVG_V
-        /* ★超时保护：前测距一直读不到目标(≤80mm)时原来会无限往前走(顶住阶梯不动=卡死) */
-        WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin)>JIETI_FWD_TARGET_MM,
-                   "JIETI walk-to-ladder(mm<=80)");//105mm：100靠太近，120太远(和校准用的是同一个值)
-        JieTi_MoveSpeed(0, 0);      //★停车（速度环 target=0 反接刹车）；ROBOT_Angle 已等到停稳，不必再补延时
+        /*激光校准，往右 5cm（激光刚离开时位置偏左,步往右测距出去了）*/
+        ROBOT_Move(11, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
 
-        //激光校准（激光刚离开时，位置偏右）（★短距 8cm：20/30；要≥20 才第一拍压过起转PWM立刻走）
-        ROBOT_Move(-8, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);//走多也没事
+        /* ---- 到位②：走近阶梯，前测距到 90mm 就停 ---- */
+        JieTi_MoveSpeed(0, SPD_AVG_V);
+        /* ★提前 20mm 停（不是读到 90 才停）：GY-53 一次读数 ≈200ms，10cm/s 逼近时"读到 ≤90mm"
+           那一刻车还会再往前冲 ≈2cm；提前量补上，停稳后就正好落在 90mm 附近。
+           （后面不再做任何测距校准，就按这个位置走） */
+        WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > (JIETI_FWD_TARGET_MM + 20),
+                   "JIETI walk-to-ladder(stop at 110mm=90+lead20)");
+        JieTi_MoveSpeed(0, 0);
 
-        //机械臂变成识别状态
+        /* ---- M5.1 机械臂到识别位 ---- */
         runActionGroup(54, 1);
         HAL_Delay(2000);
 
-        //清掉主视觉残留帧：只认进入对准后的实时坐标，避免拿校准途中收到的旧数据误判/误停
+        /* ---- M1.4 视觉通信：清残留帧 → 发 0xA3 告诉主视觉"进阶梯阶段"（之后它会按 A3 包上报每个物块的 cmd）---- */
         JieTi_FlushVision();
+        UART2_Printf("%c", 0xA3);
 
-        /* 阶梯目标对准逻辑见下方：主视觉A3数据包 0x00→继续右走；0x01→按x对直到|x|<=50停下 */
-        UART2_Printf("%c", 0xA3);//发0xA3告诉主视觉进入"阶梯目标对准"阶段(惯例同0xA1圆盘机/0xA2正面识别；若视觉端在收到0xA7后已自行上报A3帧，此行可删)
-
-        //左前光电无障碍物就开始从左往右走，边走边找目标，抓完一个继续抓下一个
-        JieTi_MoveSpeed(JIETI_ALIGN_SPEED, 0);   //右扫描起步(原来10太快，容易走歪)
-
-        /* ============ 阶梯连续抓取：8个坑固定位移步进 ============
-           数据包(7字节)：A3 | cmd | x低 | x高 | y低 | y高 | 0x0B包尾
-           x为像素坐标(16位,低字节在前,0~320)，程序里减160 = 距画面中心偏移(-160~160)；y是0~240(本阶段不用)
-           cmd含义由全局变量 JieTi_Grab_Mode 决定：
-             Mode=1 cmd==0x00 → 这个坑不用夹；cmd==0x01 → 这个坑要夹
-             Mode=2 cmd==0xMN(M=第几个坑1~8，N=低4位1要夹/0不要)，例：0x11=第1个要夹、0x60=第6个不要
-           流程(8个坑逐个来)：
-             第1个坑：从左往右边走边找，等目标进入对准带(|x|<=50) = 第1个
-             第2~8个：先走固定位移到下一个坑(粗定位)，再用视觉x对准(|x|<=50)
-                       同一阶梯内走 JIETI_STEP_CM(8cm)；换阶梯(第2→3个、第6→7个)走 JIETI_STEP_CROSS_CM(10cm)
-                       (走固定位移前后各用 ROBOT_Angle 校一次角度，防止一段段累积走歪)
-             对准之后(不管夹不夹都已经对准)：要夹就按坑号选动作组夹 + 66回识别状态；不夹直接下一个
-           计数：对准第1个=1，之后每走一段固定位移就+1(屏幕第4行显示 "BLK n/8 X±xx")；
-                 记满8且第8个处理完 → 阶梯结束(不再看光电)
-           夹取动作组：第1~2个(中阶梯)→57；第3~6个(高阶梯)→60；第7~8个(矮阶梯)→63
-        */
-        {
-          /* ===== 8个坑固定位移步进：对准(计数) → 夹/不夹 → 走固定位移 → 下一个 =====
-             第1个坑：从左往右边走边找，等目标进入对准带 = 第1个
-             第2~8个：先 ROBOT_Move 走到下一个坑(粗定位：同阶梯 JIETI_STEP_CM / 换阶梯 JIETI_STEP_CROSS_CM)，再用视觉x对准
-                      (ROBOT_Move 前、后各 ROBOT_Angle 校一次角度，走歪了立刻掰回锁向)
-             对准之后不论夹不夹都已经对准；要夹就按坑号选动作组(57/60/63)+66回识别状态 */
-          for(uint8_t idx = 1; idx <= 8; idx++){                  //第1~8个坑
-            if(idx > 1){
-              /* 到下一个坑：先停稳 → 校角度 → 走固定位移 → 再校角度
-                 (走固定位移容易走歪，两头都掰回 jieti_keep_yaw = 进阶梯时锁好的那个朝向；
-                  ROBOT_Angle 本身是阻塞式，等到航向误差进死区(1°)才返回，不用自己写等待) */
-              JieTi_MoveSpeed(0, 0);
-              if(jieti_keep_yaw >= 0.0f) ROBOT_Angle((uint32_t)(jieti_keep_yaw + 0.5f));  //走之前：先把朝向摆正
-              /* 到下一个坑走多远：换阶梯那一步(第2→3个、第6→7个，就是动作组57/60/63切换处)隔得远，走10cm；
-                 同一个阶梯里相邻坑走8cm */
-              int32_t step_cm = (idx == 3 || idx == 7) ? JIETI_STEP_CROSS_CM : JIETI_STEP_CM;
-              ROBOT_Move(step_cm, 0, JIETI_STEP_SPEED, 0, JIETI_STEP_ACC, 0);
-              if(jieti_keep_yaw >= 0.0f) ROBOT_Angle((uint32_t)(jieti_keep_yaw + 0.5f));  //走完：再摆正一次，消掉这段走歪的角度
-              JieTi_FlushVision();                                //丢掉移动途中的旧帧，只用站定后的新坐标
-            }
-
-            /* ---- 视觉对准(内部边走边实时测距，前后偏了就停下校准；万一这一坑没坐标：
-                    等1s → 右移2cm → 再等2s → 还是没有就放过，直接进下一个) ---- */
-            JieTi_GoAlign(idx == 1);
-
-            /* ---- 对准了就是第 idx 个坑：计数 + 屏幕显示 ---- */
-            jieti_blk_now = idx;
-            JieTi_ShowBlockNo(idx, 8, jieti_cam_x);
-
-            /* ---- 要不要夹：Mode1 cmd==0x01；Mode2 cmd低4位非0 ----
-               ★jieti_cmd 在 JieTi_GoAlign() 里"进来就清 0"，所以这一坑一帧都没收到 → 这里就是 0 → 不夹
-                 (以前它留着上一坑的值，空坑也会被当成"要夹") */
-            uint8_t need = (JieTi_Grab_Mode == 1) ? (jieti_cmd == 0x01)
-                                                  : ((jieti_cmd & 0x0F) != 0);
-            if(JIETI_VIS_LOG)                                   //日志：这一坑视觉给的是啥 + 最终判定(对着上面几行RX2看)
-              UART1_Printf("BLK %u/8 cmd=0x%02X need=%u\r\n",
-                           (unsigned)idx, (unsigned)jieti_cmd, (unsigned)need);
-            if(need){
-              /* 第1~2个→57矮阶梯夹；第3~6个→60高阶梯夹；第7~8个→63中阶梯夹 */
-              uint8_t act = (idx <= 2) ? 57 : ((idx <= 6) ? 60 : 63);
-              runActionGroup(act, 1);                             //夹取动作组
-              delay_ms(7500);                                     //夹取动作约7.5秒(矮阶梯更慢)
-              runActionGroup(66, 1);                              //夹完回到识别状态
-              delay_ms(3000);                                     //识别动作约3秒
-              JieTi_FlushVision();                                //清掉夹取期间滞留的旧帧
-            }
+        /* ==================== 8 个坑循环 ====================
+           每坑：走固定距离(M3) → 读这一坑"夹不夹"(M1.5) → 计数/显示(M3.3) → 按需夹取(M5.2)
+           · 位置：全靠"进阶梯时的到位 + 坑间距"决定（不做任何逐坑校准）。
+           · 朝向：底盘一直锁向(target_yaw = 进阶梯时校好的那个)，走位 20cm/s 期间角度环也在纠偏。
+           · cmd：站定后等一帧（视觉"有目标"才会发帧）；等不到 = 视野里没目标 = 这一坑不夹。
+           夹取动作组：第1~2个→57(中阶梯) / 第3~6个→60(高阶梯) / 第7~8个→63(矮阶梯)，夹完一律 66 回识别位。
+           数据包(7字节)：A3 | cmd | x低 | x高 | y低 | y高 | 0x0B；cmd 含义看全局 JieTi_Grab_Mode。 */
+        for(uint8_t idx = 1; idx <= 8; idx++){                  //第1~8个坑
+          /* ---- M3.2 到下一个坑：走固定距离 ---- */
+          if(idx > 1){
+            JieTi_MoveSpeed(0, 0);
+            /* 换阶梯那一步(第2→3个、第6→7个，就是动作组 57/60/63 切换处)隔得远，走 JIETI_STEP_CROSS_CM(10cm)；
+               同一个阶梯里相邻坑走 JIETI_STEP_CM(8cm) */
+            int32_t step_cm = (idx == 3 || idx == 7) ? JIETI_STEP_CROSS_CM : JIETI_STEP_CM;
+            ROBOT_Move(step_cm, 0, JIETI_STEP_SPEED, 0, JIETI_STEP_ACC, 0);
           }
 
+          /* ---- M1.5 读这一坑"夹不夹"：先按"不夹"，清掉走位途中的旧帧，再等一帧 cmd ----
+             （视觉协议：视野里没目标就一个字节都不发 → 等不到 = 这一坑没东西/不用夹） */
+          jieti_cmd = 0;
+          JieTi_FlushVision();
+          JieTi_GetVision(JIETI_VIS_MS);
+
+          /* ---- M3.3 计数 + 屏幕：处理到第 idx 个坑 ---- */
+          jieti_blk_now = idx;
+          JieTi_ShowBlockNo(idx, 8, jieti_cam_x);
+
+          /* ---- M1.5 要不要夹：Mode1 cmd==0x01；Mode2 cmd低4位非0 ----
+             ★进来前已把 jieti_cmd 清 0（上面那 3 行），所以这一坑一帧都没收到 → 这里就是 0 → 不夹 */
+          uint8_t need = (JieTi_Grab_Mode == 1) ? (jieti_cmd == 0x01)
+                                                : ((jieti_cmd & 0x0F) != 0);
+          if(JIETI_VIS_LOG)                          //日志：这一坑视觉给的是啥 + 最终判定(对着上面几行RX2看)
+            UART1_Printf("BLK %u/8 cmd=0x%02X need=%u\r\n",
+                         (unsigned)idx, (unsigned)jieti_cmd, (unsigned)need);
+
+          /* ---- M5.2 夹取：按坑号选动作组 ---- */
+          if(need){
+            uint8_t act = (idx <= 2) ? 57 : ((idx <= 6) ? 60 : 63);   //57矮 / 60高 / 63中阶梯
+            runActionGroup(act, 1);
+            delay_ms(7500);                          //夹取动作约7.5秒(矮阶梯更慢)
+            runActionGroup(66, 1);                   //夹完回到识别状态
+            delay_ms(3000);                          //识别动作约3秒
+            JieTi_FlushVision();                     //清掉夹取期间滞留的旧帧
+          }
         }
-        JieTi_MoveSpeed(0, 0);      //★停车（速度环 target=0 反接刹车）
+
+        /* ---- M6.2 收尾：停车 + 抬臂（M6.3 接着交棒给"回家"）---- */
+        JieTi_MoveSpeed(0, 0);
        
         //单独的机械臂抬起
         runActionGroup(151, 1);
         HAL_Delay(1000);
         
-        JieTi_Flag = 0;//阶梯结束，立柱开始
+        JieTi_Flag = 0;//M6.3 阶梯结束（下面按 JIETI_GO_HOME_DIRECT 交棒给"回家"）
         /* ★2026-09-15 修复"跑完阶梯不回家、车停着像卡死在阶梯"：
            原来这一行写的是 `HuiJia_Flag == 1;` —— 是"比较"，不是"赋值"，整条语句没有任何效果
            (编译器其实早就警告过：main.c 里那句 "statement with no effect [-Wunused-value]")。
@@ -2323,9 +2169,10 @@ HUIJIA_START:
     {
     //暂时的
           //ROBOT_Move(60, 0, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
-          mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);//车子前面朝右/朝左（★长距 (30,-145)：120/120）
-          ROBOT_Move(30, -145, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
-          ROBOT_Move(-75, 0, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
+          runActionGroup(0, 1);//复位
+          mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));//车子前面朝右/朝左（★长距 (30,-145)：120/120）
+          ROBOT_Move(30, -165, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_V, SPD_SHORT_A);
+          ROBOT_Move(-70, 0, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_V, SPD_SHORT_A);
 
 //往后慢退，直到测距测得合适距离（适合倒球的距离）
       ROBOT_MoveSpeed(0, -SPD_AVG_V);   //★匀速靠近：SPD_AVG_V
@@ -2342,31 +2189,31 @@ HUIJIA_START:
                              ROBOT_Move(-X, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A); */
 
       //加一次角度校准（ROBOT_Angle 已阻塞到停稳，不必再补延时）
-      mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
+      mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));
       //往右走固定距离（刚到对上仓库的距离）（★短距 20cm：20/30）
-      if(mode_red) ROBOT_Move(20, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+      if(mode_red) ROBOT_Move(22, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
 
       runActionGroup(16, 1); 	//这里是倒球动作组（复用圆盘机）
       delay_ms(2000);
 
       //★"前后抖"是故意快抖（不是走位），按两档标准里的特例保留 100
       for(uint8_t i = 0; i < 2; i++){//前后抖
-        ROBOT_Move(0, 2, 0, 100, 0, 100);
-        ROBOT_Move(0, -2, 0, 100, 0, 100);
+        ROBOT_Move(0, 4, 0, 160, 0, 160);
+        ROBOT_Move(0, -4, 0, 160, 0, 160);
       }
 
           runActionGroup(19, 1);//收倒球槽
           //往前走确保转方向不卡脚（★短距 15cm：20/30）
           ROBOT_Move(0, 15, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
-          ROBOT_Angle(0);//车子前面朝左
+          ROBOT_Angle(Yaw_Abs(0));//车子前面朝左
           
 
           //倒完方块转个身再回家
-          ROBOT_Angle(0);
+          ROBOT_Angle(Yaw_Abs(0));
           //往后多走一点，必须保证，前后在左右移动后能进入红色区域（★长距 230cm：120/120）
           ROBOT_Move(mode_red ? 30 : -30, -230, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);//60，-240能进
 
-          ROBOT_Angle(0);
+          ROBOT_Angle(Yaw_Abs(0));
           HuiJia_Flag = 1;
 
           //暂时的
@@ -2377,7 +2224,7 @@ HUIJIA_START:
     */
     //如果为黑色，匀速往右走，直到传感器进入红/蓝区域
     //去抖：连续3次(约150ms)都读到红/蓝才确认，交界处"红黑红黑"抖动不会误停
-    ROBOT_MoveSpeed(SPD_AVG_V, 0);   //★匀速靠近：SPD_AVG_V
+    ROBOT_MoveSpeed(5, 0);   //★匀速靠近：SPD_AVG_V,10太大了
     {
       uint8_t stable = 0;
       while(1){

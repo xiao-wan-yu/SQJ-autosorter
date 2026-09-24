@@ -42,6 +42,27 @@
                 "D:/STM32CubeIde/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.debug.openocd_2.3.400.202606220929/resources/openocd/st_scripts",
                 "${workspaceRoot}"          // 找工程根目录的 daplink_wireless.cfg
             ],
+            // 【2026.9.24 修正 · 让"烧完就自动跑新代码"不再依赖运气】
+            // 无线链路很慢（日志里 OpenOCD 一直报 keep_alive 超时 1~3.5s），
+            // 而 F5 的流程最后一步是 monitor reset halt（内核停在复位向量），
+            // 之后完全靠 GDB 的 continue 把它放开；这条 continue 一旦超时/丢失，
+            // 内核就永远停在 Reset_Handler 上 → 看起来"烧完没反应，要断电重启"。
+            // 下面两条做两件事：
+            //   1) preLaunchCommands: 把 GDB 的超时放宽到 30s（默认 2s 太紧）
+            //   2) postLaunchCommands: 显式清掉 DHCSR.C_HALT（0xA05F0001 =
+            //      DBGKEY|C_DEBUGEN，C_HALT=0）→ 内核立刻从复位向量开始跑新固件，
+            //      就算后面 GDB 的 continue 没送到，程序也已经在跑了。
+            //      真机实测：halting 时 DHCSR=0x00030003，写完后 =0x01010001（running）
+            // 注意：如果你要改成"停在 main 调试"（取消注释下面 runToEntryPoint），
+            //       建议把 postLaunchCommands 这行注释掉，否则程序在你停住之前就先跑起来了。
+            "preLaunchCommands": [
+                "set remotetimeout 30"
+            ],
+            "postLaunchCommands": [
+                "monitor mww 0xE000EDF0 0xA05F0001"
+            ],
+            // 明确"复位后不暂停"：否则内核会停在复位向量（= 那个"必须断电重启"的现象）
+            "breakAfterReset": false,
             // "runToEntryPoint": "main",
             "showDevDebugOutput": "none"
         },
@@ -64,7 +85,14 @@
             "searchDir": [
                 "D:/STM32CubeIde/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.debug.openocd_2.3.400.202606220929/resources/openocd/st_scripts"
             ],
-            // "runToEntryPoint": "main",   // 想让程序烧完停在 main 等调试再取消注释
+            // 【2026.9.24】与无线配置同样的"烧完立刻跑新代码"保障：
+            // postLaunchCommands 显式清 DHCSR.C_HALT，复位后内核马上从复位向量开始执行；
+            // 有线探头也照样受益（软复位不清调试寄存器，属于通用问题）。
+            "postLaunchCommands": [
+                "monitor mww 0xE000EDF0 0xA05F0001"
+            ],
+            "breakAfterReset": false,
+            // "runToEntryPoint": "main",   // 想让程序烧完停在 main 等调试再取消注释（那时把上面 postLaunchCommands 注释掉）
             "showDevDebugOutput": "none"
         },
         // ==================== 烧录选项 3：有线烧录（DAP-Link）====================
@@ -85,7 +113,12 @@
             "searchDir": [
                 "D:/STM32CubeIde/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.debug.openocd_2.3.400.202606220929/resources/openocd/st_scripts"
             ],
-            // "runToEntryPoint": "main",   // 想让程序烧完停在 main 等调试再取消注释
+            // 【2026.9.24】同上：烧完显式放行内核 + 复位后不暂停，直接跑新代码
+            "postLaunchCommands": [
+                "monitor mww 0xE000EDF0 0xA05F0001"
+            ],
+            "breakAfterReset": false,
+            // "runToEntryPoint": "main",   // 想让程序烧完停在 main 等调试再取消注释（那时把上面 postLaunchCommands 注释掉）
             "showDevDebugOutput": "none"
         }
     ]

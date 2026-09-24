@@ -29,6 +29,40 @@ git checkout main                        → 看完回到最新
 git show mywork:Mycode/car.c             → 找回旧代码里的文件
 
 ---------------------------------------------------------
+【⑥ 烧录完让新代码"立刻"跑起来（不用再断电重启）】
+· 平时：F5 选「无线烧录 DAPLink F407」→ 烧完自动复位直接跑新代码
+  （2026.9.24 起：launch.json 里加了 postLaunchCommands 显式写
+    DHCSR = 0xA05F0001 清 C_HALT，不再只靠 GDB 的 continue，
+    并加了 set remotetimeout 30 应付无线慢链路）
+· 一键（VS Code）：Ctrl+Shift+P → Tasks: Run Task →
+    烧录并运行 (Flash & Run)   = 自动 build + 烧录 + 复位运行（flash.bat）
+    复位并运行 (Reset & Run)   = 只复位+运行，不烧录（reset_run.bat）
+· 命令行： build.bat  →  flash.bat  ；板子停在复位向量没反应时 →  reset_run.bat
+· 判断烧进去的到底是不是最新固件：串口1(115200) 开机第一行会打
+    FW: NEW-CHASSIS 09-20 (... ) built <编译日期> <编译时间>
+  （时间不对 = 没重新 build 或没烧进去）
+
+  ★ 原理（2026.9.24 真机实测，别再改回去）★
+  1) OpenOCD 的 -c 命令是在 init 之前执行的：reset / halt / mww / mdw
+     这些"目标命令"要 init 之后才存在。顺序写错会报
+     invalid command name "reset"，而且**后面所有 -c 命令都会被跳过**，
+     于是"最后那脚让内核跑起来"的命令根本没执行。
+     flash.bat 里用 program（内部会 init）保证之后能用这些命令。
+  2) SYSRESETREQ（软复位）不会复位调试寄存器：烧录时内核被置成 HALT
+     （DHCSR.C_HALT=1），软复位后这一位还是 1 → 内核停在复位向量不动，
+     现象就是"烧完没反应、像还在跑旧程序"，只有断电（调试域掉电）才清掉。
+     解决：写 DHCSR(0xE000EDF0) = 0xA05F0001（DBGKEY|C_DEBUGEN，C_HALT=0）。
+     实测：halted 时读回 0x00030003 → 写完 0x01010001（正在跑）。
+  3) F5 流程最后一步是 monitor reset halt（内核停在复位向量），之后完全靠
+     GDB 一条 continue 放开它；无线链路慢（日志里 keep_alive 超时 1~3.5 秒），
+     这条 continue 一丢就卡住。所以现在加了显式放行 + 放宽 GDB 超时。
+  4) 想看内核当前状态（在跑还是在 halt）：
+     在工程目录执行下面这行，S_HALT（bit17）为 0 就是在跑：
+     "D:\STM32CubeIde\...\openocd.exe" -s . -s "...\st_scripts" ^
+        -f daplink_wireless.cfg -f target/stm32f4x.cfg ^
+        -c "init" -c "mdw 0xE000EDF0 1" -c "exit"
+
+---------------------------------------------------------
   第一次（仅一次）
 ---------------------------------------------------------
 · 备份仓库 main 第一次推送（备份脚本第一次会失败时用）：

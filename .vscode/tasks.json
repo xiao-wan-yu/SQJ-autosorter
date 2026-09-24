@@ -18,6 +18,12 @@
             "dependsOn": "Build STM32 Project",
             "dependsOrder": "sequence",
             "problemMatcher": []
+        },
+        {
+            "label": "复位并运行 (Reset & Run)",
+            "type": "shell",
+            "command": "${workspaceFolder}/reset_run.bat",
+            "problemMatcher": []
         }
     ]
 }

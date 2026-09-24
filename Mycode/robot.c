@@ -55,9 +55,12 @@ void ROBOT_Angle(uint32_t target_angle){
    目标速度已归零"，车还带着惯性在滑 —— 此时立刻返回，调用侧的下一条动作就会叠在
    一台还没停稳的车上。*/
 #define MOVE_STOP_SPEED_TH   3.0f   // 单轮算"停住"的速度阈值 cm/s（20ms 下 1 个编码器脉冲=2.27cm/s，取约 1 个台阶）
-#define MOVE_STOP_CONFIRM    8      // 连续满足多少次才算停稳（每次 HAL_Delay(5) ⇒ 约 40ms，覆盖 2 个控制周期）
-#define MOVE_STOP_TIMEOUT_MS 3000   // 等停超时 ms（坡道/外力都可能让轮子一直微动，到点必须放行）
-                                    // 2026-09-19 用户定 3000ms（原 500）
+#define MOVE_STOP_CONFIRM    40     // 判据要连续满足多少次才算停稳（每次 HAL_Delay(5) ⇒ 约 200ms）
+                                    // 2026-09-21 用户定 200ms（原 8 次 ≈ 40ms）：与 chassis.h 的
+                                    // YAW_STOP_CONFIRM(10 个控制周期 = 200ms) 对齐，两条函数同长
+                                    // ★ 每次迭代实际比 5ms 略多（还要跑 4 轮判断），所以是"≥200ms"
+#define MOVE_STOP_TIMEOUT_MS 8000   // 等停超时 ms（坡道/外力都可能让轮子一直微动，到点必须放行）
+                                    // 2026-09-21 用户定 8000ms（原 3000）
                                     // ★ 现在"航向环纠偏让轮子微动"是真的会发生了（见文件头）：
                                     //   规划跑完 v 归零 → 落旋转档 → 车头不在 target_yaw 上就纠偏
                                     //   → 轮子转起来，本循环的"四轮都停"判据被拖住，最坏到点放行
@@ -75,8 +78,9 @@ void ROBOT_Angle(uint32_t target_angle){
   *        位移是车身坐标系（前方 y+、右方 x+），与底盘 v_x/v_y 定义一致，直接映射。
   *        ★ 调用期间角度环**不再被屏蔽**（原 bypass 机制已删，见文件头）：平移中按合速度
   *          自动决定纠不纠 —— 低于 YAW_MOVE_MIN_SPEED(20) 不介入，20~80 走低速档纠偏。
-  *        规划结束 v_x/v_y 已归零，随后再等四轮实际速度停稳才返回
-  *        （连续 40ms 进阈值；最长 MOVE_STOP_TIMEOUT_MS=3000ms 超时放行）。
+  *        规划结束 v_x/v_y 已归零，随后再等"四轮目标速度为0 且 实测速度停稳 且 角度环已在
+  *        死区内(w==0)"连续 200ms 保持才返回（最长 MOVE_STOP_TIMEOUT_MS=8000ms 超时放行），
+  *        返回前清掉四轮速度环积分项。
   */
 void ROBOT_Move(int32_t x_distance, int32_t y_distance,
                 int32_t x_maxspeed, int32_t y_maxspeed,
@@ -90,28 +94,39 @@ void ROBOT_Move(int32_t x_distance, int32_t y_distance,
     HAL_Delay(5);
   }
 
-  /* 规划结束后再等四轮真正停稳（2026-09-18 加）：上一步跳出时只是"减速段走完 + v_x/v_y 已归零"，
-     车还带着惯性在滑，直接返回的话调用侧的下一条动作会叠在没停稳的车上。
-     判据：四轮 |actual| 全部小于阈值（约 1 个编码器量化台阶），并连续保持 MOVE_STOP_CONFIRM 次。
-     ★ 不能判严格 ==0：20ms 下 1 个脉冲就是 2.27cm/s，车基本停住时编码器偶尔抖出 1 个脉冲，
-       actual 会在 0 和 ±2.27 之间跳，等不到"连续为 0"。
-     ★ 必须有超时兜底：地面有坡、有人推车、或航向环纠偏让轮子微动时，"四轮都为 0"
-       永远不成立，到点必须放行，否则队友的比赛流程会卡死在这里。
-       （航向环这条现在真的会发生：跑完 v 归零落旋转档，车头没对正 target_yaw 就转。）
-     注：actual 由 TIM7 中断里的控制循环写、这里读；M4 上 float 单次访问不会撕裂，无需临界区。 */
+  /* 规划结束后再等车真正停稳（2026-09-18 加，2026-09-21 加严）：上一步跳出时只是"减速段走完
+     + v_x/v_y 已归零"，车还带着惯性在滑，直接返回的话调用侧的下一条动作会叠在没停稳的车上。
+     判据（三条全部满足，连续保持 MOVE_STOP_CONFIRM 次）：
+       ① 四轮**目标速度**严格为 0   ② 四轮**实测速度**低于阈值   ③ 角度环已在死区内（w==0）
+     ★ ①为何用严格 ==0：target 是控制循环上一周期刚算出来的（v_y±v_x∓w*half_sum），四项都归零
+       就是精确的 0.0f，没有量化噪声。它非 0 说明"还有指令在推轮子"（典型：航向环在纠偏）。
+     ★ ②为何只能用阈值：actual 来自编码器，20ms 下 1 个脉冲就是 2.27cm/s，车基本停住时
+       偶尔抖出 1 个脉冲，actual 在 0 和 ±2.27 之间跳，严格判 0 会永远等不到。
+     ★ ③为何判 chassis.w 而不是 yaw_pid.out：死区内控制循环把 w 归零，而 yaw_pid.out 那个
+       PID 内部计算值并不清零，拿它判会永远不成立（见 chassis.c 航向环死区段）。
+     ★ 必须有超时兜底：地面有坡、有人推车、或航向环纠偏让轮子微动时，判据永远不成立，
+       到点必须放行，否则队友的比赛流程会卡死在这里。超时同样走下面的清积分。
+     注：actual/target/w 由 TIM7 中断里的控制循环写、这里读；M4 上 float 单次访问不会撕裂，
+        无需临界区。 */
   uint32_t stop_t0  = HAL_GetTick();
   uint8_t  stop_cnt = 0;
   while(HAL_GetTick() - stop_t0 < MOVE_STOP_TIMEOUT_MS){
     uint8_t stopped = 1;
     for(uint8_t i = CHASSIS_MOTOR_LF; i <= CHASSIS_MOTOR_RF; i++){
-      if(fabsf(chassis.speed_pid[i].actual) >= MOVE_STOP_SPEED_TH){ stopped = 0; break; }
+      if(chassis.speed_pid[i].target != 0.0f){ stopped = 0; break; }                       // ① 目标速度必须为 0
+      if(fabsf(chassis.speed_pid[i].actual) >= MOVE_STOP_SPEED_TH){ stopped = 0; break; }  // ② 实测速度停住
     }
-    if(stopped){
+    if(stopped && chassis.w == 0.0f){                                                      // ③ 角度环已在死区
       if(++stop_cnt >= MOVE_STOP_CONFIRM) break;   // 连续保持够久 → 确认停稳
     }else{
-      stop_cnt = 0;                                // 中途有轮子又动了 → 重新计数
+      stop_cnt = 0;                                // 轮子又动 / 航向环又输出 → 重新计数
     }
     HAL_Delay(5);
+  }
+  /* 退出前清四轮速度环积分项（2026-09-21 用户要求）：这一趟规划攒下的 i_out 不该带到下一个
+     动作去，否则下次起步会带着旧积分多冲一下。正常停稳和超时放行都清（两条路都走到这）。 */
+  for(uint8_t i = CHASSIS_MOTOR_LF; i <= CHASSIS_MOTOR_RF; i++){
+    chassis.speed_pid[i].i_out = 0.0f;
   }
 }
 
