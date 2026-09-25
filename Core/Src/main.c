@@ -85,10 +85,11 @@
    ★默认值(0=完整流程)时，主流程一条语句都不变，和不加这套调试入口时完全一样。
    新增一个起点只需4步：① 这里加一个 DBG_START_xxx；② 在 DBG_START_NAME/DESC 表里加一项；
                         ③ 在 main() 的"调试起点跳转"处加一个 goto；④ 在对应阶段开头打个标签(xxx_START:) */
-#define DBG_START_ALL        0      //完整流程：圆盘机→仓库倒球→正面识别→阶梯→回家(默认)
+#define DBG_START_ALL        0      //完整流程：圆盘机→仓库倒球→正面识别→阶梯→立柱→仓库倒方块→回家(默认)
 #define DBG_START_ZHENGMIAN  1      //从"正面识别前"开始：跳过圆盘机+仓库倒球，车自己走到阶梯识别位
-#define DBG_START_HUIJIA     2      //从"回家"开始：跳过前面全部，直接跑回家那段(红蓝区找色→停进红蓝区)
-#define DBG_START_COLORCAL   3      //★颜色传感器单独校准：黑→红→蓝→白 四色重标定判色阈值(与比赛流程无关，跑完回菜单)
+#define DBG_START_LIZHU      2      //★从"立柱"开始：直接跑 立柱前校准 → 绕柱转圈 → 仓库倒方块 → 回家
+#define DBG_START_HUIJIA     3      //从"回家"开始：跳过前面全部，直接跑回家那段(红蓝区找色→停进红蓝区)
+#define DBG_START_COLORCAL   4      //★颜色传感器单独校准：黑→红→蓝→白 四色重标定判色阈值(与比赛流程无关，跑完回菜单)
 #define DBG_START_MAX        DBG_START_COLORCAL  //按键0 循环切换的上限(=最后一个起点)
 
 /* ==================== ★★ 移动速度三档标准（2026-09-20 换新底盘后统一）★★ ====================
@@ -141,8 +142,8 @@ uint8_t JieTi_Grab_Mode = 1;   // 现场切换时改这里（置1/置2）
 
 /* ★调试起始阶段的名字/说明(顺序必须和 DBG_START_xxx 一致)：OLED 第3行"k3:GO xxx"+第4行说明用，
    8x16半高字体一行最多16个字符，名字/说明都别写太长 */
-static const char * const DBG_START_NAME[] = { "ALL", "ZM", "HOME", "CAL" };
-static const char * const DBG_START_DESC[] = { "full flow", "front recog", "go home", "color calib" };
+static const char * const DBG_START_NAME[] = { "ALL", "ZM", "LZ", "HOME", "CAL" };
+static const char * const DBG_START_DESC[] = { "full flow", "front recog", "pillar run", "go home", "color calib" };
 
 
 /* USER CODE END PV */
@@ -300,12 +301,15 @@ static void ZM_ShowComm(int rx4, int rx2){
 #define JIETI_STEP_ACC        30     //★加减速(cm/s^2)：8cm 按 20/30 走是三角波，峰值只有 √(30×8)=15.5cm/s(<20)，
                                       //  第一拍 kp×v 压不过起转PWM → 每步会先迟滞一下再窜出去(能走，就是慢半拍)；
                                       //  想"一拍就起转"把它提到 100~150（8cm 就变成正常梯形，2cm 内到 20cm/s）
-/* ---------------- ★阶梯跑完去哪儿(修"跑完阶梯不回家/卡死在阶梯") ----------------
-   1 = 阶梯跑完直接进"回家"段(跳过被 if(0) 禁用的立柱段)；
-   0 = 老设计：不在这里置位，靠"立柱"段末尾置 HuiJia_Flag(前提是把立柱段的 if(0) 恢复成 if(LiZhu_Flag == 1))
-   ★注意"回家"段的头几步位移是按"立柱/仓库那边跑完"的位置写的，从阶梯旁直接进回家段时，
-     若落点不对，改回家段最前面那几条 ROBOT_Move 即可(见 HUIJIA_START 标签)。 */
-#define JIETI_GO_HOME_DIRECT    1     //阶梯跑完直接回家(1) / 走完立柱再回家(0)
+/* ---------------- ★★ 阶梯跑完去哪儿：**就一个开关**，改这一个数即可切换 ----------------
+   1 = 阶梯跑完先去【立柱】：绕柱一圈(LiZhu_Circle_Run) → 走到仓库中间倒方块 → 再回家（★正常流程用这个）
+   0 = 阶梯跑完【直接回家】：跳过立柱段（临时简化流程/单独测后面几段时用）
+   ★立柱段和回家段里的绝对角都过了 Yaw_Abs()：跳转测试(yaw_shift_deg≠0)时自动换算，
+     正常流程(yaw_shift_deg=0)原样不变，所以这个开关两种情况下都能用。
+   ★跳转测试的红蓝摆车姿态相差 180°（场地镜像）：SetYawShift(红方姿态角) 会自动给蓝方 +180°。
+   ★注意"回家"段的头几步位移是按"立柱那边跑完"的位置写的；若置 0 从阶梯旁直接回家、
+     落点不对，改回家段最前面那几条 ROBOT_Move 即可(见 HUIJIA_START 标签)。 */
+#define JIETI_GO_LIZHU          1     //★1=阶梯跑完先去立柱   0=阶梯跑完直接回家
 /* ---------------- ★"等到条件满足"类死等的超时保护(修"车停着不动=卡死") ----------------
    阶梯/仓库/回家几个定位点都是 `while(激光或测距还没到位);` 这种原地空转等待：
    设计上"走十几厘米就该满足"，但传感器没接好 / 读数卡住 / 车被顶住时永远出不来——
@@ -341,23 +345,28 @@ static void ZM_ShowComm(int rx4, int rx2){
      而不是让哨兵把"当前已经走歪的朝向"当新目标锁住。 */
 static float jieti_keep_yaw = -1.0f;   //阶梯阶段目标朝向(°)，-1=还没锁(没锁就不动它)
 
-/* ================== ★调试跳转的"角度基准换算"（2026-09-21）==================
-   为什么需要它（"单独测阶梯/回家角度乱套"的根因）：
+/* ================== ★调试跳转的"角度基准换算"（2026-09-21，每个起点一套 + 红蓝差180°）==================
+   为什么需要它（"单独测某一段时角度乱套"的根因）：
      · 正常发车：上电时车头朝前 → HWT101CT 的 0° 就是"前"，所以程序里的绝对角
        0=前 / 90=右 / 180=后 / 270=左 都是按"场地"说的。
-     · 单独测阶梯/回家：车是**按"倒完球那一步的姿态"摆好再上电**的（正常流程在那一步车头朝"右"），
-       于是 0° 变成了"右" —— 整套绝对角相对场地都转过了 DBG_YAW_SHIFT(90°)，
-       再直接拿去 ROBOT_Angle 就会白转一个角度、越走越乱。
-   做法：跳转入口把 dbg_yaw_shift 置 1，之后**每一处绝对角都过一遍 Yaw_Abs()**：
-     Yaw_Abs(90)→0、Yaw_Abs(270)→180、Yaw_Abs(0)→270 …… 也就是"跳转进来就用另一套角度转"。
-   正常流程(dbg_yaw_shift=0)一律原样返回，行为一个字都不变。
-   ★摆车姿态必须是"倒完球那一步的样子"（红方车头朝右 / 蓝方朝左）SHIFT 才是 90；
-     换别的摆法只改 DBG_YAW_SHIFT 这一个数。 */
-#define DBG_YAW_SHIFT   90U          //跳转测试时"摆车姿态"相对正常"车头朝前"转过的角度(°)
-static uint8_t  dbg_yaw_shift = 0;   //1=本次是调试跳转进来的 → 绝对角按上面那套换算
+     · 单独测某一段：车是**按那一段起点的姿态摆好再上电**的 → HWT 的 0° 变成"那一段的车头方向"，
+       整套绝对角相对场地都转过了一个角度，再直接拿去 ROBOT_Angle 就会白转、越走越乱。
+   做法：跳转入口调用 SetYawShift(红方姿态角)，它会按红蓝自动补 180°（场地镜像），
+        之后**每一处绝对角都过一遍 Yaw_Abs()**：
+          · ZM / HOME 起点：红方摆"倒完球姿态"(车头朝右 → 90)  → 蓝方自动 270(车头朝左)
+          · LZ      起点：红方摆"立柱起点姿态"(车头朝左 → 270) → 蓝方自动  90(车头朝右)
+        例：shift=270 时 Yaw_Abs(270)→0（=摆车朝向，不转）、Yaw_Abs(90)→180、Yaw_Abs(0)→90。
+   正常流程(yaw_shift_deg=0)时 Yaw_Abs() 原样返回，行为一个字都不变。 */
+static uint16_t yaw_shift_deg = 0;   //0=不换算；否则=本次摆车姿态相对"车头朝前"转过的角度(°)
 static uint32_t Yaw_Abs(uint32_t normal_angle){   //把"正常基准角"换算成本次实际该转的角度
-  if(!dbg_yaw_shift) return normal_angle;
-  return (normal_angle + (360U - DBG_YAW_SHIFT)) % 360U;
+  if(yaw_shift_deg == 0) return normal_angle;
+  return (normal_angle + (360U - yaw_shift_deg)) % 360U;
+}
+/* 跳转测试的角度基准统一入口：红方传"红方摆车姿态角"，蓝方自动 +180°（场地镜像） */
+static void SetYawShift(uint16_t red_shift_deg){
+  yaw_shift_deg = (uint16_t)((red_shift_deg + (mode_red ? 0U : 180U)) % 360U);
+  UART1_Printf("DEBUG: yaw base shift = %u deg (mode %s)\r\n",
+               (unsigned)yaw_shift_deg, mode_red ? "RED" : "BLUE");
 }
 
 //在原有基础上加了锁定目标朝向的代码：设完速度立刻把目标朝向恢复回进入阶梯时校好的那个值
@@ -898,6 +907,20 @@ static void COLOR_Calib_Run(void)
   }
 }
 
+/* ================= 回家阶段：读一次颜色 + 把"当前判成什么色"显示到 OLED 第3行 =================
+   回家段全靠颜色传感器判断"进没进红/蓝区"，现场盯屏幕就能看出它现在判成什么色。
+   显示格式：第3行(y=32) "COL:BLACK / RED / BLUE / ..."（判色规则见 tcs34725.h 的编译期阈值）。
+   ★只有在"等颜色"的循环里调用：每次采样读一次、顺手刷一行屏，不额外占时间；
+     返回值 = TCS34725_ClassifyColor() 的结果（调用方的判黑/判非黑逻辑一模一样，没变）。 */
+static uint8_t TCS_PollColor(TCS34725_RGBC *rgbc){
+  TCS34725_GetRawData(rgbc);                     //和原来一样：读一次（不看返回值）
+  uint8_t col = TCS34725_ClassifyColor(rgbc);    //按 HSV 判色
+  OLED_ClearArea(0, 32, 128, 16);                //只清第3行
+  OLED_Printf(0, 32, OLED_8X16_HALF, "COL:%s", TCS34725_ColorName(col));
+  OLED_Update();
+  return col;
+}
+
 /**
   * @brief  The application entry point.
   * @retval int
@@ -1333,29 +1356,38 @@ int main(void)
                                      → 和"没有这套调试入口"时完全一致；
        ★跳转代码放在菜单while外面，就是为了让"完整流程"连一条语句都不变。 */
     /* ★每次运行开始先把"角度基准换算"复位：它是静态变量，跑过一次跳转起点后若不清，
-       切回完整流程(dbg_start=ALL)时还会带着 dbg_yaw_shift=1 → 所有绝对角都被换算，那就错了。 */
-    dbg_yaw_shift = 0;
+       切回完整流程(dbg_start=ALL)时还会带着上一段的换算 → 所有绝对角都被换算，那就错了。 */
+    yaw_shift_deg = 0;
     if(dbg_start == DBG_START_ZHENGMIAN){
       /* 从"正面识别前"开始：跳过圆盘机+仓库倒球，直接跳到 ZHENGMIAN_START 标签往下执行
          （往下依次是：收倒球槽 → 走到阶梯识别位 → 左前光电对准 → 清串口残留 → 发0xA2通信流程 → 阶梯 → 回家）
          ★车会先自己走到阶梯识别位，所以先把车放在圆盘机/仓库方向随便一点的位置即可 */
       UART1_Printf("DEBUG: start from ZHENGMIAN (before front recognize)\r\n");
-      /* ★★ 角度基准：本次车是"按倒完球那一步的姿态"摆好再上电的（正常流程在那里车头朝右），
-         HWT101CT 的 0° 就变成了"右"，所有绝对角整体差 90° → 置位 dbg_yaw_shift，
-         之后每一处 ROBOT_Angle 都走 Yaw_Abs() 换算过的那一套角度（见文件上方说明）。
-         摆车要求：位置按"倒完球"那附近放、**车头朝向按那一步的姿态摆正**（红方朝右/蓝方朝左），
-         因为基准就是这么来的、程序不会再纠正你。 */
-      dbg_yaw_shift = 1;
-      UART1_Printf("DEBUG: yaw base shift ON (%u deg) for this run\r\n", (unsigned)DBG_YAW_SHIFT);
+      /* ★★ 角度基准：本次车是"按倒完球那一步的姿态"摆好再上电的
+         （红方车头朝右=基准90°，蓝方自动 +180°=270°即车头朝左，两边差 180°）
+         → SetYawShift() 会按红蓝自动设好 yaw_shift_deg，之后每一处 ROBOT_Angle 都走 Yaw_Abs()。 */
+      SetYawShift(90);
       //跳过了圆盘机，就没走"告诉视觉红(0xAA)蓝(0xBB)方"那一步，这里补上（视觉也得知道红/蓝方）
       UART2_Printf("%c", mode_red ? 0xAA : 0xBB);//告诉视觉红(0xAA)蓝(0xBB)方
       goto ZHENGMIAN_START;
     }
+    else if(dbg_start == DBG_START_LIZHU){
+      /* 从"立柱"开始：直接跳到 LIZHU_START 标签往下执行
+         （立柱前校准：往左 5cm/s 直到两个激光都有障碍物 → 向前 5cm/s 到前测距 200mm
+           → LiZhu_Circle_Run() 绕柱转圈 → 走到仓库中间倒方块 → 回家）
+         ★角度基准：立柱起点的车头是"朝左"(红方基准 270°) → 蓝方自动 +180° = 90°(车头朝右)，
+           两边差 180°；换算后 Yaw_Abs(270)=0，即"按这个姿态摆好就不转"。 */
+      UART1_Printf("DEBUG: start from LIZHU (pillar)\r\n");
+      SetYawShift(270);
+      LiZhu_Flag = 1;     //"立柱"段的进入条件
+      goto LIZHU_START;
+    }
     else if(dbg_start == DBG_START_HUIJIA){
       /* 从"回家"开始：跳过前面全部阶段，直接跳到 HUIJIA_START 标签往下执行（红蓝区找色→停进红蓝区）
-         ★同 ZM 起点：车是按"倒完球那一步的姿态"摆的，绝对角整体差 90° → 置位换算标志 */
+         ★角度基准和"单独测阶梯(ZM)"完全一样：红方按"倒完球姿态"(车头朝右)摆、蓝方自动 +180°(朝左)，
+           本段所有绝对角都走 Yaw_Abs() 换算。 */
       UART1_Printf("DEBUG: start from HUIJIA (go home)\r\n");
-      dbg_yaw_shift = 1;  //本段里的绝对角(90/270/0)都走 Yaw_Abs() 换算（见文件上方说明）
+      SetYawShift(90);   //和 ZM 起点同一套（红90 / 蓝270）
       HuiJia_Flag = 1;   //"回家"那段的进入条件是 HuiJia_Flag==1：正常流程由前面阶段置位，这里跳转就先自己立好
                          //(其余阶段标志 YuanPanJi_Flag/JieTi_Flag/LiZhu_Flag 出菜单时本来就都是0，不用管)
       goto HUIJIA_START;
@@ -1939,7 +1971,7 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
            M1 视觉通信 : 收帧/解析(JieTi_VisionPoll) + 清帧 + 发 0xA3 + 读每坑的 cmd
            M3 走位/计数: 每坑走固定距离(JIETI_STEP_CM / JIETI_STEP_CROSS_CM) + 计第几个坑
            M5 动作组   : 识别位(54) / 夹取(57·60·63) / 回识别位(66) / 收尾抬臂(151)
-           M6 显示/收尾: OLED + 停车 + 交棒给"回家"
+           M6 显示/收尾: OLED + 停车 + 按 JIETI_GO_LIZHU 交棒给"立柱"或"回家"
            （原 M2 左右视觉对准、M4 前后距离校准 2026-09-21 都已删 —— 实测效果不好；
              阶梯只走固定距离：位置 = 进阶梯时走近到 90mm 附近 + 每个坑走固定距离）
            ============================================================================== */
@@ -1960,7 +1992,8 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
         ROBOT_MoveSpeed(0, 0);
 
         /* ---- M3.1 朝向基准：转到"正对阶梯"的绝对角，并记住它当整段阶梯的锁向目标 ----
-           正常流程：红90/蓝270；跳转测阶梯(dbg_yaw_shift=1)：Yaw_Abs() 换算成 0/180（摆车时 0° 已是"右"）。
+           正常流程：红90/蓝270（两边差180°）；跳转测阶梯：红方 shift=90 / 蓝方 shift=270，
+           Yaw_Abs() 换算后都是"按摆车姿态不转"（摆车时 0° 已经就是该段的车头方向）；
            后面每次设速都用 JieTi_MoveSpeed() 把 target_yaw 恢复成这个值，角度环才会一直按它纠偏。 */
         mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));
         jieti_keep_yaw = chassis.target_yaw;
@@ -2031,30 +2064,21 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
           }
         }
 
-        /* ---- M6.2 收尾：停车 + 抬臂（M6.3 接着交棒给"回家"）---- */
+        /* ---- M6.2 收尾：停车 + 抬臂（M6.3 接着按 JIETI_GO_LIZHU 交棒给"立柱"或"回家"）---- */
         JieTi_MoveSpeed(0, 0);
        
         //单独的机械臂抬起
         runActionGroup(151, 1);
         HAL_Delay(1000);
         
-        JieTi_Flag = 0;//M6.3 阶梯结束（下面按 JIETI_GO_HOME_DIRECT 交棒给"回家"）
-        /* ★2026-09-15 修复"跑完阶梯不回家、车停着像卡死在阶梯"：
-           原来这一行写的是 `HuiJia_Flag == 1;` —— 是"比较"，不是"赋值"，整条语句没有任何效果
-           (编译器其实早就警告过：main.c 里那句 "statement with no effect [-Wunused-value]")。
-           于是下面 `if(HuiJia_Flag == 1)` 的"回家"段永远不成立；
-           而唯一会把它置 1 的地方在"立柱"段末尾(本段更下面)，那段又被 `if(0)` 整段禁用 →
-           阶梯跑完后所有阶段标志全是 0，主循环一路空转回最上面的"红蓝方选择"菜单：
-           车停着不动、屏幕停在最后画面、串口也不再打印，看起来就是"卡死在阶梯"。
-           现在按 JIETI_GO_HOME_DIRECT 真正赋值：默认=阶梯跑完直接进"回家"段。
-           想走"阶梯→立柱→回家"的老流程：① 把 JIETI_GO_HOME_DIRECT 置 0
-                                        ② 打开下一行 //LiZhu_Flag = 1;
-                                        ③ 把下面 if(0) 改回 if(LiZhu_Flag == 1) */
-        if(JIETI_GO_HOME_DIRECT) HuiJia_Flag = 1;   //★必须是"赋值"：写成 == 就永远回不了家
-        //LiZhu_Flag = 1;//因为中途没去仓库，所以两个状态需要同时切换
+        JieTi_Flag = 0;                     //M6.3 阶梯结束
+        /* ★阶梯跑完去哪儿：就按上面那个开关 JIETI_GO_LIZHU 走（改一个数就能切回来）
+           1 → 先进"立柱"段（绕柱 → 仓库倒方块 → 回家；★正常流程）   0 → 跳过立柱、直接进"回家"段
+           ★这里必须用"赋值"，别写成 ==（历史上写成 == 导致阶段标志全是 0、车停在阶梯不动） */
+        if(JIETI_GO_LIZHU) LiZhu_Flag = 1;  //去立柱（立柱段末尾自己会置 HuiJia_Flag=1 接回家）
+        else               HuiJia_Flag = 1; //直接回家
 
-        if(0)
-        //if(LiZhu_Flag == 1)//立柱开始
+        if(LiZhu_Flag == 1)//立柱开始
         {
           
           runActionGroup(0, 1);//复位
@@ -2062,61 +2086,33 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
           ROBOT_Move(-45, -35, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
           
           //好像前面把角度清0了，此时正对阶梯为0（不对，依然是正对阶梯为90呢）
-          ROBOT_Angle(270);
+          ROBOT_Angle(Yaw_Abs(270));   //正对阶梯/立柱(跳转测试时自动换算)
           //ROBOT_Angle(180);
-          
-          //这里是校准到正对立柱
-          /* ====== 立柱前校准：先左右(激光)再前后(测距)，校准完再转圈 ======
-             前提(现场保证)：车在立柱右边、一开始前测距 > 200mm。
-             左右：10cm/s 往左走，右激光(激光3)看到柱面就停；停下检验两个激光：
-                   两个都有=左右正对；只有右有(往左走多了)→往右补 2cm；只有左有/都没有→往左补 2cm；
-                   每次停下都再检验一遍，直到两个都有。
-             前后：往前走，测距进 190~210mm 就停；停下再验一次，不在 200 附近就按差值用 ROBOT_Move 补。 */
-          {
-            float    lz_yaw = chassis.target_yaw;      //270°(ROBOT_Angle 校好的朝向)：置零后锁回来，
-                                                       //  否则 ROBOT_MoveSpeed 的哨兵会把"当前歪掉的朝向"当新目标
-            uint32_t lz_t0  = HAL_GetTick();
 
-            //---- 第一步：20cm/s 往左走，右激光(激光3)有障碍物就停 ----
-            ROBOT_MoveSpeed(-(float)SPD_AVG_V, 0.0f);
-            while(LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin) == 0){   //右激光看到柱面 → 跳出
-              if(HAL_GetTick() - lz_t0 > 5000U) break;                  //5s 还没看到：别一直往左跑(防异常)
-            }
-            ROBOT_MoveSpeed(0.0f, 0.0f);
-            chassis.target_yaw = lz_yaw;
-            HAL_Delay(150);                            //停稳
+    /* ★调试入口(KEY0选成 LZ + KEY3开始)：goto 跳到这一行往下执行"立柱"段。
+       上面那条"走到立柱附近(-45,-35) + 转向"是给"阶梯→立柱"用的；单独测立柱时车已经按
+       "立柱起点姿态"(红方车头朝左、就在立柱右边一点)摆好了，所以跳过它们，直接进下面的校准。 */
+LIZHU_START:
 
-            //---- 停下检验：两个激光都有障碍物才算左右正对，不然往另一边补 2cm，每次停下都再验 ----
-            for(uint8_t k = 0; k < 6; k++){            //最多补 6 次(防死循环)
-              uint8_t b3 = LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin);   //右激光
-              uint8_t b4 = LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin);   //左激光
-              if(b3 && b4) break;                                         //★两个都有 → 左右校准完成
-              if(b3) ROBOT_Move( 2, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //只有右有(往左走多了) → 往右 2cm
-              else   ROBOT_Move(-2, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //只有左有/都没有 → 往左 2cm
-              HAL_Delay(150);
-            }
+          /* ====== 立柱前校准（2026-09-21 简化：只有两步）======
+             前提(现场保证)：车在立柱右边一点。
+             ① 往左慢走(5cm/s)，直到"左右两个激光都有障碍物" → 已经左右正对柱面
+             
+             ② 再以 5cm/s 向前逼近，直到前测距 ≤200mm → 前后到位
+             然后直接 LiZhu_Circle_Run() 开始绕圈（它拿这时读到的距离当参考半径）。
+             ★两处都用 5cm/s：GY-53 是阻塞读(≈200ms)、激光也要车慢慢靠过去才不会冲过头
+               （10cm/s 会冲过头，和阶梯那套"走多"是同一个原因）。
+             ★WAIT_WHILE 自带 6s 超时兜底：超时打一行 TIMEOUT 后继续走，不会卡死。 */
+          ROBOT_MoveSpeed(-5.0f, 0.0f);                     //① 往左慢走
+          WAIT_WHILE(!(LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin) &&
+                       LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin)),
+                     "LiZhu both lasers on pillar");
+          ROBOT_MoveSpeed(0.0f, 0.0f);                      //停车
 
-            //---- 第二步：往前走，测距进 190~210mm 就停 ----
-            lz_t0 = HAL_GetTick();
-            ROBOT_MoveSpeed(0.0f, (float)SPD_AVG_V);
-            while(1){
-              uint16_t d = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);
-              if(d <= 210U) break;                     //进 190~210 窗口(或更近) → 停，下面再验/补
-              if(HAL_GetTick() - lz_t0 > 5000U) break; //5s 还没进窗口：别一直往前(防异常)
-            }
-            ROBOT_MoveSpeed(0.0f, 0.0f);
-            chassis.target_yaw = lz_yaw;
-            HAL_Delay(250);                            //停稳 + 等 GY-53 出新读数
-
-            //---- 停下再验：不在 200 附近就按差值用 ROBOT_Move 往前/往后补，补完再验 ----
-            for(uint8_t k = 0; k < 4; k++){            //最多补 4 次
-              uint16_t d  = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);
-              if(d >= 190U && d <= 210U) break;        //★200±10mm → 前后校准完成
-              int32_t  cm = ((int32_t)d - 200) / 10;   //差几厘米(正=离远了 → 往前走)
-              ROBOT_Move(0, cm, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
-              HAL_Delay(250);
-            }
-          }
+          ROBOT_MoveSpeed(0.0f, 5.0f);                      //② 向前慢逼近到 200mm
+          WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > 200U,
+                     "LiZhu front distance -> 200mm");
+          ROBOT_MoveSpeed(0.0f, 0.0f);                      //停车，准备转圈
 
           
           //立柱转圈：绕柱闭环（测距定半径 + 陀螺仪累计转角 + 径向闭环 KP_R/VY_MAX + 航向前馈/KD_W 修正）
@@ -2130,20 +2126,20 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
 
           //转完一圈，收起机械臂，然后往左转身走到仓库中间倒方块（★长距 60/138cm：120/120）
           ROBOT_Move(-60, 0, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
-          ROBOT_Angle(90);//车子前面朝右
+          ROBOT_Angle(Yaw_Abs(90));//车子前面朝右
           ROBOT_Move(0, -138, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
           ROBOT_Move(-45, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
 
           //定位操作：向左慢平移到左后光电感应到无障碍物，之后再往右走固定距离（刚到仓库中间的距离）
           ROBOT_MoveSpeed(-SPD_AVG_V, 0);   //★匀速靠近：SPD_AVG_V
-          while (LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1);
+          WAIT_WHILE(LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1, "LiZhu laser1 no-obstacle");
           ROBOT_MoveSpeed(0,0);
 
           ROBOT_Move(25, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
 
           //得走远一点才能转身倒方块
           ROBOT_Move(0, 10, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
-          ROBOT_Angle(270);//车子前面朝左
+          ROBOT_Angle(Yaw_Abs(270));//车子前面朝左
           UART1_Printf("10");
           
           //这里放倒方块的代码
@@ -2152,7 +2148,7 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
           runActionGroup(19, 1);//收倒球槽
 
           //倒完方块转个身再回家
-          ROBOT_Angle(0);
+          ROBOT_Angle(Yaw_Abs(0));
           //往后多走一点，必须保证，前后在左右移动后能进入红色区域（★长距(35,225)：120/120）
           ROBOT_Move(35, -225, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);//60，-240能进
           LiZhu_Flag = 0;//立柱结束，回家开始
@@ -2172,7 +2168,7 @@ HUIJIA_START:
           runActionGroup(0, 1);//复位
           mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));//车子前面朝右/朝左（★长距 (30,-145)：120/120）
           ROBOT_Move(30, -165, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_V, SPD_SHORT_A);
-          ROBOT_Move(-70, 0, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_V, SPD_SHORT_A);
+          ROBOT_Move(-60, 0, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_V, SPD_SHORT_A);
 
 //往后慢退，直到测距测得合适距离（适合倒球的距离）
       ROBOT_MoveSpeed(0, -SPD_AVG_V);   //★匀速靠近：SPD_AVG_V
@@ -2228,8 +2224,7 @@ HUIJIA_START:
     {
       uint8_t stable = 0;
       while(1){
-        TCS34725_GetRawData(&tcs_rgbc);
-        if(TCS34725_ClassifyColor(&tcs_rgbc) != TCS_COLOR_BLACK){
+        if(TCS_PollColor(&tcs_rgbc) != TCS_COLOR_BLACK){
           if(++stable >= 3) break;
         } else {
           stable = 0;
@@ -2242,15 +2237,14 @@ HUIJIA_START:
 
     //进入红/蓝后，继续向右多走11.5，确保停在红/蓝区域内部（避免停在边缘抖动；距离按区域宽度调整），而且确保车身左右都在红/蓝区域内
     //★短距 11.5cm：按两档标准 20/30（<13cm 的三角波峰值<20cm/s，若现场发现走不到位，把这里的第5/6个参数(a)单独加大到 100~200）
-    ROBOT_Move(mode_red ? 11.5 : -11.5, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+    ROBOT_Move(mode_red ? 8 : -8, 0, 5, 5, 5, 5);
     
     //往前走，走到颜色传感器一定在黑色区域内（同样连续3次确认）
     ROBOT_MoveSpeed(0, SPD_AVG_V);   //★匀速靠近：SPD_AVG_V
     {
       uint8_t stable = 0;
       while(1){
-        TCS34725_GetRawData(&tcs_rgbc);
-        if(TCS34725_ClassifyColor(&tcs_rgbc) == TCS_COLOR_BLACK){
+        if(TCS_PollColor(&tcs_rgbc) == TCS_COLOR_BLACK){
           if(++stable >= 3) break;
         } else {
           stable = 0;
@@ -2264,8 +2258,7 @@ HUIJIA_START:
     {
       uint8_t stable = 0;
       while(1){
-        TCS34725_GetRawData(&tcs_rgbc);
-        if(TCS34725_ClassifyColor(&tcs_rgbc) != TCS_COLOR_BLACK){
+        if(TCS_PollColor(&tcs_rgbc) != TCS_COLOR_BLACK){
           if(++stable >= 3) break;
         } else {
           stable = 0;
@@ -2276,7 +2269,7 @@ HUIJIA_START:
     
     //识别为红/蓝后继续向后多走3，确保停在红/蓝区域内部（避免停在边缘抖动；距离按区域宽度调整），而且确保车身前后都在红/蓝区域内
     //★短距 3cm：按两档标准 20/30（<13cm 的峰值<20cm/s，若走不到位就把 a 单独加大到 100~200）
-    ROBOT_Move(0, -3, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+    ROBOT_Move(0, -2, 5, 5, 5, 5);
     ROBOT_MoveSpeed(0, 0);
         }
       }
@@ -2308,8 +2301,7 @@ HUIJIA_START:
       {
         uint8_t stable = 0;
         while(1){
-          TCS34725_GetRawData(&tcs_rgbc);
-          if(TCS34725_ClassifyColor(&tcs_rgbc) != TCS_COLOR_BLACK){
+          if(TCS_PollColor(&tcs_rgbc) != TCS_COLOR_BLACK){
             if(++stable >= 3) break;
           } else {
             stable = 0;
@@ -2329,8 +2321,7 @@ HUIJIA_START:
       {
         uint8_t stable = 0;
         while(1){
-          TCS34725_GetRawData(&tcs_rgbc);
-          if(TCS34725_ClassifyColor(&tcs_rgbc) == TCS_COLOR_BLACK){
+          if(TCS_PollColor(&tcs_rgbc) == TCS_COLOR_BLACK){
             if(++stable >= 3) break;
           } else {
             stable = 0;
@@ -2344,8 +2335,7 @@ HUIJIA_START:
       {
         uint8_t stable = 0;
         while(1){
-          TCS34725_GetRawData(&tcs_rgbc);
-          if(TCS34725_ClassifyColor(&tcs_rgbc) != TCS_COLOR_BLACK){
+          if(TCS_PollColor(&tcs_rgbc) != TCS_COLOR_BLACK){
             if(++stable >= 3) break;
           } else {
             stable = 0;
