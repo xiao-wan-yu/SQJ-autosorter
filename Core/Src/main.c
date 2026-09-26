@@ -322,6 +322,7 @@ static void ZM_ShowComm(int rx4, int rx2){
   do{                                                                    \
     uint32_t _wait_t0 = HAL_GetTick();                                   \
     while(cond){                                                         \
+      SERIALPLOT_WheelActualPump();      /* 串口1实时发四轮实际值：这种原地死等也要有数据（见 serialplot.c） */ \
       if(HAL_GetTick() - _wait_t0 > WAIT_TIMEOUT_MS){                    \
         UART1_Printf("TIMEOUT: %s\r\n", tag);                            \
         break;                                                           \
@@ -471,33 +472,63 @@ static uint8_t JieTi_GetVision(uint32_t wait_ms){
 /* ★2026-09-21 删除：JieTi_FwdFix（阶梯的前后距离校准）—— 实测这套校准效果不好。
    阶梯现在只走固定距离：前后位置由"进阶梯时走近到 90mm 附近（带 20mm 提前量）+ 坑间距"决定，
    不再逐坑用测距精修；要恢复就把上面这段函数和坑循环里那一次调用加回来。 */
-/* ==================== 立柱转圈：8.28"绕柱闭环"原版（commit b6fc0ab「2026.8.28好像看到转圈希望」）====================
-   来源：那段代码原来在 main 循环里，用串口指令 5 触发"单独测试转圈"。这里原封不动搬成函数：
-   立柱阶段(LiZhu_Flag==1)直接调用；串口调试指令 7 也调它 —— 两处跑的是同一套代码。
+/* ==================== 立柱转圈：绕柱（2026-09-26：开环三旋钮 + 两路可选反馈）====================
+   立柱阶段(LiZhu_Flag==1) 和串口调试指令 7 都调它，同一套代码。
 
-   思路（不依赖里程计位置，只用 陀螺仪 + 实时测距）：
-     ① 开圈前静止采 12 次测距，只收 8~22cm 的有效值，冒泡排序取中值 → 目标测距 d_ref
-        （前提：车头已正对柱子，GY53_2 读到的是"传感器→柱面"的距离）
-     ② 闭环绕圈：切向 v_x = v_t 恒定；径向 v_y = KP_R×(实测-目标) 纠偏保半径（远了前进、近了后退）；
-        w = v_t/实时半径 前馈（车头随圈转、始终指向圆心）+ KD_W×e 车头修正
-        （★9.13 改：原来是「测距变化率→w 阻尼」，符号反了 + 拿差分做微分，既抽风又保不住半径，详见函数内说明）
-     ③ 绕圈进度 = 陀螺仪累积转角，绕满 355° 停；测距连续 20 次无效 → 保护停车（打印 LOST! stop）
+   【原理】车头一直指着柱子、车身横着走 ⇒ 轨迹天然是以柱子为圆心的圆
+       圆半径 r = V_TAN / (W_TURN × π/180)     （V_TAN cm/s = 横向走多快；W_TURN °/s = 车头摆多快）
+       本车 r 由几何定死：测距 17 + 传感器到车心 14 + 柱半径 4 = 35cm
 
-   参数（就下面这四个 const，改完重新编译；每个"调大/调小会怎样、看哪一列、建议范围"
-        见函数里 const 上方那段详细说明）：
-     v_t    = 6.0f   切向速度 cm/s（>0 逆时针 / <0 顺时针）
-                     大：绕得快，但 GY-53 数据只有 5Hz、w 也更大；小：稳、一圈更久（35~42s）
-     KP_R   = 1.0f   径向纠偏增益 1/s（误差cm → v_y cm/s）：只管小误差的快速微调
-     VY_MAX = 2.5f   径向速度限幅 cm/s：兜住突然的半径偏差（≈v_t/2，不抢切向）
-     KD_W   = 0.05f  半径误差→w 修正 (rad/s)/cm：收半径的主力（纯前馈 w=v_t/r 只是临界稳定，
-                     没有这一路半径必跑飞；符号+来源 9.13 都改过，别照老注释理解）
+   【W_TURN 怎么算 —— 改 V_TAN 就照这条重算，没有别的东西要跟着改】
+       W_TURN = V_TAN / r × 57.3   ⇒  r=35cm 时：W_TURN = 1.64 × V_TAN
+         V_TAN = 5→8.2 ｜ 10→16.4 ｜ 14→22.9 ｜ 20→32.7      （整圈时间 = 360/W_TURN 秒）
+       反过来改半径：r = 57.3 × V_TAN / W_TURN （V_TAN=10 时：W=12→48cm、16.4→35cm、20→29cm）
+     ★16.4 是"几何值"（假设四轮精确跑出命令速度）。实测纯开环平均半径会小 13%（见文末【实测】），
+       但**闭环就该填几何值**：测距反馈把半径压到目标后，平衡点要求 w = V_TAN/r，正是这个数。
 
-   现场排查（串口1，每 200ms 一条）：d=测距mm  e=径向误差mm  vy=径向速度(0.1cm/s)  w=角速度×100  yaw=已绕角度(°)
-     · yaw 不涨 → 车头压根没转（w 符号/麦轮/控制循环的问题），先别调参数
-     · d 往一个方向单调跑（慢慢爬出圈或一路收进来）→ KD_W 太小或方向不对，★先查它
-     · e 长期同号 → KP_R 太小；e 在 0 附近来回跳 → KP_R/VY_MAX 太大，或就是 GY-53 的 ±1cm 噪声
-     · 一直打印 LOST! stop → 车头没对着柱子（测距跑出 8~22cm 窗口）或半径已经崩了
-   ★立柱阶段要求"遇到可以夹的就停下转圈"：钩子在下面 while 里，插视觉判断后 break 即可。 */
+   【要调的只有这几行（都在函数开头，改完重新烧）】
+       ① 三个旋钮：V_TAN=10 / W_TURN=16.4 / V_RAD=3
+       ② 两个开关：FB_DIST=0 / FB_LASER=0（都置 0 = 纯开环）
+       ③ 激光参数：LAS_YAW=4（纠偏摆速）/ LAS_TAN=0（切向纠偏，默认不用）
+       其余 DEFAULT 段是定死的几何常数，不用动。
+
+   【两路反馈（可单独开关，互不影响）】
+       FB_DIST ：车头正对柱子 ⇒ 测距值就是半径。偏大往前靠、偏小往后退（调径向速度 v_y：
+                 满幅 3cm 误差 → V_RAD cm/s；v_y=0 时半径只由 V_TAN/W_TURN 决定）
+       FB_LASER：左4右2 两个激光平行打柱（间距≈柱半径），一个有一个没有 = 横向偏了 → 调车头摆速 w
+     ★为什么全写成"速度"而不是"误差×增益"：增益一顶限幅就变成开关环（9.25 实测 1.96s 周期呼吸、
+       27.5% 时间顶限幅）。现在斜率写死 3cm，手里只有几个速度，怎么调都不会退化成开关环。
+
+   【怎么调（一次只动一个值）】
+     ① e 绕一圈一直在同一符号上变大 → 改 W_TURN（e 为正 = 越来越远 = 圆太大 → 调大；e 为负 → 调小）。
+        e 绕一圈正好摆一次（最低点在 yaw≈180）→ 开环固有摆动，改 W_TURN 没用，交给 FB_DIST
+     ② 前轮顶着走/一顿一顿：靠柱那对前轮 = V_TAN×(1−28.15/r) = 0.18×V_TAN（10 → 1.9cm/s），
+        同一时刻后轮 1.8×V_TAN = 18cm/s —— 绕圈几何决定的、不是故障（V_TAN<8 时前轮才真推不动；
+        想让它有劲：V_TAN 提到 15，或半径放到 48cm → 前轮 0.41×V_TAN）
+     ③ 开 FB_DIST 后：V_RAD = 半径环的阻尼，ζ = V_RAD×r/(6×V_TAN) ≈ V_RAD/1.7（V_TAN=10 时）
+          · ζ≈1（V_RAD≈1.7）临界阻尼、最快不振荡
+          · V_RAD=3（ζ≈1.75）过阻尼、更稳对噪声不敏感  ← 起步先用这个
+          · 半径慢慢上下"呼吸"→ 加到 4~5；被噪声推得一抽一抽 → 降到 1.5~2
+        ★别超 V_TAN 的一半；V_RAD 只决定"追上目标的速度"，不改目标半径
+     ④ 开 FB_LASER 后：车头来回摆 → LAS_YAW 调小；偏了不回来 → 调大（≈1/4 基准摆速起步，方向反取负）
+        ★LAS_TAN 想试"用切向速度纠偏"再改成 1~3（同样别超 V_TAN 的一半）
+     ⑤ 两路都开：这台车没有独立转向，激光摆头会顺带改半径（r=V_TAN/w）→ 打架就先关一路
+
+   【实测（2026-09-26 一趟：V_TAN=10 / W_TURN=16.4 / 纯开环）—— 开环只能这样，摆动改不掉】
+      e 从 −4 滑到 −79（d 从 160 掉到 80mm、还卡住约 100°），末尾回到 +14 ⇒
+      半径"绕一圈正好摆一个完整正弦"：最低≈26cm、最高≈36cm、整圈平均比目标小约 4.6cm。
+      · 运动学：dψ/dt = −(v_x/r²)Δr、dΔr/dt = v_x·ψ（ψ = 车头偏离"指向柱子"的角度）
+        ⇒ 无阻尼简谐振动，周期 = 整圈时间（实测最低点恰在 yaw≈180°，与理论吻合）
+        ⇒ 摆动是开环的结构性质，旋钮消不掉，只能靠反馈压。
+      · 摆幅只由起步那一刻决定：A ≈ √(Δr₀² + (r·ψ₀)²)，实测 A≈4.6cm ⇒ 起步车头就差约 8°。
+      · 摆动中心 = 真实 v_x/w 比：实测 29.4cm（比几何小 13% ⇒ 靠柱前轮跑不满：v_x 偏小、w 偏大）
+        ⇒ 纯开环想跑准，只能按这个比例微调 W_TURN；开 FB_DIST 后它自己收敛（稳态误差=0）。
+      ★"d 卡在 80mm 不动" = 读数出窗口被丢了、打印的是上次值（真实半径更小），不是半径稳住了。
+
+   串口每 200ms 一行：d=测距mm e=半径误差mm(正=远) l4/r2=左右激光(1=看到柱) vx/vy=切向/径向(0.1cm/s)
+                      w=角速度×100 yaw=已绕角度° ｜ yaw 不涨=卡住；355° 该停
+   ========================================================================== */
+
 static void LiZhu_Circle_Run(void)
 {
   if(!flag.chassis){                          // 前置条件：底盘控制循环在跑，否则车不会动、while 会一直空转
@@ -506,158 +537,174 @@ static void LiZhu_Circle_Run(void)
   }
   UART1_Printf("circle start\r\n");
 
-  /* ===== 测距定参考距离：多次采样只收有效值(目标区间10~20cm)，取中值抗杂散 =====
-     前提：车头已正对柱子（GY53_2 读到的是 传感器→柱面 的距离） */
-  uint16_t d_ok[10];                          // 有效采样缓存
-  uint8_t  n = 0;                             // 有效采样个数
-  for(uint8_t i = 0; i < 12; i++){            // 最多采12次
+  /* ===== ① 三个可调参数（开环基本圆 + 反馈强度都在这三行）===== */
+  const float V_TAN  = 10.0f;               // 切向速度 cm/s（>0 逆时针 / <0 顺时针）—— 只管快慢（★本轮定 10）
+  const float W_TURN = 16.4f;               // 车头摆速 °/s（只填正的；大小由公式算出来，见下）
+  const float V_RAD  = 3.0f;                // 径向速度 cm/s（只有 FB_DIST=1 才起作用：路线像椭圆 → 加；车身一冲一停（抖）→ 减。）
+  /* ★W_TURN 怎么算：W_TURN = V_TAN / r × 57.3（r 由几何定死，见下一行）
+       ⇒ V_TAN=10 时：10/35 × 57.3 = 16.4°/s（整圈 360/16.4 ≈ 22s）
+       ⇒ 通用表：W_TURN = 1.64 × V_TAN（5→8.2、10→16.4、14→22.9、20→32.7）；反算 r = 57.3×V_TAN/W_TURN
+     ★闭环必须填几何值：半径被测距反馈压到目标后，平衡点要求 w = V_TAN/r，正是它。
+       纯开环实测平均半径小 13%（前轮跑不满），按实测比例凑 W_TURN 只是临时手段，别当基准。 */
+  /* r 由几何定死：车心到柱轴 = 前测距(立柱校准停在 170mm) + 传感器到车心 14 + 柱半径 4 = 35cm */
+
+  /* ===== ② 两个反馈开关（0=关 1=开；都置0 = 只有三个旋钮的纯开环圆）===== */
+  const uint8_t FB_DIST  = 1;               // 测距反馈：测距偏大→往前靠、偏小→往后退（调 v_y）
+  const uint8_t FB_LASER = 1;               // 双激光反馈：一个有一个没有→横向偏了（调 w，可选同时调 v_x）
+
+  /* ===== ③ 激光反馈参数（只有 FB_LASER=1 才用到；LAS_TAN=0 表示切向那一路不用）===== */
+  const float LAS_YAW = 4.0f;               // 偏了时额外加的车头摆速 °/s（纠偏主力；方向反了取负）
+  const float LAS_TAN = -2.0f;               // 偏了时额外加的切向速度 cm/s（想试"调切向速度"就改成 1~3，别超 V_TAN 一半）
+
+  /* ===== DEFAULT：定死常数（不用调，理由都写在这）===== */
+  const float RAD_FULL_CM = 3.0f;           // 测距反馈满幅误差：≥3cm 都按满幅算（斜率=V_RAD/3cm，写死）
+  const float RAD_DEAD_CM = 0.3f;           // 测距反馈死区 ±3mm（读数残余抖动别变成轮子一直抖）
+  const float D_ALPHA     = 0.5f;           // 测距一阶低通系数（压掉 GY-53 的 ±5~10mm 抖动）
+  const float GY53_2_OFFSET_CM = 14.0f;     // 前测距(GY53_2)到车心的纵向距离 cm（实测；算半径的几何常数）
+  const float PIPE_RADIUS_CM   = 4.0f;      // 柱子(水管)半径 4cm（外径 8cm；算半径的几何常数）
+
+  /* ★靠柱那对前轮天生很慢（绕圈几何决定：r=35cm 时 0.18×V_TAN=1.9cm/s，同时后轮 1.8×V_TAN=18cm/s）——
+     不是故障；V_TAN<8 时它才真的推不动，想让它有劲就加大 V_TAN 或把半径调大。 */
+  float v_tan  = V_TAN;                                         // 切向速度 cm/s（= 旋钮值，不做任何隐藏修改）
+  float dir    = (v_tan < 0.0f) ? -1.0f : 1.0f;                 // 绕向：+1 逆时针 / -1 顺时针（由 V_TAN 符号定）
+  float w_base = dir * W_TURN * 0.0174532925f;                  // 开环基准角速度 rad/s（w>0 逆时针）
+  float r_knob = (W_TURN > 0.05f) ? fabsf(V_TAN) / (W_TURN * 0.0174532925f) : 999.0f;  // 旋钮隐含半径cm（串口对照用）
+
+  /* ===== 测距定参考：开圈前静止采 12 次，只收有效值(8~22cm)、取中值，就用它当目标半径 =====
+     不写死 180mm：起步时半径误差≈0，一开圈不会先往柱里冲（9.25 写死 180 而实测 194 → 起振源）。
+     ★FB_DIST=0 时这组数只用于串口显示（e 就是给你调 W_TURN 看的），不参与控制。 */
+  uint16_t d_ok[10];                            // 有效采样缓存
+  uint8_t  n = 0;                               // 有效采样个数
+  for(uint8_t i = 0; i < 12; i++){              // 最多采12次
     uint16_t dd = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);
-    if(dd >= 80 && dd <= 220){                // 只收8~22cm：丢目标返回大值/杂散直接丢弃
+    if(dd >= 80 && dd <= 220){                  // 只收8~22cm：丢目标返回2000/杂散直接丢弃
       d_ok[n++] = dd;
       if(n >= 10) break;
     }
-    HAL_Delay(30);                            // 采样间隔，避开电机/震动噪声
+    HAL_Delay(30);                              // 采样间隔，避开电机/震动噪声
   }
   UART1_Printf("valid=%d\r\n", n);
-  if(n < 3){                                  // 有效采样太少：保护退出，绝不乱转
-    UART1_Printf("no pipe!\r\n");
-    return;
+  uint8_t have_ref = (n >= 3) ? 1 : 0;          // 有没有真实的半径参考（FB_DIST=0 时只影响打印）
+  if(n < 3){                                    // 有效采样太少
+    if(FB_DIST){                                // 测距反馈开着 → 没有半径参考，绝不乱转
+      UART1_Printf("no pipe! (dist fb needs it)\r\n");
+      return;
+    }
+    UART1_Printf("no pipe; open-loop anyway\r\n");   // 纯开环不需要测距，照跑（e 只作显示）
+    d_ok[0] = 180; n = 1;                       // 显示用的名义值 180mm（此时 e 的零点随便，看趋势就行）
   }
-
   /* 冒泡排序取中值：比平均更抗单次大值/小值 */
   for(uint8_t i = 0; i < n-1; i++)
     for(uint8_t j = i+1; j < n; j++)
       if(d_ok[j] < d_ok[i]){ uint16_t t = d_ok[i]; d_ok[i] = d_ok[j]; d_ok[j] = t; }
-  uint16_t d_ref = d_ok[n/2];               // 目标测距 mm
-  UART1_Printf("ref=%dmm\r\n", d_ref);
+  uint16_t d_ref    = d_ok[n/2];                // 目标测距 mm（= 开圈那一刻的半径）
+  float    d_ref_cm = (float)d_ref / 10.0f;     // 目标测距 cm
+  float    d_cm     = d_ref_cm;                 // 当前测距 cm（低通后的；无效读数保持上次值）
 
-  /* 几何常量（实测尺寸，不是手感参数；只进"半径"计算，量准了就别动）：
-     r = 测距 + 传感器到车心 + 管半径，用来算前馈 w=v_t/r（车头每秒该转多少度）。
-     改大 → r 算大 → w 偏小 → 车头转得比实际绕圈慢；改小反之。对 355° 一圈是几十度的累积差。
-     标准起步位置：传感器→管壁 20cm，此时车心到管心 = 20+14+4 = 38cm，打印 ref≈200mm。 */
-  const float GY53_2_OFFSET_CM = 14.0f;     // 前测距传感器到车中心的纵向距离(cm)（实测14.0cm）
-  const float PIPE_RADIUS_CM   = 4.0f;      // 柱子(水管)半径4cm（外径8cm）
+  /* ===== 开圈前把配置打到串口，一眼确认"这次到底开了什么" ===== */
+  UART1_Printf("cfg: V_TAN=%d W_TURN=%d -> r~%dcm | V_RAD=%d | fb dist=%d laser=%d\r\n",
+               (int)V_TAN, (int)W_TURN, (int)r_knob, (int)V_RAD, FB_DIST, FB_LASER);
+  /* ★半径几何对照：车心到柱轴 = 测距 + 14 + 4 = 35cm —— 这一行直接告诉你本圈的 W_TURN 该填多少 */
+  if(have_ref){
+    float r_tgt = d_ref_cm + GY53_2_OFFSET_CM + PIPE_RADIUS_CM;
+    UART1_Printf("ref=%dmm -> r_tgt=%dcm -> W_TURN_ideal=%d (x0.1deg/s; now=%d)\r\n",
+                 d_ref, (int)r_tgt, (int)(v_tan / r_tgt * 572.9578f), (int)(W_TURN * 10.0f));
+  }else{
+    UART1_Printf("ref=? (no valid reading) -> e 与 W_TURN 的绝对值没意义，只看趋势\r\n");
+  }
+  if(FB_LASER) UART1_Printf("laser: LAS_YAW=%d deg/s LAS_TAN=%d cm/s\r\n",
+                            (int)LAS_YAW, (int)LAS_TAN);
 
-  /* ===== 绕柱闭环 v2（不依赖里程计位置，只用 陀螺仪+实时测距） ===== */
-  flag.angle = 0;                           // 角度环让位，w 由本闭环接管
+  /* ===== 接管底盘：角度环让位（w 由本闭环接管）+ 手动设速标志（防控制循环把速度归零）===== */
+  flag.angle = 0;
   chassis.v_x = 0.0f;  chassis.v_y = 0.0f;  chassis.w = 0.0f;
   chassis.x_speed_plan_flag = 0;
   chassis.y_speed_plan_flag = 0;
-  chassis.x_set_speed_flag  = 1;            // 手动设速，防控制循环归零
+  chassis.x_set_speed_flag  = 1;
   chassis.y_set_speed_flag  = 1;
 
-  float yaw0     = HWT101CT_Data.yaw;       // 起点朝向（车头指向圆心）
-  float yaw_last = yaw0;
-  float yaw_acc  = 0.0f;                    // 陀螺仪累积转角(°)
-  float d_ref_cm = (float)d_ref/10.0f;      // 目标测距 cm
-  float d_cm     = d_ref_cm;                // 当前有效测距 cm（★9.13 起不再留 d_prev：GY-53 数据只有 5Hz，差分全是尖峰）
-  uint8_t  lost      = 0;                   // 连续无效计数
-  uint8_t  lost_stop = 0;                   // 丢目标停车标志
-  uint32_t t_prt     = HAL_GetTick();       // 打印节拍
-  /* ================= 绕圈 4 个可调参数（现场就调这四行）=================
-     调参顺序（9.13 版循环已经闭环，4 个旋钮各管一件事，别一起动）：
-       ① 先看 yaw 涨不涨、d 会不会一路往一个方向跑：
-          yaw 不涨   → 车头压根没转（w 符号/麦轮/控制循环），先别调参数；
-          d 一路单调往外/往里跑（不是围着目标摆）→ 先把 KD_W 取负试一次：
-                       方向对了就该能收住；方向对但摆得太大 → KD_W 减 0.02。
-       ② 再按 e 定 KP_R：e 长期同号(>1cm) → 加 0.2；e 在 0 附近来回跳 → 减 0.2。
-       ③ 最后按 vy 定 VY_MAX：vy 常年顶在 ±VY_MAX → 说明残差一直很大，
-          先回去加 KD_W（收半径的大头在它），VY_MAX 只做小误差微调，不用给太大。
-     每次只动一个，跑完一圈看串口那 5 列（d e vy w yaw）再决定下一动。
-
-     v_t    切向速度 cm/s（车沿圈往前蹭的快慢；>0 逆时针 / <0 顺时针 = 绕行方向反过来）
-              调大 → 一圈更快（半径33cm：5cm/s≈42s，6cm/s≈35s，8cm/s≈26s），但 GY-53 的 PWM 数据
-                     更新只有 5Hz(默认高精度档 T≈200ms)：8cm/s 时两次有效测距之间车已经蹭出去 1.6cm，
-                     等于闭着眼走一段；前馈 w=v_t/r 也大，离散步进大、偏差来不及纠。
-              调小 → 稳、丢目标少，但一圈变慢，比赛时间紧就别太小。
-              看现象：d 一路往下掉、最后 LOST → 往下调到 5 甚至 4；干净跑完还想快 → 上调到 7~8。
-              建议 5~7，先 6（等 6 能干净跑完一圈、四个参数都稳了，再往上试速度）。
-
-     KP_R   径向纠偏增益 1/s（测距与目标差 1cm → 产生几 cm/s 的"往圈里/往圈外"速度）
-              只管"小误差的快速微调"；收半径的大头在 KD_W 那一路（见下），别指望它把大偏差拉回来。
-              调大 → 半径拉回快；但 GY-53 精度只有 ±1cm(默认档)，乘大后 v_y 跟着抖，车径向一顿一顿。
-              调小 → 平顺不抖；但几厘米的偏差要很久才拉回来，e 会长期同号。
-              看现象：e 长期同号(>1cm) → 加 0.2；e 在 0 附近来回跳、vy 抖 → 减 0.2。
-              建议 0.8~1.5，先 1.0。
-
-     VY_MAX 径向速度限幅 cm/s（"往圈里/往圈外"这一路最多给多快，硬顶）
-              调大 → 大偏差时拉回快；但径向速度一旦超过切向的一半，车就斜着往圈里插/往圈外退，
-                     麦轮横向擦地打滑，姿态一乱测距跟着乱（原版 5 比切向 8 的一半还多，就是这个毛病）。
-              调小 → 修正顺、姿态稳；但被撞偏几厘米时要很久才拉回，期间 d 一直偏、偏多了会丢目标。
-              看现象：vy 常年顶在 ±VY_MAX 上 → 说明残差一直很大：先去加 KD_W，仍然顶再放到 3。
-              建议 2~3，先 2.5（约 v_t 的一半）。
-
-     KD_W   半径误差→w 修正 (rad/s)/cm（★9.13 改，替代原来的"测距变化率→w 阻尼"）
-              怎么算：w = v_t/r_est + KD_W×e（e = 实测-目标，cm），修正量限幅到前馈的一半。
-              为什么必须靠它：只给前馈 w=v_t/r 时车头是"开环转"的——yaw 差 0.3°/s(约2%)，半径就会以
-              二次曲线一路跑飞（你那份 log 正是如此：先缓缓往外爬到 184mm，再往内崩到 93mm 丢目标）。
-              KD_W>0 = 给"偏了多少"装了个自动回正：远了多转一点 → 车头偏进圈 → 切向速度在径向上就
-              带出 v_t·sinψ 的分量（最多能有 v_t 这么大，比 VY_MAX 那一路大好几倍，才是收半径的主力）。
-              调大 → 半径收得快、圈贴得紧；太大 → 车头来回拧、d 在目标附近大幅度摆动（欠阻尼振荡）。
-              调小/置0 → 退回"纯前馈"：半径只剩 KP_R×e 那点速度扛，车头稍有没对正(3~5°)就会
-                     一路往外/往里跑，几十秒内丢目标（这就是原来 KD_W=0 的结果）。
-              看现象：d 长期偏一边不收 → 加 0.02；d 在目标附近来回过冲 → 减 0.02。
-              建议 0.03~0.06，先 0.05（≈ ωn=√(v_t·KD_W)=0.55rad/s、阻尼比 0.9，约 10s 收敛）。
-              ★万一接上后反而"越绕越偏"（越转越往一个方向跑）→ 说明这台车的 w/麦轮符号链跟我推的
-                相反，把 KD_W 取负(-0.05)再试一次，哪边能收住就用哪边。
-     ==================================================================== */
-  const float v_t    = 6.0f;                // 切向速度 cm/s（>0逆时针 / <0顺时针）
-  const float KP_R   = 1.0f;                // 径向纠偏增益 1/s（半径误差cm → 径向速度cm/s）
-  const float VY_MAX = 2.5f;                // 径向速度限幅 cm/s（别超 v_t/2，径向不抢切向）
-  const float KD_W   = 0.05f;               // 半径误差→w 修正 (rad/s)/cm（★9.13 换符号+换来源）
+  float yaw_last = HWT101CT_Data.yaw;           // 起点朝向（此时车头正对柱子）
+  float yaw_acc  = 0.0f;                        // 陀螺仪累积转角(°)（车头一直跟着柱子转，所以它就等于已绕角度）
+  uint8_t  lost      = 0;                       // 连续无效测距计数
+  uint8_t  lost_stop = 0;                       // 丢目标保护停车标志
+  uint32_t t_prt     = HAL_GetTick();           // 打印节拍
 
   while(fabsf(yaw_acc) < 355.0f){           // 绕满一整圈
+    /* ===== 读一次测距（每拍都读：显示 + 测距反馈都用它）=====
+       有效窗口 80~220mm；丢目标/杂散 → 保持上次值（误差不跳）；
+       ★只有"测距反馈开着"时才做连续20次的保护停车（纯开环不需要测距，丢目标照转）
+       ★杂散交给"固定斜率 + V_RAD 封顶"消化（一次杂散最多把车推 0.6cm），不用冻结读数来治：
+         9.25 把窗口收到 150~215 后，d 一越界就整段冻结、相位滞后变大，反而更难收。 */
     uint16_t dd = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);
-    if(dd >= 80 && dd <= 220){              // 有效读数
-      d_cm = (float)dd/10.0f;
+    if(dd >= 80 && dd <= 220){
+      d_cm = d_cm + D_ALPHA * ((float)dd / 10.0f - d_cm);   // 一阶低通（几十 ms 的滞后，可忽略）
       lost = 0;
-    }else{                                  // 无效/丢目标：保持上次值，连续20次→停车
-      if(++lost >= 20){ lost_stop = 1; break; }
+    }else if(FB_DIST && ++lost >= 20){
+      lost_stop = 1; break;
+    }
+    /* ★读日志提醒：读数出窗口(贴太近 dd<80 或没打到柱子)时 d_cm 会一直保持上次值不更新，
+       所以串口看到 "d=80 卡住不动、l4/r2 在闪" 不是"半径稳住了"，而是读数被丢了
+       （真实半径只会比 80mm 更小）。纯开环(FB_DIST=0)时这不算问题，照转。 */
+    float e = d_cm - d_ref_cm;                              // 半径误差 cm（正 = 离柱子比目标远）
+
+    /* ===== 读两个激光（每拍都读，只为串口显示；★纠不纠由 FB_LASER 决定）=====
+       ★纯开环调试时先看这行的 l4/r2：正对柱子应该一直是 1 1，能直接看出偏的方向和程度 */
+    uint8_t l4 = LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin);   // 左激光（有障碍=1）
+    uint8_t r2 = LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin);   // 右激光
+
+    /* ===== ① 基准：开环圆（三个旋钮）===== */
+    float vx = v_tan;                                       // 切向：横向沿圈走（车头正对柱子，圆心就在车头正前方）
+    float vy = 0.0f;                                        // 径向：默认不动
+    float w  = w_base;                                      // 车头摆速：开环基准（r = V_TAN/W_TURN 就靠它）
+
+    /* ===== ② 测距反馈（FB_DIST=1）：测距值偏大偏小 → 调径向速度 =====
+       远（正误差）→ 往车头方向前进（车头正对柱子，所以就是朝柱子靠）→ 半径收回来
+       近（负误差）→ 后退（背离柱子）→ 半径退出去；±3mm 死区内不动 */
+    if(FB_DIST){
+      float u = e / RAD_FULL_CM;                            // 归一化：±1 封顶 = 满幅
+      if(u >  1.0f)      u =  1.0f;
+      else if(u < -1.0f) u = -1.0f;
+      if(fabsf(e) < RAD_DEAD_CM) u = 0.0f;
+      vy = V_RAD * u;                                       // 满幅 V_RAD cm/s（斜率 = V_RAD/3cm，写死）
     }
 
-    /* 径向纠偏：远了前进(朝圆心)、近了后退 */
-    float e = d_cm - d_ref_cm;
-    chassis.v_x = v_t;                      // 切向（车身x）
-    chassis.v_y = KP_R * e;                 // 径向（车身y，车头朝圆心）
-    if(chassis.v_y >  VY_MAX) chassis.v_y =  VY_MAX;
-    else if(chassis.v_y < -VY_MAX) chassis.v_y = -VY_MAX;
-    /* w = 切向速度/实时半径 前馈 + 半径误差→车头修正（KD_W，★9.13 改：符号 + 来源）
-       ── 为什么原来"w = v_t/r - KD_W×(d-d_prev)"又抽风又保不住半径（看你那份 log）：
-       ① 符号反了：远了(e>0)要让车头多转一点(w 加大)才能往圈里收；
-          原版"远了反而少转"→ ψ 越偏越大 → 半径越跑越远/越收越紧，是正反馈（KD_W=0.3 时 w=-175/140 的抽风）。
-       ② 来源是差分：GY-53 PWM 数据更新只有 5Hz(默认高精度档 T≈200ms)，两拍之间读数常是"同一次测量重复值"，
-          差分要么 0 要么整段 2cm 跳变 → 微分尖峰。改成拿"半径误差 e"乘 KD_W，等于对误差积分，抗噪、稳态无静差。
-       ③ 物理意义：车头多偏 ψ 角 → 切向速度 v_t 在径向上就带出 v_t·sinψ 的分量（最多 v_t 本身），
-          这才是收半径的主力；KP_R×e 那一路只有 VY_MAX 这么点速度，只管小误差的快速微调。
-       ④ 纯前馈(w=v_t/r) 那一路是"临界稳定"：yaw 只要差 0.3°/s，半径就会以二次曲线跑飞（10s 掉 6cm，正是 log 的样子）。 */
-    float r_est = d_cm + GY53_2_OFFSET_CM + PIPE_RADIUS_CM;
-    if(r_est < 10.0f) r_est = 10.0f;        // 防小半径产生过大 w
-    float w_corr     = KD_W * e;            // 半径误差 → 车头角速度修正(rad/s)
-    float w_corr_max = 0.5f * v_t / r_est;  // 修正量最多到前馈的一半，别把车头拧歪
-    if(w_corr >  w_corr_max) w_corr =  w_corr_max;
-    else if(w_corr < -w_corr_max) w_corr = -w_corr_max;
-    chassis.w = v_t / r_est + w_corr;
-    if(chassis.w >  YAW_PID_OUT_MAX) chassis.w =  YAW_PID_OUT_MAX;
-    else if(chassis.w < -YAW_PID_OUT_MAX) chassis.w = -YAW_PID_OUT_MAX;
+    /* ===== ③ 双激光反馈（FB_LASER=1）：一个有一个没有 = 横向偏了 =====
+       左4右2 两个激光平行打柱子（间距≈柱半径 4cm，柱宽 8cm）：
+         · 1 1 → 柱轴在车头轴线 ±2cm 内 = 正对，不纠
+         · 左4有 右2无 → 柱子偏在车头轴线**左边** → 车头往左摆（w 加正 = 逆时针）
+         · 右2有 左4无 → 柱子偏在**右边** → 车头往右摆（w 减）
+         · 0 0 → 偏了 6cm 以上 / 丢失 → 这一拍不纠（看串口 l4/r2 就知道）
+       ★纠偏方向只跟"柱子在左还是右"有关，和绕向(V_TAN正负)无关。
+       ★切向那一路（LAS_TAN≠0 才用）：柱子偏右 → vx 加正、偏左 → vx 加负
+         （由 dp/dt = d·w − vx 得出：w 那一路和 vx 那一路对横向偏移是同向效果）。 */
+    if(FB_LASER){
+      int8_t s = 0;                                         // +1 = 柱子偏左（要往左摆/往负方向偏）
+      if(l4 && !r2)      s = +1;
+      else if(r2 && !l4) s = -1;
+      w  += (float)s * LAS_YAW * 0.0174532925f;             // 车头纠偏（默认走这一路）
+      vx += (float)s * LAS_TAN;                             // 切向纠偏（默认 LAS_TAN=0 = 不用）
+    }
 
-    /* 实时打印（每200ms；整数，避免%f不支持问题）
-       d = 测距mm   e = 半径误差mm(正=远了)   vy = 径向速度(0.1cm/s，读数12就是1.2cm/s)
-       w = 角速度×100(rad/s)   yaw = 已绕角度(°)
-       ★原来 vy 打的是整数 cm/s：KP_R=1 时 e 要 1cm 才出 1，平时整列全是 0，等于看不见纠偏在不在动，
-         所以改成 ×10。vx 恒等于 v_t 没信息量，删掉，空出一列打"绕圈进度 yaw"（355° 就该停，
-         它不涨就是卡住了/在局部打转；配合 w 就能判断车头到底转没转）。 */
+    /* ===== 下发：三个速度解耦，互不干涉 ===== */
+    if(w >  YAW_PID_OUT_MAX) w =  YAW_PID_OUT_MAX;          // 摆速别超角度环的限幅（打印的就是真下发的）
+    else if(w < -YAW_PID_OUT_MAX) w = -YAW_PID_OUT_MAX;
+    chassis.v_x = vx;
+    chassis.v_y = vy;
+    chassis.w   = w;
+
+    /* 实时打印(每200ms)：d=测距mm(低通后) e=半径误差mm(正=远) l4/r2=左/右激光(1=看到柱子)
+       vx=切向速度(0.1cm/s) vy=径向速度(0.1cm/s) w=角速度×100 yaw=已绕角度(°)
+       355° 就该停；yaw 不涨=卡住了；d 一直涨/跌=半径没调对（先调 W_TURN） */
     if(HAL_GetTick() - t_prt >= 200){
-      UART1_Printf("d=%d e=%d vy=%d w=%d yaw=%d\r\n",
-                   (int)(d_cm * 10.0f), (int)(e * 10.0f),
-                   (int)(chassis.v_y * 10.0f),
-                   (int)(chassis.w * 100.0f),
-                   (int)fabsf(yaw_acc));
+      UART1_Printf("d=%d e=%d l4=%d r2=%d vx=%d vy=%d w=%d yaw=%d\r\n",
+                   (int)(d_cm * 10.0f), (int)(e * 10.0f), l4, r2,
+                   (int)(vx * 10.0f), (int)(vy * 10.0f),
+                   (int)(w * 100.0f), (int)fabsf(yaw_acc));
       t_prt = HAL_GetTick();
     }
 
-    /* ===== 识别钩子（原来立柱阶段那句"遇到可以夹的就停下转圈"搬到这里）=====
-       要边绕边等视觉：在这里查一次视觉结果，命中就 break；
-       break 后下面的停车/恢复角度环照常执行，车就停在原地不动 */
+    /* 识别钩子：要边绕边等视觉就在这里查一次，命中就 break（停车/恢复角度环照常在下面执行） */
+
     /* if(视觉命中){ break; } */
 
     /* 陀螺仪累积转角判断已绕角度 */
@@ -667,7 +714,7 @@ static void LiZhu_Circle_Run(void)
     else if(ddg < -180.0f) ddg += 360.0f;
     yaw_acc += ddg;
 
-    HAL_Delay(10);                          // 本循环节拍(底盘控制周期已改 20ms，这里 10ms 只是读测距/打印节奏)
+    HAL_Delay(10);                          // 本循环节拍（测距/激光都是阻塞读，这里 10ms 只是节拍）
   }
   /* 停车 + 恢复角度环（重新锁向当前朝向） */
   chassis.v_x = 0.0f;  chassis.v_y = 0.0f;  chassis.w = 0.0f;
@@ -676,7 +723,7 @@ static void LiZhu_Circle_Run(void)
   flag.angle = 1;
   chassis.target_yaw = YAW_TARGET_NONE;
   if(lost_stop) UART1_Printf("LOST! stop\r\n");
-  else          UART1_Printf("circle done\r\n");
+  else          UART1_Printf("circle done (yaw=%d)\r\n", (int)fabsf(yaw_acc));
 }
 
 
@@ -692,15 +739,17 @@ static void LiZhu_Circle_Run(void)
    帧格式："S,A,B,C,D,E,F,G"（逗号分隔、8 个整数，串口1发出去记得带换行）
      S = UART1_Data[0] 是命令号：
        3 = 车体走固定距离 + 转到指定角度（在本函数里不管，交给主循环下面的原逻辑）
-       7 = 立柱绕圈 LiZhu_Circle_Run()（8.28"绕柱闭环"原版，实现在本函数上方）
+       7 = 立柱绕圈 LiZhu_Circle_Run()（2026-09-26 重写：切向/径向/车头摆速三个“速度”解耦，实现在本函数上方）
    返回 1 = 这一帧已被本函数处理掉（7 绕圈已在里面阻塞跑完）；0 = 只是解析/回显，交给主循环原逻辑
-   要改绕圈参数（v_t/KP_R/VY_MAX/KD_W）就去改上面 LiZhu_Circle_Run() 函数里的 const，别改散落的其它地方
+   要改绕圈参数（V_TAN 切向速度 / W_TURN 车头摆速 / V_RAD 径向速度）和两个反馈开关（FB_DIST / FB_LASER）就去改上面 LiZhu_Circle_Run() 函数开头那几行 const，别改散落的其它地方
    ------------------------------------------------------------------------------------------
    ★2026-09-15 新增【单键手动测试指令】（专门用来单独测 前/后/左/右 / 原地转）：
      帧里没有逗号就按单键解释（外面那套 "S,A,B,..." 数值指令完全不受影响）：
        w/s/a/d = 前进/后退/左移/右移（持续走，发 x 停）   W/S/A/D = 同上但只走 1 秒自动停
        x 或空格或回车 = 停车     +/- = 测试速度 ±10cm/s（默认 30，10~100）
        1/2/3/4 = 原地转到 0°/90°/180°/270°      p = 打印状态   o = 里程清零   h = 帮助
+       v = 开关"串口1实时发四轮实际值"（默认开：每 WHEEL_ACT_SEND_MS=20ms 一行 4 个数字，
+           通道1~4 = 左前/左后/右后/右前 实际速度 cm/s，可直接接 SerialPlot；见 serialplot.c）
      ★用法：上电后在"红蓝方选择"菜单界面直接发（这个函数菜单循环里也在调），不用进比赛流程。
      ★这套指令只做"设恒速/转向"，不做任何位置闭环；测"走歪"就看 ST 行里的 yaw 和 now 实测速度。
    ------------------------------------------------------------------------------------------ */
@@ -765,9 +814,16 @@ static uint8_t UART1_DebugCmd(void){
                 chassis.dist_acc_x = 0.0f; chassis.dist_acc_y = 0.0f;
                 UART1_Printf("odometry cleared (pos=0,0)\r\n"); return 1;
       case 'p': break;                          /* 只打印状态，见下面统一打印 */
+      case 'v':                                 /* 串口1实时发四轮实际值 开/关（实现在 serialplot.c）
+                                                   ★单键分支只看第一个字符（这一帧没有逗号就走这里），
+                                                     所以 'v' 也照旧：想发别的以 v 开头的内容请用上面的数值指令 */
+        serialplot_wheel_on = !serialplot_wheel_on;
+        UART1_Printf("wheel actual log %s (%u ms/line)\r\n",
+                     serialplot_wheel_on ? "ON" : "OFF", (unsigned)WHEEL_ACT_SEND_MS);
+        return 1;
       case 'h': case '?':
         UART1_Printf("single-key: w/s/a/d=前进/后退/左移/右移  W/S/A/D=走1秒  x=停  +/-=调速\r\n");
-        UART1_Printf("            1/2/3/4=原地转0/90/180/270  o=里程清零  p=状态\r\n");
+        UART1_Printf("            1/2/3/4=原地转0/90/180/270  o=里程清零  p=状态  v=四轮实际值日志\r\n");
         return 1;
       default:
         UART1_Printf("? unknown key '%c' (send h for help)\r\n", c);
@@ -800,12 +856,13 @@ static uint8_t UART1_DebugCmd(void){
                UART1_Data[0], UART1_Data[1], UART1_Data[2], UART1_Data[3],
                UART1_Data[4], UART1_Data[5], UART1_Data[6], UART1_Data[7]);
 
-  if(UART1_Data[0]==7){                             // 立柱绕圈（8.28 绕柱闭环原版，见上方 LiZhu_Circle_Run）
+  if(UART1_Data[0]==7){                             // 立柱绕圈（2026-09-26 重写：开环三旋钮 + 测距/激光两路可选反馈，见上方 LiZhu_Circle_Run）
     UART1_Data[0] = 0;                              // 立即清指令，防止循环重复触发
     UART1_Printf("lizhu circle start\r\n");
     /* 直接调立柱阶段用的那个函数（两边同一套代码，方便先单独测）：
-       车头先对着柱子 → 静止采12次测距取中值当目标距离 → 切向 v_t + 径向闭环(KP_R/VY_MAX)保半径
-       + w=前馈(v_t/实时半径) + KD_W×半径误差 车头修正，陀螺仪累计转角满355°停；测距连续20次无效则保护停车 */
+       车头先对着柱子 → 三个旋钮 V_TAN/W_TURN/V_RAD 跑开环圆，FB_DIST / FB_LASER 两个开关再单独叠加
+       测距反馈（V_RAD 调径向速度）+ 双激光反馈（LAS_YAW 调摆速 / LAS_TAN 调切向速度），
+       陀螺仪累计转角满 355° 停；测距连续 20 次无效 → 保护停车（只在测距反馈开着时生效） */
     LiZhu_Circle_Run();
     UART1_Printf("lizhu circle done\r\n");
     return 1;
@@ -1183,6 +1240,13 @@ int main(void)
 
   while (1)
   {
+    /* ===== 串口1实时发四轮实际值（2026-09-25 加，实现在 serialplot.c）=====
+       每 WHEEL_ACT_SEND_MS(默认20ms) 打一行 4 个数字：左前/左后/右后/右前 实际速度 cm/s，
+       直接接 SerialPlot 看四条曲线；串口1发单键 'v' 可随时开关（见 UART1_DebugCmd）。
+       ★本函数非阻塞、自己按时间节流，放循环里不占时间；车在跑时的那几个阻塞等待
+         循环里也各调了一次（见 robot.c），所以整趟动作都有数据。 */
+    SERIALPLOT_WheelActualPump();
+
     ///* GRAY3 仍走串行更新（循线数据 GRAY_Data[GRAY3] 保持有效） */
     //GRAY3_Serial_Update();
 
@@ -1276,6 +1340,7 @@ int main(void)
       /* 菜单界面也能用串口调试指令：发 "7,0,0,0,0,0,0,0" 就地绕圈，
          不用先按 KEY3 进流程。解析/回显/执行都在 UART1_DebugCmd() 里（见文件上方） */
       UART1_DebugCmd();
+      SERIALPLOT_WheelActualPump();   // 串口1实时发四轮实际值（菜单里也发：单键 w/s/a/d 手动测车时就能看曲线）
       OLED_Printf(0, 0, OLED_8X16_HALF, "mode:%s", mode_red?"red ":"blue");
       OLED_Printf(0, 16, OLED_8X16_HALF, "k2:mode k0:sel");  //按键2=切红/蓝方，按键0=选起始阶段
       OLED_Printf(0, 32, OLED_8X16_HALF, "k3:GO %s", DBG_START_NAME[dbg_start]);   //按键3=从选好的起点开始跑
@@ -2082,11 +2147,12 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
         {
           
           runActionGroup(0, 1);//复位
-          //右前光电无障碍物，就开始向左走固定距离（走到阶梯平面中间）（★短距(45,35)：20/30）
-          ROBOT_Move(-45, -35, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
-          
+          ROBOT_Move(30, -150, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+
+          //更换新跑图逻辑
+          //ROBOT_Move(-45, -35, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
           //好像前面把角度清0了，此时正对阶梯为0（不对，依然是正对阶梯为90呢）
-          ROBOT_Angle(Yaw_Abs(270));   //正对阶梯/立柱(跳转测试时自动换算)
+          //ROBOT_Angle(Yaw_Abs(270));   //正对阶梯/立柱(跳转测试时自动换算)
           //ROBOT_Angle(180);
 
     /* ★调试入口(KEY0选成 LZ + KEY3开始)：goto 跳到这一行往下执行"立柱"段。
@@ -2097,25 +2163,26 @@ LIZHU_START:
           /* ====== 立柱前校准（2026-09-21 简化：只有两步）======
              前提(现场保证)：车在立柱右边一点。
              ① 往左慢走(5cm/s)，直到"左右两个激光都有障碍物" → 已经左右正对柱面
-             
+               左4右2
              ② 再以 5cm/s 向前逼近，直到前测距 ≤200mm → 前后到位
              然后直接 LiZhu_Circle_Run() 开始绕圈（它拿这时读到的距离当参考半径）。
              ★两处都用 5cm/s：GY-53 是阻塞读(≈200ms)、激光也要车慢慢靠过去才不会冲过头
                （10cm/s 会冲过头，和阶梯那套"走多"是同一个原因）。
              ★WAIT_WHILE 自带 6s 超时兜底：超时打一行 TIMEOUT 后继续走，不会卡死。 */
           ROBOT_MoveSpeed(-5.0f, 0.0f);                     //① 往左慢走
-          WAIT_WHILE(!(LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin) &&
-                       LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin)),
+          //左激光看到障碍物就往往左走固定距离，左4右2
+          WAIT_WHILE(!(LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin)),
                      "LiZhu both lasers on pillar");
           ROBOT_MoveSpeed(0.0f, 0.0f);                      //停车
+          ROBOT_Move(-4, 0, SPD_SHORT_V, 0, SPD_SHORT_A, 0);
 
-          ROBOT_MoveSpeed(0.0f, 5.0f);                      //② 向前慢逼近到 200mm
-          WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > 200U,
-                     "LiZhu front distance -> 200mm");
+          ROBOT_MoveSpeed(0.0f, 5.0f);                      //② 向前慢逼近到 200mm，180也太远
+          WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > 170U,
+                     "LiZhu front distance -> 170mm");
           ROBOT_MoveSpeed(0.0f, 0.0f);                      //停车，准备转圈
 
           
-          //立柱转圈：绕柱闭环（测距定半径 + 陀螺仪累计转角 + 径向闭环 KP_R/VY_MAX + 航向前馈/KD_W 修正）
+          //立柱转圈（2026-09-26 重写：开环三旋钮 + 测距/激光两路可选反馈，见 LiZhu_Circle_Run 函数头）
           //★前提：车头已经正对着柱子（函数开头就是静止采测距定参考距离）
           LiZhu_Circle_Run();
 
@@ -2124,11 +2191,24 @@ LIZHU_START:
           遇到可以夹的就在那里 break，车停下、收尾照常执行
           */
 
-          //转完一圈，收起机械臂，然后往左转身走到仓库中间倒方块（★长距 60/138cm：120/120）
-          ROBOT_Move(-60, 0, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
-          ROBOT_Angle(Yaw_Abs(90));//车子前面朝右
-          ROBOT_Move(0, -138, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
-          ROBOT_Move(-45, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+          //转完一圈，收起机械臂，然后往左转身走到仓库中间倒方块（更换新逻辑）
+          //ROBOT_Move(-60, 0, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
+          //ROBOT_Angle(Yaw_Abs(90));//车子前面朝右
+          //ROBOT_Move(0, -138, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
+          //ROBOT_Move(-45, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+
+          HAL_Delay(1000);
+
+          //转完一圈，纠正角度
+          //ROBOT_Angle(Yaw_Abs(90));//车子前面朝右
+
+          //先后退到合适距离
+          /* ★9.25 修方向：原来是 +SPD_AVG_V(v_y>0=前进)，但注释写"后退"、判据又是"后测距(GY53_1)
+             ≤85mm(贴后墙)" —— 前进只会让后测距变大、永远不满足，只能靠 6s 超时兜底往前冲 60cm。
+             改成 -SPD_AVG_V：真后退，后测距一路变小，到 85mm 自然停。 */
+          ROBOT_MoveSpeed(0.0f, -SPD_AVG_V);
+          WAIT_WHILE(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>85,
+                 "LiZhu back-to-wall(mm<=85)");
 
           //定位操作：向左慢平移到左后光电感应到无障碍物，之后再往右走固定距离（刚到仓库中间的距离）
           ROBOT_MoveSpeed(-SPD_AVG_V, 0);   //★匀速靠近：SPD_AVG_V
@@ -2147,14 +2227,9 @@ LIZHU_START:
           HAL_Delay(2000);//倒方块动作约2s
           runActionGroup(19, 1);//收倒球槽
 
-          //倒完方块转个身再回家
-          ROBOT_Angle(Yaw_Abs(0));
-          //往后多走一点，必须保证，前后在左右移动后能进入红色区域（★长距(35,225)：120/120）
-          ROBOT_Move(35, -225, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);//60，-240能进
           LiZhu_Flag = 0;//立柱结束，回家开始
           HuiJia_Flag = 1;
         }
-
 
 
 
@@ -2163,57 +2238,15 @@ LIZHU_START:
 HUIJIA_START:
     if(HuiJia_Flag == 1)//回家开始
     {
-    //暂时的
-          //ROBOT_Move(60, 0, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
-          runActionGroup(0, 1);//复位
-          mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));//车子前面朝右/朝左（★长距 (30,-145)：120/120）
-          ROBOT_Move(30, -165, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_V, SPD_SHORT_A);
-          ROBOT_Move(-60, 0, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_V, SPD_SHORT_A);
 
-//往后慢退，直到测距测得合适距离（适合倒球的距离）
-      ROBOT_MoveSpeed(0, -SPD_AVG_V);   //★匀速靠近：SPD_AVG_V
-      WAIT_WHILE(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>85,
-                 "HUIJIA back-to-wall(mm<=85)");//100有点远，距离小于90就退此循环，90也远
-      SENSOR_STOP();      /* ★停车：速度环 target=0 → 主动反接刹车（不再自由滑行/不再反向冲）
-                             ★倒球距离若不对：把上面的 85 调大（如 95），或在这里补一条固定位移 */
-
-          //定位操作：向左慢平移到左后光电感应到无障碍物
-      //新：更改激光位置，让它在没对到障碍物时直接就已经是合适的位置，不需要调整
-      ROBOT_MoveSpeed(-SPD_AVG_V, 0);   //★匀速靠近：SPD_AVG_V
-      WAIT_WHILE(LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1, "HUIJIA laser1 no-obstacle");
-      SENSOR_STOP();      /* ★停车（同上）；★若左边还差一点：
-                             ROBOT_Move(-X, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A); */
-
-      //加一次角度校准（ROBOT_Angle 已阻塞到停稳，不必再补延时）
-      mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));
-      //往右走固定距离（刚到对上仓库的距离）（★短距 20cm：20/30）
-      if(mode_red) ROBOT_Move(22, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
-
-      runActionGroup(16, 1); 	//这里是倒球动作组（复用圆盘机）
-      delay_ms(2000);
-
-      //★"前后抖"是故意快抖（不是走位），按两档标准里的特例保留 100
-      for(uint8_t i = 0; i < 2; i++){//前后抖
-        ROBOT_Move(0, 4, 0, 160, 0, 160);
-        ROBOT_Move(0, -4, 0, 160, 0, 160);
-      }
-
-          runActionGroup(19, 1);//收倒球槽
           //往前走确保转方向不卡脚（★短距 15cm：20/30）
-          ROBOT_Move(0, 15, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
-          ROBOT_Angle(Yaw_Abs(0));//车子前面朝左
-          
+          ROBOT_Move(0, 15, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A); 
 
-          //倒完方块转个身再回家
+          //倒完方块转正再回家
           ROBOT_Angle(Yaw_Abs(0));
           //往后多走一点，必须保证，前后在左右移动后能进入红色区域（★长距 230cm：120/120）
           ROBOT_Move(mode_red ? 30 : -30, -230, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);//60，-240能进
 
-          ROBOT_Angle(Yaw_Abs(0));
-          HuiJia_Flag = 1;
-
-          //暂时的
-    
       /*先校准左右再校准前后，左右走可能会抖，而且前后比左右的反馈更准
     注意！！！必须先让颜色传感器在左右移动之后一定能进入红/蓝区域，
     即前后距离必须能确保在红/蓝区域内（在哪里无所谓，后面再校准）
@@ -2267,8 +2300,7 @@ HUIJIA_START:
       }
     }
     
-    //识别为红/蓝后继续向后多走3，确保停在红/蓝区域内部（避免停在边缘抖动；距离按区域宽度调整），而且确保车身前后都在红/蓝区域内
-    //★短距 3cm：按两档标准 20/30（<13cm 的峰值<20cm/s，若走不到位就把 a 单独加大到 100~200）
+    //识别为红/蓝后继续向后多走2，确保停在红/蓝区域内部（避免停在边缘抖动；距离按区域宽度调整），而且确保车身前后都在红/蓝区域内
     ROBOT_Move(0, -2, 5, 5, 5, 5);
     ROBOT_MoveSpeed(0, 0);
         }
@@ -2278,16 +2310,17 @@ HUIJIA_START:
     /* 原来这里有一句无条件的 UART1_Data[0]=0;，它把刚解析出来的指令(6/7)提前清成 0，
        所以"发指令没反应"。已删除：每条指令在处理时自己会清零。 */
 
-    //立柱转圈(8.28"绕柱闭环"原版)：正式流程在立柱阶段(LiZhu_Flag==1)里调 LiZhu_Circle_Run()；
+    //立柱转圈(2026-09-26 重写：开环三旋钮 + 测距/激光两路可选反馈)：正式流程在立柱阶段(LiZhu_Flag==1)里调 LiZhu_Circle_Run()；
     //  单独调试：在上方 UART1_DebugCmd() 里，串口发 "7,0,0,0,0,0,0,0" 就地跑一遍
     //  （停在"红蓝方选择"菜单界面也能用，菜单 while 里也调了 UART1_DebugCmd）：
     //      if(UART1_Data[0]==7){ UART1_Data[0]=0; LiZhu_Circle_Run(); }
-    //  前提：车头已正对柱子（函数开头静止采12次测距、只收8~22cm有效值取中值当目标距离）
-    //  绕法：切向 v_x=v_t 恒定 + 径向 v_y=KP_R×(测距-目标) 保半径
-    //        + w=v_t/实时半径 前馈(车头始终指圆心) + KD_W×(测距-目标) 车头修正（★9.13 改：原为"变化率阻尼"）
-    //  进度：陀螺仪累积转角，满355°停；测距连续20次无效 → 保护停车(打印 LOST! stop)
-    //  调参：LiZhu_Circle_Run() 里的 v_t / KP_R / VY_MAX / KD_W 四个 const（函数头有调大调小口诀）
-    //  串口(200ms/条)：d=测距mm e=径向误差mm vy=径向速度(0.1cm/s) w=角速度×100 yaw=已绕角度(°)
+    //  前提：车头已正对柱子（函数开头会静止采12次测距取中值当目标距离 d_ref，不是写死的 180mm）
+    //  绕法（★2026-09-26 重写：不用增益，只有“速度”）：
+    //       开环基准：切向 v_x=V_TAN + 车头摆速 w=W_TURN(°/s) → 圆半径 r=V_TAN/(W_TURN×π/180)，天然以柱子为圆心
+    //       测距反馈(FB_DIST=1)：测距偏大→往前靠、偏小→往后退，满幅 3cm 误差 → v_y=V_RAD cm/s
+    //       双激光反馈(FB_LASER=1)：左4右2，一个有一个没有=横向偏了 → 摆速加 LAS_YAW、切向速度加 LAS_TAN
+    //       两个开关都置 0 = 纯开环（只有三个旋钮）
+    //  串口(200ms/条)：d=测距mm e=径向误差mm l4/r2=左/右激光 vx=切向速度 vy=径向速度(0.1cm/s) w=角速度×100 yaw=已绕角度(°)
     if(UART1_Data[0]==6)
     {
       UART1_Data[0]=0;

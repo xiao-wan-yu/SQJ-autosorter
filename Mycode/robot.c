@@ -3,6 +3,7 @@
 #include "hwt101ct.h"
 #include "main.h"
 #include "stm32f4xx_hal.h"
+#include "serialplot.h"   // SERIALPLOT_WheelActualPump()：下面几个阻塞等待循环里实时发四轮实际值
 #include <math.h>
 
 /* ==================== 平移期间的角度环行为（2026-09-19 重做） ====================
@@ -46,6 +47,9 @@ void ROBOT_Angle(uint32_t target_angle){
   chassis.yaw_stage_cnt   = 0;
   chassis.yaw_stage_dz_ms = 0;
   while(chassis.yaw_stage != YAW_STAGE_STOP){
+    /* 串口1实时发四轮实际值（2026-09-25 加，见 serialplot.c）：原地转向时四轮都在转，
+       这里补上就有数据；发不发/隔多久由泵函数自己按 HAL_GetTick 节流，不阻塞本循环 */
+    SERIALPLOT_WheelActualPump();
     HAL_Delay(5);
   }
 }
@@ -91,6 +95,7 @@ void ROBOT_Move(int32_t x_distance, int32_t y_distance,
                      (float)x_maxa,     (float)y_maxa);
   /* 阻塞等待规划结束（中断里到 tp.t 清标志；距离0的轴 tp.t=0 立即清） */
   while(chassis.x_speed_plan_flag || chassis.y_speed_plan_flag){
+    SERIALPLOT_WheelActualPump();   // 串口1实时发四轮实际值（行进期间，见 serialplot.c）
     HAL_Delay(5);
   }
 
@@ -121,6 +126,7 @@ void ROBOT_Move(int32_t x_distance, int32_t y_distance,
     }else{
       stop_cnt = 0;                                // 轮子又动 / 航向环又输出 → 重新计数
     }
+    SERIALPLOT_WheelActualPump();                  // 串口1实时发四轮实际值（等停期间：正好看"反接刹车"收得多快）
     HAL_Delay(5);
   }
   /* 退出前清四轮速度环积分项（2026-09-21 用户要求）：这一趟规划攒下的 i_out 不该带到下一个

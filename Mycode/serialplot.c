@@ -446,3 +446,38 @@ void SERIALPLOT_ChassisTestLoop(void){
     HAL_Delay(10);
   }
 }
+
+/* ==================== 四轮实际值实时输出（2026-09-25 加） ====================
+   目的：串口1(115200) 实时打四个轮子的**实际速度**，SerialPlot/串口助手直接看 4 条曲线。
+         看什么：四轮一致性(曲线散开程度) / 起转迟滞(目标给了但 actual 迟迟不走) /
+                 停车反接(目标 0 后 actual 迅速归零) / 速度环跟踪(actual 能不能追上 target)。
+   通道顺序（与 chassis.h 的 ChassisMotorIndex 一致）：
+     1=左前LF  2=左后LB  3=右后RB  4=右前RF    单位 cm/s（20ms 下 1 个编码器脉冲 = 2.27cm/s）
+   发送格式："%.1f %.1f %.1f %.1f\r\n" —— **纯数字、没有前缀文字**，SerialPlot 按空格分通道即可；
+     用串口助手看就是一行 4 个数。小数只留 1 位：分辨率 2.27cm/s，留 6 位纯属刷屏
+     （想和别的打印一样用 %f，就把下面那条 UART1_Printf 的格式改回 "%f %f %f %f\r\n"）。
+   ★为什么是"泵"函数（非阻塞 + 内部按 WHEEL_ACT_SEND_MS 节流）而不是 while 里直接发：
+      调用点只管频繁地调，发不发、隔多久发由本函数按 HAL_GetTick 判断 ——
+      ① 主循环转一圈的时间不固定（OLED/按键/视觉解析都占时间），节流后周期才稳定；
+      ② 车在跑的时候主循环往往停在上层的阻塞等待里（见 robot.c），所以那几个等待循环里也要调本函数。
+   ★调用点（开关/周期都在 serialplot.h 的 WHEEL_ACT_SEND_EN / WHEEL_ACT_SEND_MS）：
+      Core/Src/main.c  主循环开头 + "红蓝方选择"菜单循环里
+      Mycode/robot.c   ROBOT_Angle 等停止档的循环、ROBOT_Move 的两段等待循环
+   ★绝不放在 TIM7 1ms 中断里（别搬过去）：UART1_Printf 是阻塞发送，一行≈3ms@115200，
+     塞进中断会把 20ms 控制周期拖长 → 速度环/航向环时序全乱。
+   ★和别的串口1打印混在一起怎么办：现场用单键 'v' 关掉（见 main.c 的 UART1_DebugCmd），
+     或把 serialplot.h 的 WHEEL_ACT_SEND_EN 改 0 重新编译。 */
+uint8_t serialplot_wheel_on = WHEEL_ACT_SEND_EN;   // 运行期开关：1=发 0=停（串口1单键 'v' 切换）
+
+void SERIALPLOT_WheelActualPump(void){
+  if(!serialplot_wheel_on) return;                 // 开关关掉：一个字都不发
+  static uint32_t t_last = 0;                      // 上次发送时刻(ms)：节流用
+  uint32_t now = HAL_GetTick();
+  if(now - t_last < WHEEL_ACT_SEND_MS) return;     // 还没到发送间隔：本次不打扰调用方
+  t_last = now;
+  UART1_Printf("%.1f %.1f %.1f %.1f\r\n",
+               (double)chassis.speed_pid[CHASSIS_MOTOR_LF].actual,   // 1 左前
+               (double)chassis.speed_pid[CHASSIS_MOTOR_LB].actual,   // 2 左后
+               (double)chassis.speed_pid[CHASSIS_MOTOR_RB].actual,   // 3 右后
+               (double)chassis.speed_pid[CHASSIS_MOTOR_RF].actual);  // 4 右前
+}

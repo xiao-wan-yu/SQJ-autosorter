@@ -34,6 +34,6 @@ void ROBOT_Move(int32_t x_distance, int32_t y_distance,
   */
 void ROBOT_MoveSpeed(float x_speed, float y_speed);
 
-/* 绕圈（圆周/绕柱）：走 Core/Src/main.c 的 LiZhu_Circle_Run()（8.28"绕柱闭环"原版） */
+/* 绕圈（圆周/绕柱）：走 Core/Src/main.c 的 LiZhu_Circle_Run()（2026-09-26 重写：开环三旋钮 + 测距/激光两路可选反馈） */
 
 #endif /* __ROBOT_H */
