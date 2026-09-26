@@ -1,0 +1,129 @@
+﻿diff --git a/Core/Src/main.c b/Core/Src/main.c
+index a887dba..396fb6e 100644
+--- a/Core/Src/main.c
++++ b/Core/Src/main.c
+@@ -330,6 +330,25 @@ static void ZM_ShowComm(int rx4, int rx2){
+     }                                                                    \
+   }while(0)
+ 
++/* ---------------- ★激光"连续确认"（2026-09-26，立柱前校准用）----------------
++   LASER_Barrier() 内部已有"5ms 内连续 3 次低电平"的引脚级消抖，但车在慢速移动、柱子边缘反光时，
++   偶尔仍会冒出一两拍假的"有障碍物"。下面这个是在它之上再加一层**时间维度**的确认：
++   连续 count 次调用 LASER_Barrier() 都为 1(有障碍物)才返回 1；中途任何一次读到 0 就立刻返回 0(重新数)。
++   ★用法：当 WAIT_WHILE 的条件用 —— 返回 0 就继续等(车继续慢移)、返回 1 才算真到位；
++     这样 6s 超时兜底和条件循环里的串口数据泵都保留。
++   ★代价：确认一次最多 (count-1)×gap ms（默认 3 次→约 40ms），5cm/s 下多走约 2mm，可忽略。 */
++#define LASER_CONFIRM_GAP_MS      20U   //连续确认时两次采样之间的间隔(ms)
++#define LIZHU_LASER4_CONFIRM_CNT  3U    //★立柱前"左激光(LASER4)看到柱子"要连续确认几次才算数
++static uint8_t LASER_BarrierConfirm(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin, uint8_t count){
++  if(count == 0U) return LASER_Barrier(GPIOx, GPIO_Pin);      //防御：次数给 0 时退化成单次读取
++  for(uint8_t i = 0; i < count; i++){
++    if(LASER_Barrier(GPIOx, GPIO_Pin) == 0U) return 0U;       //这一拍没障碍物 → 不算数，从头再数
++    if((uint8_t)(i + 1U) < count) HAL_Delay(LASER_CONFIRM_GAP_MS);
++  }
++  return 1U;                                                  //连续 count 次都有障碍物 → 确认
++}
++
++
+ /* ================== 阶梯阶段：保持锁向目标（否则越走越斜） ==================
+    ★ROBOT_MoveSpeed() 内部会把 chassis.target_yaw 置成哨兵(YAW_TARGET_NONE)，
+      让底盘控制循环下一拍"锁定当前朝向"。角度环本身一直是开的(flag.angle=1)，
+@@ -355,7 +374,10 @@ static float jieti_keep_yaw = -1.0f;   //阶梯阶段目标朝向(°)，-1=还
+    做法：跳转入口调用 SetYawShift(红方姿态角)，它会按红蓝自动补 180°（场地镜像），
+         之后**每一处绝对角都过一遍 Yaw_Abs()**：
+           · ZM / HOME 起点：红方摆"倒完球姿态"(车头朝右 → 90)  → 蓝方自动 270(车头朝左)
+-          · LZ      起点：红方摆"立柱起点姿态"(车头朝左 → 270) → 蓝方自动  90(车头朝右)
++          · LZ      起点：红方摆"立柱起点姿态"(车头朝右 → 90)  → 蓝方自动 270(车头朝左)
++             ★2026-09-26 改：立柱起点不再先转到 270（那句已注释掉），正式流程走到这儿就是车头朝右(90)，
++               所以本入口 SetYawShift 也用 90；写成 270 时 Yaw_Abs(90) 会算成 180°，
++               绕完一圈后还要再转半圈（现场现象：单独测立柱，绕完一圈车直接转身朝后）
+         例：shift=270 时 Yaw_Abs(270)→0（=摆车朝向，不转）、Yaw_Abs(90)→180、Yaw_Abs(0)→90。
+    正常流程(yaw_shift_deg=0)时 Yaw_Abs() 原样返回，行为一个字都不变。 */
+ static uint16_t yaw_shift_deg = 0;   //0=不换算；否则=本次摆车姿态相对"车头朝前"转过的角度(°)
+@@ -1440,10 +1462,16 @@ int main(void)
+       /* 从"立柱"开始：直接跳到 LIZHU_START 标签往下执行
+          （立柱前校准：往左 5cm/s 直到两个激光都有障碍物 → 向前 5cm/s 到前测距 200mm
+            → LiZhu_Circle_Run() 绕柱转圈 → 走到仓库中间倒方块 → 回家）
+-         ★角度基准：立柱起点的车头是"朝左"(红方基准 270°) → 蓝方自动 +180° = 90°(车头朝右)，
+-           两边差 180°；换算后 Yaw_Abs(270)=0，即"按这个姿态摆好就不转"。 */
++         ★角度基准：立柱起点的车头是"朝右"(红方基准 90°) → 蓝方自动 +180° = 270°(车头朝左)，
++           两边差 180°；换算后 Yaw_Abs(90)=0，即"按这个姿态摆好就不转"。
++         ★★2026-09-26 改 270 → 90（修"单独测立柱时绕完一圈车直接转身 180°"）：
++           9.26 那次把 LIZHU_START 前面那句"先转到 270(车头朝左)"注释掉了（见 LIZHU_START 标签上方），
++           所以正式流程走到立柱起点时，朝向就是"阶梯跑完那个朝向"= 红方车头朝右(90) / 蓝方朝左(270)。
++           本入口的摆车姿态必须和它一致：写成 270 时 ROBOT_Angle(Yaw_Abs(90)) 会算成 180°(正后方)，
++           于是绕完 355° 后车还要再转半圈 —— 现象就是"绕完一圈直接转向后方"。
++           改成 90 后 Yaw_Abs(90)=0，那句就只剩"把绕圈攒下的几度掰回来"(正对柱子/朝右)。 */
+       UART1_Printf("DEBUG: start from LIZHU (pillar)\r\n");
+-      SetYawShift(270);
++      SetYawShift(90);
+       LiZhu_Flag = 1;     //"立柱"段的进入条件
+       goto LIZHU_START;
+     }
+@@ -2157,12 +2185,15 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto 
+ 
+     /* ★调试入口(KEY0选成 LZ + KEY3开始)：goto 跳到这一行往下执行"立柱"段。
+        上面那条"走到立柱附近(-45,-35) + 转向"是给"阶梯→立柱"用的；单独测立柱时车已经按
+-       "立柱起点姿态"(红方车头朝左、就在立柱右边一点)摆好了，所以跳过它们，直接进下面的校准。 */
++       "立柱起点姿态"(红方车头朝右=正对柱子、就在立柱右边一点)摆好了，所以跳过它们，直接进下面的校准。
++       ★摆车姿态就是红方车头朝右(90) / 蓝方车头朝左(270)，与 DBG_START_LIZHU 里的 SetYawShift(90) 对应；
++         所以绕完一圈后那句 ROBOT_Angle(Yaw_Abs(90)) 只把绕圈攒下的几度掰回来(正对柱子/朝右)，
++         不会再出现"绕完 355° 后又多转 180°、车头朝反方向"的情况。 */
+ LIZHU_START:
+ 
+           /* ====== 立柱前校准（2026-09-21 简化：只有两步）======
+              前提(现场保证)：车在立柱右边一点。
+-             ① 往左慢走(5cm/s)，直到"左右两个激光都有障碍物" → 已经左右正对柱面
++             ① 往左慢走(5cm/s)，直到"左右两个激光都有障碍物" → 已经左右正对柱面（★左激光要连续 3 次都读到障碍物才认，单拍毛刺不算）
+                左4右2
+              ② 再以 5cm/s 向前逼近，直到前测距 ≤200mm → 前后到位
+              然后直接 LiZhu_Circle_Run() 开始绕圈（它拿这时读到的距离当参考半径）。
+@@ -2170,11 +2201,11 @@ LIZHU_START:
+                （10cm/s 会冲过头，和阶梯那套"走多"是同一个原因）。
+              ★WAIT_WHILE 自带 6s 超时兜底：超时打一行 TIMEOUT 后继续走，不会卡死。 */
+           ROBOT_MoveSpeed(-5.0f, 0.0f);                     //① 往左慢走
+-          //左激光看到障碍物就往往左走固定距离，左4右2
+-          WAIT_WHILE(!(LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin)),
+-                     "LiZhu both lasers on pillar");
++          //左激光看到障碍物，左4右2（★连续 3 次都看到才算数，单拍毛刺不算，见 LASER_BarrierConfirm）
++          WAIT_WHILE(LASER_BarrierConfirm(LASER4_GPIO_Port, LASER4_Pin, LIZHU_LASER4_CONFIRM_CNT),
++                     "LiZhu laser4 on pillar(3x confirm)");
+           ROBOT_MoveSpeed(0.0f, 0.0f);                      //停车
+-          ROBOT_Move(-4, 0, SPD_SHORT_V, 0, SPD_SHORT_A, 0);
++          //ROBOT_Move(-4, 0, SPD_SHORT_V, 0, SPD_SHORT_A, 0);
+ 
+           ROBOT_MoveSpeed(0.0f, 5.0f);                      //② 向前慢逼近到 200mm，180也太远
+           WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > 170U,
+@@ -2200,7 +2231,7 @@ LIZHU_START:
+           HAL_Delay(1000);
+ 
+           //转完一圈，纠正角度
+-          //ROBOT_Angle(Yaw_Abs(90));//车子前面朝右
++          ROBOT_Angle(Yaw_Abs(90));//车子前面朝右
+ 
+           //先后退到合适距离
+           /* ★9.25 修方向：原来是 +SPD_AVG_V(v_y>0=前进)，但注释写"后退"、判据又是"后测距(GY53_1)
+@@ -2214,13 +2245,9 @@ LIZHU_START:
+           ROBOT_MoveSpeed(-SPD_AVG_V, 0);   //★匀速靠近：SPD_AVG_V
+           WAIT_WHILE(LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1, "LiZhu laser1 no-obstacle");
+           ROBOT_MoveSpeed(0,0);
+-
+           ROBOT_Move(25, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+ 
+-          //得走远一点才能转身倒方块
+-          ROBOT_Move(0, 10, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+-          ROBOT_Angle(Yaw_Abs(270));//车子前面朝左
+-          UART1_Printf("10");
++          ROBOT_Angle(Yaw_Abs(90));//校准一下
+           
+           //这里放倒方块的代码
+           runActionGroup(16, 1);//倒方块动作组(复用圆盘机)
+@@ -2270,7 +2297,7 @@ HUIJIA_START:
+ 
+     //进入红/蓝后，继续向右多走11.5，确保停在红/蓝区域内部（避免停在边缘抖动；距离按区域宽度调整），而且确保车身左右都在红/蓝区域内
+     //★短距 11.5cm：按两档标准 20/30（<13cm 的三角波峰值<20cm/s，若现场发现走不到位，把这里的第5/6个参数(a)单独加大到 100~200）
+-    ROBOT_Move(mode_red ? 8 : -8, 0, 5, 5, 5, 5);
++    ROBOT_Move(mode_red ? 7 : -7, 0, 5, 5, 5, 5);
+     
+     //往前走，走到颜色传感器一定在黑色区域内（同样连续3次确认）
+     ROBOT_MoveSpeed(0, SPD_AVG_V);   //★匀速靠近：SPD_AVG_V
