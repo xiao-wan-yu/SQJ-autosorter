@@ -9,8 +9,10 @@
 #   .\同步到全量备份.ps1 -Name "超声波避障"
 #
 # NOTE: git warnings (CRLF etc.) are suppressed so the script
-# does not show scary red text. If the push fails you will see
-# a clear message with the manual command to run.
+# does not show scary red text, but REAL push errors are printed.
+# The tag name is auto-shortened when it would break GitHub's
+# 255-byte ref limit (a too long tag name silently failed every
+# push before, because "git push --tags" is rejected as a whole).
 # ============================================================
 
 param(
