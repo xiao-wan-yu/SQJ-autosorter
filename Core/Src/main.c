@@ -287,9 +287,19 @@ static void ZM_ShowComm(int rx4, int rx2){
    ★朝向不用额外管：底盘一直锁向（target_yaw = 进阶梯时校好的那个朝向），
      走固定位移 20cm/s ≥ 介入阈值，走的过程中角度环一直在纠偏。
    ★视觉协议：画面里没目标 → 视觉一个字节都不发；有目标但这一坑不用夹 → 照样发帧、坐标有效，只是 cmd 说不夹。
-     所以"等不到帧" = 视野里没目标 = 这一坑不夹；cmd **只用来决定夹不夹**，不再拿坐标挪车。 */
+     所以"等不到帧" = 视野里没目标 = 这一坑不夹；cmd **只用来决定夹不夹**，不再拿坐标挪车。
+   ★2026-09-27 现场补充：**没目标时视觉也照样发帧(坐标填0)**，所以"有没有东西"不能只靠"等不到帧"判——
+     对准前还要看原始 x（见下面 JIETI_X_BAD_MAX 和 JieTi_Adjust_X），否则没物块的坑会被 x=0 一直往左带。 */
 #define JIETI_IMG_CX          160     //视觉x是0~320像素，减它转成相对画面中心的偏移（只用于屏幕显示）
 #define JIETI_VIS_MS         200U     //等主视觉一帧的超时(ms)：站在坑前读这一坑的 cmd 用（帧间隔约20~50ms，够）
+/* ---------------- ★"这一帧到底有没有目标"的判定(2026-09-27 加) ----------------
+   现场现象：某个坑**没物块**，车却一直往左校准(不是等不到帧，是视觉照样在发帧)。
+   原因：没目标时视觉发的帧里坐标会填 0(或 0xFFFF 之类)，而 cx = x-160 正好是很大的负数
+        (0 → -160、0xFFFF → -161)，被当成"目标在最左边" → 每帧都往左挪一轮。
+   所以对准前先看**原始 x**：x=0 或超出量程 = 这一帧没目标 = 跳过对准，照常走固定距离去下一个坑。 */
+#define JIETI_X_BAD_MAX      1000U    //★原始x大于它 = 无效帧(0xFFFF 之类)；x=0 同样按"没检测到"处理
+#define JIETI_XFIX_MAX_MS    3000U    //★单坑"左右校准"最长耗时(ms)：坐标一直是假的/一直不满足容差时的收手时限
+                                      //  (0 = 不限时，回到"一直校到满足"的老行为)
 /* ---------------- 走近阶梯的前测距目标(GY53_2) ----------------
    全阶段只剩"进阶梯时走近"用这一次：走到 90mm 附近就停（提前 20mm 停，补读数滞后）；
    之后每个坑不再做任何测距校准（前后校准 2026-09-21 已删）。 */
@@ -301,7 +311,7 @@ static void ZM_ShowComm(int rx4, int rx2){
      JIETI_STEP_CROSS_CM = 换阶梯那一步的距离(第2→3个坑、第6→7个坑，就是动作组57/60/63切换的地方)
    每走完一段固定位移 = 到了下一个坑；站定后等一帧读这个坑的 cmd(夹不夹)，处理完计数 +1 */
 #define JIETI_STEP_CM         14      //★阶梯内坑间距(cm)：实际是8,但是要给15
-#define JIETI_STEP_CROSS_CM  17      //★换阶梯那一步走多远(cm)：第2→3个、第6→7个坑(矮/中/高阶梯之间)实际是10,要给16
+#define JIETI_STEP_CROSS_CM  18      //★换阶梯那一步走多远(cm)：第2→3个、第6→7个坑(矮/中/高阶梯之间)实际是10,要给16
 #define JIETI_STEP_SPEED      (float)SPD_SHORT_V   //走固定位移速度 = 短距档(40cm/s)：要≥20 才压得过起转PWM
 #define JIETI_STEP_ACC        (float)SPD_SHORT_A   //★加减速(cm/s²) = 短距档(50)：8cm 三角波峰值 √(50×8)=20cm/s，
                                                   //  刚好够起转（原来单独写 30：峰值只有 √(30×8)=15.5cm/s(<20)，
@@ -387,6 +397,7 @@ static void JieTi_MoveSpeed(float x_speed, float y_speed){
 
 /* ---------------- 阶梯阶段运行时状态(视觉/显示共用) ---------------- */
 static int16_t  jieti_cam_x     = 0;       //最近一帧：目标距画面中心偏移(负=偏左 / 正=偏右)
+static uint16_t jieti_cam_px    = 0;       //最近一帧的原始x(0~320像素)：判"这一帧有没有目标"用(x=0/超量程=没检测到)
 static uint8_t  jieti_cmd       = 0;       //最近一帧：cmd(要不要夹)
 static uint8_t  jieti_blk_now   = 0;       //当前是第几个坑(1~8，0=还没对准第一个)
 
@@ -439,9 +450,12 @@ static uint8_t JieTi_VisionPoll(void){
                   | ((uint16_t)VISION1_RxBuf[i + 3] << 8);          //x像素(低字节在前,0~320)
       uint16_t py = (uint16_t)VISION1_RxBuf[i + 4]
                   | ((uint16_t)VISION1_RxBuf[i + 5] << 8);          //y像素(本阶段不用)
-      /* ★不再做 x 范围过滤（2026-09-21 删）：协议里没有"未检测到"的填充帧(没目标根本不发帧)，
-         视觉给的坐标都是有效的，加个范围闸门反而可能把真坐标挡掉。 */
-      jieti_cam_x = (int16_t)px - JIETI_IMG_CX;         //减160 → 目标距画面中心偏移
+      /* ★不做"值域闸门"式过滤（2026-09-21 起）：视觉给的真坐标原样收下，别把真坐标挡掉。
+         但原始 x 另外存一份(jieti_cam_px)：对准逻辑要用它区分"有目标"和"没检测到"
+         —— 2026-09-27 现场：没目标时视觉**也会发帧**(坐标填 0)，只看 cx 会把这类帧
+            当成"目标在最左边"，于是没物块的坑一直往左校(见 JieTi_Adjust_X)。 */
+      jieti_cam_x  = (int16_t)px - JIETI_IMG_CX;        //减160 → 目标距画面中心偏移
+      jieti_cam_px = px;                                //原始x(0~320)：判定有没有目标用
       jieti_cmd   = VISION1_RxBuf[i + 1];               //cmd(要不要夹，含义看 JieTi_Grab_Mode)
       if(JIETI_VIS_LOG)
         UART1_Printf(" | A3 cmd=0x%02X x=%u y=%u cx=%d\r\n",
@@ -471,16 +485,99 @@ static uint8_t JieTi_GetVision(uint32_t wait_ms){
   return 0;
 }
 
+/*阶梯测距校准前后函数*/
+static void JieTi_Adjust_Y(int Target_Y_Distance){
+  while(1){
+                uint16_t dis = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);
+                //加入校准，x给30，y给20
+                if(dis > ((Target_Y_Distance - 10) + 5)){
+                  for(uint8_t i = 0; i < 5; i++)
+                  {
+                    ROBOT_MoveSpeed(0, 20);
+                    HAL_Delay(15);
+                    ROBOT_MoveSpeed(0, 0);
+                    HAL_Delay(25);
+
+                  }
+                }
+                else if(dis  < ((Target_Y_Distance - 10) - 5)){
+                  for(uint8_t i = 0; i < 5; i++)
+                  {
+                    ROBOT_MoveSpeed(0, -20);
+                    HAL_Delay(15);
+                    ROBOT_MoveSpeed(0, 0);
+                    HAL_Delay(25);
+                  }
+                }
+                else break;
+            }
+}
+
+/*阶梯视觉校准左右函数：用阶梯处视觉实时返回的x坐标(jieti_cam_x=目标离画面中心的偏移)定，容差±30像素
+  ★没东西 → 直接跳过、一下都不动(2026-09-27 加)：
+     ① 等不到帧(视野里没目标) → 不校；
+     ② 帧来了、但原始 x 是"没检测到"的无效值(0 / 超出量程) → 也不校。
+     两种情况都立刻返回，接着照常走固定距离去下一个坑。
+     —— 原来只判"等不到帧"：视觉没目标时若照样发帧(坐标填0)，cx=-160 就被当成"目标在最左边"，
+        于是一路往左挪；填 0xFFFF 时 (int16_t)0xFFFF=-1 → cx=-161，同一个病。
+  ★兜底时限 JIETI_XFIX_MAX_MS：坐标一直进不了容差带(比如视觉一直重复同一帧旧坐标)时到点收手，
+     绝不无限往一边挪车；置 0 = 不限时(老行为：一直校到满足)。
+  ★单次调整量没动：每轮仍是"5 次脉冲"，且速度用 JieTi_MoveSpeed(阶梯阶段不能破锁向)。 */
+static void JieTi_Adjust_X(void){
+  uint32_t t0 = HAL_GetTick();
+  while(1){
+                if(!JieTi_GetVision(JIETI_VIS_MS)){                 //等不到这一坑的帧
+                  UART1_Printf("JX skip: no frame (no target)\r\n");
+                  break;                                            //视野里没目标 → 不校，去下一个坑
+                }
+                if(jieti_cam_px == 0 || jieti_cam_px > JIETI_X_BAD_MAX){   //帧在，但坐标是"没检测到"的填充值
+                  UART1_Printf("JX skip: x=%u bad (no target)\r\n", (unsigned)jieti_cam_px);
+                  break;                                            //同样不校(别把填充值当"目标在左边")
+                }
+                int16_t cx = jieti_cam_x;
+                if(cx > 15){
+                  for(uint8_t i = 0; i < 5; i++)
+                  {
+                    JieTi_MoveSpeed(30, 0);
+                    HAL_Delay(15);
+                    JieTi_MoveSpeed(0, 0);
+                    HAL_Delay(25);
+
+                  }
+                }
+                else if(cx < -15){
+                  for(uint8_t i = 0; i < 5; i++)
+                  {
+                    JieTi_MoveSpeed(-30, 0);
+                    HAL_Delay(15);
+                    JieTi_MoveSpeed(0, 0);
+                    HAL_Delay(25);
+                  }
+                }
+                else break;                                          //进容差带：对准完成
+#if (JIETI_XFIX_MAX_MS > 0)
+                if(HAL_GetTick() - t0 >= JIETI_XFIX_MAX_MS){           //兜底：到点收手，别再往一边挪
+                  UART1_Printf("JX stop: timeout %ums cx=%d\r\n", (unsigned)JIETI_XFIX_MAX_MS, (int)cx);
+                  break;
+                }
+#endif
+            }
+}
+
 /* ★2026-09-21 变更记录（阶梯阶段）：
    · 删掉：左右视觉对准（JieTi_GoAlign，连同 JIETI_ALIGN_BAND / JIETI_ALIGN_MS / JIETI_NOVIS_MS）、
      "走一步"的脉冲式校准（JieTi_Step / JieTi_WaitCoord / JIETI_STEP_MS / JIETI_STEP_SETTLE_MS）、
      第3行测距显示（JieTi_ShowFwdMm）—— 实测那几套校准效果不好。
-   · 改成：位置靠"进阶梯到位 + 每个坑走固定距离"，朝向靠底盘锁向；
-     **前后距离校准也已删**（2026-09-21）—— 阶梯只走固定距离，位置全靠"到位 + 坑间距"。 */
+   · 改成：位置靠"进阶梯到位 + 每个坑走固定距离"，朝向靠底盘锁向。 */
 
-/* ★2026-09-21 删除：JieTi_FwdFix（阶梯的前后距离校准）—— 实测这套校准效果不好。
-   阶梯现在只走固定距离：前后位置由"进阶梯时走近到 90mm 附近（带 20mm 提前量）+ 坑间距"决定，
-   不再逐坑用测距精修；要恢复就把上面这段函数和坑循环里那一次调用加回来。 */
+/* ★2026-09-27 加回逐坑校准（放在"每个坑走完固定距离"之后，顺序固定"先左右、再前后"）：
+     JieTi_Adjust_X() 用阶梯处视觉实时返回的 x 坐标对准左右（容差±30像素）；
+     JieTi_Adjust_Y() 用前测距对准前后（容差±20mm，原函数没动）；
+     两个都是 while(1)：只要返回来的值不满足容差就一直校，里面那 5 次脉冲 = 一次调整量。
+   ★同日修"没物块也一直往左校"：JieTi_Adjust_X 现在先判"这一帧有没有目标"——
+     等不到帧，或 原始x=0/超出量程(视觉没检测到时填的假坐标) → 直接跳过对准、一下都不动；
+     另有 JIETI_XFIX_MAX_MS(默认3s) 兜底时限：坐标一直不满足也到点收手，不会无限往一边挪。
+     ★"夹不夹"仍只看 cmd（见 M1.5），跟有没有坐标无关。 */
 /* ==================== 立柱阶段：视觉通信（主视觉/串口2，2026-09-27 加入）====================
    通信方式和"正面识别(0xA2) / 阶梯(0xA3)"完全同一套，只是立柱阶段换成了下面两个字节：
      ① 我 → 主视觉(UART2)：0xA4    告诉它"进立柱阶段、开始识别"（绕圈前发一次；到位才发，
@@ -1519,6 +1616,17 @@ int main(void)
 
 
 /******************************上电测试位置******************************/
+/*
+for(uint8_t i = 0; i < 5; i++)
+{
+ROBOT_MoveSpeed(0, 20);
+HAL_Delay(20);
+ROBOT_MoveSpeed(0, 0);
+}
+*/
+
+//JieTi_Adjust_X();   //★这里原来写的 JieTi_Adjust() 没有这个函数(会链接不过)：要上电单独测校准就改调 X/Y 这两个
+
 
 
 
@@ -2294,7 +2402,18 @@ int main(void)
       //定位操作：向左慢平移到左后光电感应到无障碍物
       //新：更改激光位置，让它在没对到障碍物时直接就已经是合适的位置，不需要调整
       ROBOT_MoveSpeed(-5, 0);   //★匀速靠近：SPD_AVG_V
-      while(LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin));
+      
+      {
+            uint32_t lz_t0 = HAL_GetTick();  uint8_t lz_hit = 0;   //连续"看到"计数
+            while(lz_hit < 3){//从有到无
+              lz_hit = !LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin) ? (uint8_t)(lz_hit + 1) : 0;  //断一次就重新数
+              if(lz_hit >= 3) break;
+              //if(HAL_GetTick() - lz_t0 > WAIT_TIMEOUT_MS){ UART1_Printf("TIMEOUT: LiZhu laser4 x3\r\n"); break; }
+              HAL_Delay(50);                                       //每次检测间隔 50ms
+            }
+          }
+      
+      //while(LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin));
       // WAIT_WHILE(LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1, "YuanPanJi laser1 no-obstacle");
 
       SENSOR_STOP();      /* ★停车：速度环 target=0 主动反接刹车（不再自由滑行/不再反向冲）
@@ -2349,7 +2468,18 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
         //向左慢走，直到前面的两个光电都感应到障碍物（右边坏了，左边拆了，复用立柱的）4左2右
         ROBOT_MoveSpeed(-SPD_AVG_V, 0);   //★匀速靠近：SPD_AVG_V
         //while(LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin)==0);
-        while(LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin)==0);//左后是1，右边为2，左前是3
+        //while(LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin)==0);//左后是1，右边为2，左前是3
+        
+        {
+            uint32_t lz_t0 = HAL_GetTick();  uint8_t lz_hit = 0;   //连续"看到"计数
+            while(lz_hit < 3){//从无到有
+              lz_hit = LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin) ? (uint8_t)(lz_hit + 1) : 0;  //断一次就重新数
+              if(lz_hit >= 3) break;
+              //if(HAL_GetTick() - lz_t0 > WAIT_TIMEOUT_MS){ UART1_Printf("TIMEOUT: LiZhu laser4 x3\r\n"); break; }
+              HAL_Delay(50);                                       //每次检测间隔 50ms
+            }
+          }
+        
         ROBOT_MoveSpeed(0, 0);      //★停车（激光触发后立即给 0 速，速度环反接刹车）
 
         //往左走一定距离，视觉中能完整看到两个字母（可以省去测距前后校准）（★短距 40cm：20/30）
@@ -2493,8 +2623,7 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
            M3 走位/计数: 每坑走固定距离(JIETI_STEP_CM / JIETI_STEP_CROSS_CM) + 计第几个坑
            M5 动作组   : 识别位(54) / 夹取(57·60·63) / 回识别位(66) / 收尾抬臂(151)
            M6 显示/收尾: OLED + 停车 + 按 JIETI_GO_LIZHU 交棒给"立柱"或"回家"
-           （原 M2 左右视觉对准、M4 前后距离校准 2026-09-21 都已删 —— 实测效果不好；
-             阶梯只走固定距离：位置 = 进阶梯时走近到 90mm 附近 + 每个坑走固定距离）
+           M2 逐坑校准 : 每坑走完固定距离后 先左右(JieTi_Adjust_X 视觉x±30px) → 再前后(JieTi_Adjust_Y 前测距±20mm)
            ============================================================================== */
 
         /* ---- M6.1 屏幕初始化：字母留着，第2行标"step only"，第4行先显示 BLK -/8 ---- */
@@ -2509,7 +2638,18 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
         ROBOT_MoveSpeed(-SPD_AVG_V, 0);
         /* ★超时保护：激光4一直报"有障碍物"时原来会无限往左走(顶住左边不动=卡死)，
            现在最多等 WAIT_TIMEOUT_MS，超时打 TIMEOUT 后照常停车继续走流程 */
-        WAIT_WHILE(LASER_Barrier(LASER4_GPIO_Port,LASER4_Pin)==1, "JIETI laser4 no-obstacle");
+        //WAIT_WHILE(LASER_Barrier(LASER4_GPIO_Port,LASER4_Pin)==1, "JIETI laser4 no-obstacle");
+
+          {
+            uint32_t lz_t0 = HAL_GetTick();  uint8_t lz_hit = 0;   //连续"看到"计数
+            while(lz_hit < 3){
+              lz_hit = !LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin) ? (uint8_t)(lz_hit + 1) : 0;  //断一次就重新数
+              if(lz_hit >= 3) break;
+              //if(HAL_GetTick() - lz_t0 > WAIT_TIMEOUT_MS){ UART1_Printf("TIMEOUT: LiZhu laser4 x3\r\n"); break; }
+              HAL_Delay(50);                                       //每次检测间隔 50ms
+            }
+          }
+
         ROBOT_MoveSpeed(0, 0);
 
         /* ---- M3.1 朝向基准：转到"正对阶梯"的绝对角，并记住它当整段阶梯的锁向目标 ----
@@ -2540,8 +2680,8 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
         UART2_Printf("%c", 0xA3);
 
         /* ==================== 8 个坑循环 ====================
-           每坑：走固定距离(M3) → 读这一坑"夹不夹"(M1.5) → 计数/显示(M3.3) → 按需夹取(M5.2)
-           · 位置：全靠"进阶梯时的到位 + 坑间距"决定（不做任何逐坑校准）。
+           每坑：走固定距离(M3) → 逐坑校准(M2，先左右后前后) → 读这一坑"夹不夹"(M1.5) → 计数/显示(M3.3) → 按需夹取(M5.2)
+           · 位置：每个坑走完固定距离后校准一次（左右看视觉x，前后看前测距）。
            · 朝向：底盘一直锁向(target_yaw = 进阶梯时校好的那个)，走位 20cm/s 期间角度环也在纠偏。
            · cmd：站定后等一帧（视觉"有目标"才会发帧）；等不到 = 视野里没目标 = 这一坑不夹。
            夹取动作组：第1~2个→57(中阶梯) / 第3~6个→60(高阶梯) / 第7~8个→63(矮阶梯)，夹完一律 66 回识别位。
@@ -2554,6 +2694,13 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
                同一个阶梯里相邻坑走 JIETI_STEP_CM(8cm) */
             int32_t step_cm = (idx == 3 || idx == 7) ? JIETI_STEP_CROSS_CM : JIETI_STEP_CM;
             ROBOT_Move(step_cm, 0, JIETI_STEP_SPEED, 0, JIETI_STEP_ACC, 0);
+            HAL_Delay(750);
+            JieTi_FlushVision();                  //先清走位途中的旧帧：校准只看停下来之后的新帧
+            JieTi_Adjust_X();                     //先校准左右：视觉x，容差30
+            HAL_Delay(750);
+            JieTi_Adjust_Y(JIETI_FWD_TARGET_MM);  //再校准前后：前测距，容差20
+            HAL_Delay(750);
+
           }
 
           /* ---- M1.5 读这一坑"夹不夹"：先按"不夹"，清掉走位途中的旧帧，再等一帧 cmd ----
@@ -2683,12 +2830,23 @@ LIZHU_START:
              ≤85mm(贴后墙)" —— 前进只会让后测距变大、永远不满足，只能靠 6s 超时兜底往前冲 60cm。
              改成 -SPD_AVG_V：真后退，后测距一路变小，到 85mm 自然停。 */
           ROBOT_MoveSpeed(0.0f, -SPD_AVG_V);
-          WAIT_WHILE(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>80,
-                 "LiZhu back-to-wall(mm<=80)");
+          WAIT_WHILE(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>76,
+                 "LiZhu back-to-wall(mm<=76)");
 
           //定位操作：向左慢平移到左后光电感应到无障碍物，之后再往右走固定距离（刚到仓库中间的距离）
           ROBOT_MoveSpeed(-5, 0);   //★匀速靠近：SPD_AVG_V
-          WAIT_WHILE(LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1, "LiZhu laser1 no-obstacle");
+          
+          {
+            uint32_t lz_t0 = HAL_GetTick();  uint8_t lz_hit = 0;   //连续"看到"计数
+            while(lz_hit < 3){
+              lz_hit = !LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin) ? (uint8_t)(lz_hit + 1) : 0;  //断一次就重新数
+              if(lz_hit >= 3) break;
+              //if(HAL_GetTick() - lz_t0 > WAIT_TIMEOUT_MS){ UART1_Printf("TIMEOUT: LiZhu laser4 x3\r\n"); break; }
+              HAL_Delay(50);                                       //每次检测间隔 50ms
+            }
+          }
+          
+          //WAIT_WHILE(LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1, "LiZhu laser1 no-obstacle");
           ROBOT_MoveSpeed(0,0);
           ROBOT_Move(29, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
 
@@ -2705,8 +2863,23 @@ LIZHU_START:
             HAL_Delay(90);
             // ROBOT_Move(0, -4, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
             ROBOT_MoveSpeed(0, -30);
+            //往后速度稍微大点，抵消掉往前的一小点位移
             HAL_Delay(90);
           }
+          ROBOT_MoveSpeed(0, 0);
+          HAL_Delay(500);
+
+          for(uint8_t i = 0; i < 3; i++)
+          {
+            // ROBOT_Move(0, 4, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+            ROBOT_MoveSpeed(0, 30);
+            HAL_Delay(90);
+            // ROBOT_Move(0, -4, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+            ROBOT_MoveSpeed(0, -30);
+            //往后速度稍微大点，抵消掉往前的一小点位移
+            HAL_Delay(90);
+          }
+
           ROBOT_MoveSpeed(0, 0);
           runActionGroup(19, 1);//收倒球槽
           HAL_Delay(1000);

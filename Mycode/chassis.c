@@ -509,8 +509,10 @@ void CHASSIS_Control_Loop(void){
     uint8_t no_move = (fabsf(chassis.v_x) < 0.001f && fabsf(chassis.v_y) < 0.001f);
     /* 航向环三档（2026-09-19 改：kp/ki/kd/bias **每档一套、彼此独立**，改前只有 kp 分档）：
        ① 无平移 → 旋转档（原地转向/被推动后纠偏，要快，kp 该猛）
-       ②③④ 有平移时按分量最大值分三态：低于 YAW_MOVE_MIN_SPEED 不介入 / 到
-             YAW_KP_LOW_SPEED_BOUND 为止是低速档（纠偏更柔、防来回猛纠）/ 之上是高速档
+       ②③④ 有平移时按分量最大值分档：到 YAW_KP_LOW_SPEED_BOUND 为止是低速档（纠偏更柔、
+             防来回猛纠）/ 之上是高速档
+             ★ 2026-09-27 用户要求：0~20cm/s 的平移也要介入、且用低速档那套参数 ⇒
+               YAW_MOVE_MIN_SPEED 由 20 改 0，原来"不介入"那一态并入低速档，三态变两态
        判速用整车目标速度 v_x/v_y（与速度环按 target 分段一致），取**两分量绝对值的较大者**
        max(|vx|,|vy|)，而不是合速度 sqrt(vx²+vy²)。★ 2026-09-19 用户定。
        理由：麦轮斜移时四轮的平移分量是 vy±vx —— 越接近 45°，必有一对轮子的分量越接近 0
@@ -522,16 +524,25 @@ void CHASSIS_Control_Loop(void){
          BOUND 现为 80，合速度 42.4 和 max 30 都落低速档。）
        三档的值取 chassis.yaw_param[档]（不是宏）—— 因为本循环每周期都会覆盖 yaw_pid 的
        kp/ki/kd，直接改 yaw_pid.* 会被立刻冲掉，所以要串口 ykp1/2/3 等改数组才调得动。
-      ★ 2026-09-19 加"不介入"：分量最大值低于 YAW_MOVE_MIN_SPEED 的平移，角度环整个不参与 ——
-        kp/ki/kd 当 0 送进 PID、bias 也不叠 ⇒ out 恒 0 ⇒ w 恒 0。理由见 chassis.h
-        的 YAW_MOVE_MIN_SPEED。档位本身仍报 YAW_STAGE_MOVE_LO（只有三个档位，
+      ★ 2026-09-27 用户要求：0~20cm/s 的平移也要介入、且用低速档(20~80)那套参数 ⇒
+        chassis.h 的 YAW_MOVE_MIN_SPEED 定为 0，下面那个"不介入"分支（yaw_on=0）恒不成立，
+        所有平移都落 YAW_STAGE_MOVE_LO、参数照常送进 PID。控制逻辑一字未改：要回退只需把
+        该宏改回 20.0f。代价（用户已知并接受）：极低速段 w 只等效几 cm/s，可能因四轮静摩擦
+        差出现"某个轮先动"。
+      ★ 2026-09-19 加"不介入"（留档）：分量最大值低于 YAW_MOVE_MIN_SPEED 的平移，角度环
+        整个不参与 —— kp/ki/kd 当 0 送进 PID、bias 也不叠 ⇒ out 恒 0 ⇒ w 恒 0。理由见
+        chassis.h 的 YAW_MOVE_MIN_SPEED。档位本身仍报 YAW_STAGE_MOVE_LO（只有三个档位，
         "介不介入"另用 yaw_on 表达，不新增枚举值）。 */
     uint8_t motion_stage;                          // 本周期用哪一档（下面判停止档时也要用）
     uint8_t yaw_on = 1;                            // 本周期角度环是否介入（0 ⇒ w 恒 0）
+                                                   // ★ YAW_MOVE_MIN_SPEED=0 时不会再被置 0
     if(no_move){
       motion_stage = YAW_STAGE_TURN;
     }else{
       float move_max = fmaxf(fabsf(chassis.v_x), fabsf(chassis.v_y));   // 两分量绝对值的较大者
+      /* ★ YAW_MOVE_MIN_SPEED 现为 0（chassis.h）⇒ 本分支恒不成立（move_max 是绝对值，恒 ≥ 0），
+         0~20cm/s 的平移同样走下面的低速档、照常介入；
+         留着它只是为了把宏改回 20.0f 就能立刻恢复旧行为 */
       if(move_max < YAW_MOVE_MIN_SPEED){
         motion_stage = YAW_STAGE_MOVE_LO;          // 名义落到低速档，但参数不生效
         yaw_on       = 0;
@@ -541,6 +552,7 @@ void CHASSIS_Control_Loop(void){
       }
     }
     /* 档位编码（2026-09-19 加，仅供串口观察，不参与控制）：0=旋转 1=不介入 2=低速 3=高速
+       ★ 2026-09-27：YAW_MOVE_MIN_SPEED=0 ⇒ 1(不介入) 不再出现，0~20cm/s 报 2(低速)
        ★ 为什么另立一个字段而不是用 chassis.yaw_stage：那个档位在确认停稳时会被改写成
          YAW_STAGE_STOP(3)，与本编码的"3=高速"撞车；而且它表达的是"停没停稳"，不是"介不介入"。 */
     if(no_move)                                chassis.yaw_gear = 0;

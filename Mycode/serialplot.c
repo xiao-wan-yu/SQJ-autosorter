@@ -356,7 +356,7 @@ void SERIALPLOT_ChangeParam(char *string){
 /**
   * @brief 利用serialplot画图软件进行PID调参
   * @note  串口发6通道数据（空格分隔+\r\n）：yaw目标角/实际角/输出w、目标合速度/实际合速度、
-  *        当前档位编码 0旋转/1不介入/2低速/3高速（各通道含义详见 while(1) 里 UART1_Printf 处的注释）。
+  *        当前档位编码 0旋转/2低速/3高速（1不介入自 2026-09-27 起不再出现；各通道含义详见 while(1) 里 UART1_Printf 处的注释）。
   *        调参指令格式：名字 类型 数值，如 "kp f 15" / "target f 30"
   *        ★ 调高速平移档：发 "go f 0"（前进长距）或 "gb f 0"（后退长距）跑一次直行，
   *          见 SERIALPLOT_ChangeParam 的 HIMOVE_* 宏与 go/gb 指令；用 ykp3/yki3/ykd3/ybias3 在线调，
@@ -392,9 +392,11 @@ void SERIALPLOT_PIDAdjustParam(void){
         sqrt(now_v_x²+now_v_y²)（now_v_* 是里程计转到全局系的速度，但旋转不改变模长
         ⇒ 数值上等于车体合速度）。4/5 同口径，可直接对比着看速度环跟随得怎么样。
       ★ 第6通道 = 当前档位编码（chassis.yaw_gear，见 chassis.h）：
-          0 = 旋转档（无平移）   1 = 不介入（0 < max(|vx|,|vy|) < 20）
-          2 = 低速平移档（20~80） 3 = 高速平移档（> 80）
-        ★ 用 %d 发整数、不是 %f —— 图上直接看 1/2/3 的台阶，比看连续数值直观。
+          0 = 旋转档（无平移）   2 = 低速平移档（0~80）
+          3 = 高速平移档（> 80）
+        ★ 1 = 不介入**2026-09-27 起不再出现**（YAW_MOVE_MIN_SPEED 定为 0，0~20 归低速档）；
+          把该宏改回 20.0f 就会重新看到 1。
+        ★ 用 %d 发整数、不是 %f —— 图上直接看 2/3（旧版是 1/2/3）的台阶，比看连续数值直观。
         ★ 旋转档给 0 是**额外的**（上面三档才是分档结果）：车停下、原地转向时落这一档，
           它和"不介入"正好相反（角度环介入且 bias 最猛），混进 1 会看错。 */
     float tgt_spd = sqrtf(chassis.v_x * chassis.v_x + chassis.v_y * chassis.v_y);
