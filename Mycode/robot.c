@@ -130,9 +130,12 @@ void ROBOT_Move(int32_t x_distance, int32_t y_distance,
     HAL_Delay(5);
   }
   /* 退出前清四轮速度环积分项（2026-09-21 用户要求）：这一趟规划攒下的 i_out 不该带到下一个
-     动作去，否则下次起步会带着旧积分多冲一下。正常停稳和超时放行都清（两条路都走到这）。 */
+     动作去，否则下次起步会带着旧积分多冲一下。正常停稳和超时放行都清（两条路都走到这）。
+     ★2026-09-27 位置式接入：位置式速度环的积分是 speed_pid_pos[i].errorint（累加量 Σerror，
+       等价于增量式的 i_out），两套一起清；不清的话默认走位置式时这句等于没清、下次起步照样多冲。 */
   for(uint8_t i = CHASSIS_MOTOR_LF; i <= CHASSIS_MOTOR_RF; i++){
     chassis.speed_pid[i].i_out = 0.0f;
+    chassis.speed_pid_pos[i].errorint = 0.0f;
   }
 }
 

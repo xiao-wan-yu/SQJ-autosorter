@@ -13,7 +13,7 @@ typedef struct{
   /*中间变量*/
   float error0;      //本次误差
   float error1;      //上次误差
-  float errorint;    //误差积分（★是"误差的累加"Σerror，不是"积分项输出"；积分项输出 = ki*errorint）
+  float errorint;    //误差积分（★注意：是"误差的累加"，不是"积分项输出"；积分项输出 = ki*errorint）
   float integral_max;//积分限幅上限（积分超过该值会被截断；若置 0 则不做积分限幅）
   /*输出上下限*/
   float out_max;  //输出上限

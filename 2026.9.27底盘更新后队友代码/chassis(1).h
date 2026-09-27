@@ -105,9 +105,9 @@ typedef enum {
 #define YAW_MOVE_HI_KD    0.025f
 #define YAW_MOVE_HI_BIAS  0.0f
 
-#define YAW_PID_OUT_MAX  2.8f    // w 输出上限 rad/s
-#define YAW_PID_OUT_MIN  (-2.8f) // w 输出下限 rad/s
-#define YAW_DEAD_ZONE_TURN  1.20f   // 静止旋转死区（°）：误差进入该范围 → w 归零（只归零 w，不停速度环）
+#define YAW_PID_OUT_MAX  1.9f    // w 输出上限 rad/s
+#define YAW_PID_OUT_MIN  (-1.9f) // w 输出下限 rad/s
+#define YAW_DEAD_ZONE_TURN  1.0f   // 静止旋转死区（°）：误差进入该范围 → w 归零（只归零 w，不停速度环）
                                     // 防小w输出累加到增量式速度环PWM、克服静摩擦猛动造成来回飘动（实测有效）
                                     // 2026-09-19 用户定 0.92（1.0 → 0.65 → 0.75 → 0.92，实测微调）
                                     // ★ 这是本值唯一的定义处，其他文件一律引用本宏、不写死数字
@@ -188,35 +188,30 @@ typedef struct {
     SpeedSegParam speed_seg[5][SPEED_SEG_NUM]; // [轮号1..4][速度段0..3] 每轮各自一套（索引0占位不用，与 speed_pid 编号一致）
                                                // 参数初值表在 CHASSIS_Init：改哪一轮就改那一行，其余代码不用动
                                                // 控制循环按 |target| 选段，再按轮号取该轮的 kp/ki/kd
-    /* ==================== 位置式速度环（2026-09-25 加，2026-09-27 接入本工程） ====================
+    /* ==================== 位置式速度环（2026-09-25 加） ====================
        与上面的增量式 speed_pid[] **并存**，由 speed_pos_mode 二选一，两套状态互不干扰：
          speed_pos_mode = 0 → 走 speed_pid[]     + PID_IncUpdate     （原逻辑，一行没动）
-         speed_pos_mode = 1 → 走 speed_pid_pos[] + PID_PosSpeedUpdate（新逻辑，★上电默认）
+         speed_pos_mode = 1 → 走 speed_pid_pos[] + PID_PosSpeedUpdate（新逻辑，默认）
        ★ 两者**共用上游**：麦轮解算/梯形规划把目标速度写在 speed_pid[i].target，编码器换算的实测
          速度写在 speed_pid[i].actual。位置式每周期把这两个值拷进自己再运算 ⇒ 上游一行都不用改，
-         里程计/零漂保护/机器人层判停（robot.c 读 speed_pid[i].target/actual）同样一行都不用改。
+         调试入口 SERIALPLOT_SpeedPidDebug / SERIALPLOT_SpeedTuneLoop 同样一行都不用改。
        ★ 位置式的参数、限制、积分条件**全在 speed_pid_pos[i] 自己身上**（不查 speed_seg 表、不分速度段），
-         初值在 CHASSIS_Init，串口在线调（见 serialplot.c 的位置式指令块）：
+         初值在 CHASSIS_Init，串口在线调：
              pkp1~pkp4 / pki1~pki4 / pkd1~pkd4  f 值   单轮 kp/ki/kd
              pomax / pomin f 值                        输出上下限（PWM，默认 ±900）
-             pimax  f 值                               误差积分限幅（限的是累加量 Σerror，不是 i_out）
+             pimax  f 值                               误差积分限幅（限的是累加量，不是 i_out）
              psep   f 值                               积分分离阈值：|误差|>它就不积分（0=关闭）
              pidz   f 值                               积分死区阈值：|误差|<它就不积分（0=关闭）
-             pkip   f 值                               |ki| 低于它 → 视为无积分并清 errorint（默认 0.001）
              pmode  i 0/1                              增量式/位置式切换
-       ★ 队友强调的两点，别搞混：
-         ① 位置式的参数**不在 speed_seg 那张表里**（增量式按速度段分 4 档、1/4 号轮一组 2/3 号轮一组），
-            位置式是四轮各一份、不分速度段，存在 chassis.speed_pid_pos[1..4]；
-         ② 所以发 pq 看参数时，**W1~W4 那段是增量式的、P1~P4 那段才是现在生效的**。
-       ★ 上电默认**位置式**。要切回增量式：串口发 pmode i 0，立即生效、无需复位
-         （也是出问题时最快的回退手段）。 */
+       ★ 上电默认**位置式**（speed_pos_mode=1，符合"这次就是要调位置式"的意图）。
+         要切回增量式：串口发 pmode i 0，立即生效、无需复位（也是出问题时最快的回退手段）。*/
     PID_POS  speed_pid_pos[5];   // 4轮位置式速度环（索引0不用；1~4 对应 TIM1_CH1~4）
     uint8_t  speed_pos_mode;     // 0=增量式 1=位置式（CHASSIS_Init 置 1；串口 pmode i 0/1 在线切）
     /* ---- 调试手动定速（2026-09-25 加；默认 0，为 0 时整车逻辑一行都不参与）----
        speed_dbg_manual=1 时，CHASSIS_SpeedLoop 里把四轮 target 全钉成 speed_dbg_tgt、
        旁路麦轮解算 ⇒ 目标速度不再是往复的梯形（峰值只有 20cm/s 且一直在变），
        而是一直钉在你给的值上，便于考察 40/80/120cm/s 下 kp/ki 还够不够用。
-       串口：ptgt f 40 → 定速 40cm/s（负=后退，0=目标0）   pauto i 0 → 回到自动（车停） */
+       串口：ptgt f 40 → 定速 40cm/s（负=后退，0=目标0）   pauto i 0 → 回到自动往复 */
     uint8_t  speed_dbg_manual;
     float    speed_dbg_tgt;
     /* ==================== 单轮速度环临时调参（2026-09-17 调试用；speed_tune=0 时以下字段不参与任何逻辑） ====================

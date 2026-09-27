@@ -102,8 +102,40 @@ void SERIALPLOT_ChangeParam(char *string){
 
   /* 梯形规划指令（mx/my 不在 param 表，单独分发）：mx f 30 → x方向平移30cm自动停；my 同理
      速度/加速度用 param 表默认值 mv/mvacc（距离0的轴速度/加速度传0即可，不参与规划） */
-  if(strcmp(str_name, "mx") == 0){ CHASSIS_Start_Move(val, 0.0f, chassis.move_speed, 0.0f, chassis.move_acc, 0.0f); return; }
-  if(strcmp(str_name, "my") == 0){ CHASSIS_Start_Move(0.0f, val, 0.0f, chassis.move_speed, 0.0f, chassis.move_acc); return; }
+  /* ★2026-09-27：mx/my 顺手清两样东西 ——
+     ① speed_dbg_manual 置 0：为 1 时 SERIALPLOT_SpeedPidDebug 的循环每拍都把 x/y_speed_plan_flag
+        按死为 0，规划根本起不来（表现为"发了 mx 车不动"）。清掉后规划才真正能跑。
+     ② pos_x / pos_y 清零：走完直接读里程计就是**这一趟**的实际位移，不用自己拿累计值去减。
+        只清本次走的那根轴，另一根留着。 */
+  if(strcmp(str_name, "mx") == 0){
+    chassis.speed_dbg_manual = 0;
+    chassis.pos_x = 0.0f;
+    CHASSIS_Start_Move(val, 0.0f, chassis.move_speed, 0.0f, chassis.move_acc, 0.0f);
+    return;
+  }
+  if(strcmp(str_name, "my") == 0){
+    chassis.speed_dbg_manual = 0;
+    chassis.pos_y = 0.0f;
+    CHASSIS_Start_Move(0.0f, val, 0.0f, chassis.move_speed, 0.0f, chassis.move_acc);
+    return;
+  }
+
+  /* ★2026-09-27 加：一键跑 main.c 里那条长距斜移，用来在**运动中**观察航向环。
+     等价于 main.c 的 ROBOT_Move(mode_red?-88:88, 433, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A)，
+     这里写死红方那条：x = -88、y = 433、速度/加减速 120/120。
+     ★为什么用 CHASSIS_Start_Move 而不是 ROBOT_Move：ROBOT_Move 里有两个阻塞 while
+       （等规划跑完 robot.c:93 + 等车停稳 robot.c:113）。本调试循环是单线程，一调它，
+       整个移动过程一行数据都出不来 —— 而那正是要观察的那一段。
+       Start_Move 只下发规划立刻返回，规划由 TIM7 中断里的控制循环推进，调试循环照常出数。
+     ★必须清 speed_dbg_manual：它为 1 时本循环每拍把 x/y_speed_plan_flag 按死为 0，规划起不来。
+     数值随便填，只要发出来就触发一次。 */
+  if(strcmp(str_name, "rgo") == 0){
+    chassis.speed_dbg_manual = 0;
+    chassis.pos_x = 0.0f;                  // 里程计清零：走完 pos_x/pos_y 就是这趟的落点
+    chassis.pos_y = 0.0f;
+    CHASSIS_Start_Move(-88.0f, 433.0f, 120.0f, 120.0f, 120.0f, 120.0f);
+    return;
+  }
 
   /* ★ 高速平移档调参专用（2026-09-19 加）：发一条就跑一次长距直行，参数见文件上方 HIMOVE_*
      go f 0    → 用默认 120 跑
@@ -131,6 +163,79 @@ void SERIALPLOT_ChangeParam(char *string){
     return;
   }
 
+  /* ==================== 位置式速度环在线调参（2026-09-25 加，字段说明见 chassis.h 的 speed_pid_pos） ====================
+     全部以 'p' 开头，与增量式那套（kp1/skp/ki…）严格区分开，两套互不干扰、可随时对照。
+     改的都是 chassis.speed_pid_pos[] 里各自的字段，控制循环每周期直接读 ⇒ 发完立即生效、无需复位。
+     ★ 但它是内存值：复位/重新烧录会回到 CHASSIS_Init 里的初值 —— 调好后要把最终值填回那张表。
+     指令一览（格式仍是 "名字 类型 数值"）：
+       pkp1 f 5.0 / pki1 f 0.1 / pkd1 f 0.0     单轮 kp/ki/kd（轮号 1左前 2左后 3右后 4右前）
+       pomax f 900 / pomin f -900               输出上下限（PWM 量纲）
+       pimax f 3000                             误差积分限幅（★限的是 Σerror，不是 i_out）
+       psep  f 30                               积分分离阈值：|误差|>它 → 不积分（0=关闭）
+       pidz  f 2                                积分死区阈值：|误差|<它 → 不积分（0=关闭）
+       pkip  f 0.001                            |ki| 低于它 → 视为无积分并清空 errorint
+       pmode i 1                                1=位置式(默认) 0=增量式 —— 出问题最快的回退开关
+     ★ 前缀辨析：pkp1 是"位置式1号轮kp"，kp1 是"增量式1号轮kp"，别混。 */
+  if(str_name[0] == 'p' && str_name[1] == 'k'
+     && (str_name[2] == 'p' || str_name[2] == 'i' || str_name[2] == 'd')
+     && str_name[3] >= '1' && str_name[3] <= '4' && str_name[4] == '\0'){
+    uint8_t wheel = (uint8_t)(str_name[3] - '0');                              // 1~4
+    uint8_t field = (str_name[2] == 'p') ? 0 : (str_name[2] == 'i') ? 1 : 2;  // 0=kp 1=ki 2=kd
+    float *dst = (field == 0) ? &chassis.speed_pid_pos[wheel].kp
+               : (field == 1) ? &chassis.speed_pid_pos[wheel].ki
+                              : &chassis.speed_pid_pos[wheel].kd;
+    *dst = val;
+    return;
+  }
+  /* 位置式的限制/积分条件（四轮统一一套，与 skp/ski/skd 那组同一个思路） */
+#define SET_ALL_POS(field, v) do{                                              \
+    for(uint8_t i = CHASSIS_MOTOR_LF; i <= CHASSIS_MOTOR_RF; i++)              \
+      chassis.speed_pid_pos[i].field = (v);                                    \
+  }while(0)
+  if(strcmp(str_name, "pomax") == 0){ SET_ALL_POS(out_max,      val); return; }
+  if(strcmp(str_name, "pomin") == 0){ SET_ALL_POS(out_min,      val); return; }
+  if(strcmp(str_name, "pimax") == 0){ SET_ALL_POS(integral_max, val); return; }
+  if(strcmp(str_name, "psep")  == 0){ SET_ALL_POS(int_sep_th,   val); return; }
+  if(strcmp(str_name, "pidz")  == 0){ SET_ALL_POS(int_dz,       val); return; }
+  if(strcmp(str_name, "pkip")  == 0){ SET_ALL_POS(ki_eps,       val); return; }
+#undef SET_ALL_POS
+  /* 位置式/增量式切换：pmode i 1 位置式（默认） / pmode i 0 增量式 */
+  if(strcmp(str_name, "pmode") == 0){ chassis.speed_pos_mode = (uint8_t)val; return; }
+  /* 选被观察的轮子（6通道调试用）：pwhl i 1   1左前 2左后 3右后 4右前
+     只改 chassis.tune_wheel，不动 speed_tune ⇒ 不影响控制循环跑速度环还是整车。
+     ★必须夹取范围：tune_wheel 直接当 speed_pid[5]/speed_pid_pos[5] 的下标用，
+       放进来一个 7 就是数组越界读，会读出垃圾曲线甚至HardFault。越界值直接忽略。 */
+  if(strcmp(str_name, "pwhl") == 0){
+    if(val >= (float)CHASSIS_MOTOR_LF && val <= (float)CHASSIS_MOTOR_RF){
+      chassis.tune_wheel = (uint8_t)val;
+    }
+    return;
+  }
+  /* ★手动设定速度环目标值（2026-09-25 加）：
+       ptgt f 40   四轮 target 全部钉在 40cm/s（正=前进，负=后退，0=目标0），
+                   旁路麦轮解算 ⇒ 车不再往复，一直按这个速度跑，便于考察速度环跟随。
+       pauto i 0   退出定速 → 车停，回到"静止等指令"（发 mx/my 也会自动退）。
+     ★为什么需要它：调试模式里 target 只能由梯形规划给 —— 峰值 20cm/s 且一直在变，
+       想验证 40/80/120cm/s 下 kp/ki 还够不够用，就必须能把目标钉住。
+     ★ptgt 是"定速"不是"启动"：发完车会立刻按新目标跑，不需要配合 mx/vx。
+       目标设很大时注意 pomax 的输出限幅，符号搞反了就发个负值调回来。 */
+  /* ★ptgt 顺手把规划标志清掉：定速期间不该再让梯形规划在后台跑 —— 规划每周期都会改写
+     chassis.v_x/v_y、累加 dist_acc_x/y、把 ti 一直往前推。速度环的 target 已被
+     speed_dbg_manual 钉住、不受它影响，但清掉后行为可预期：里程计不再乱涨，
+     切回 pauto 时也是从静止重新起一段干净的规划。 */
+  if(strcmp(str_name, "ptgt")  == 0){
+    chassis.speed_dbg_tgt     = val;
+    chassis.speed_dbg_manual  = 1;
+    chassis.x_speed_plan_flag = 0;
+    chassis.y_speed_plan_flag = 0;
+    chassis.x_set_speed_flag  = 0;   // 一并清掉，免得 vx/vy 的手动值又来插一脚
+    chassis.y_set_speed_flag  = 0;
+    return;
+  }
+  /* pauto i 0：退出四轮同速定速，速度环 target 交回麦轮解算（v_x/v_y 为 0 ⇒ 车停）。
+     原来那个 ±10cm 自动往复 2026-09-27 已删，所以退出定速后就是"静止等指令" */
+  if(strcmp(str_name, "pauto") == 0){ chassis.speed_dbg_manual = 0; return; }
+
   /* 单轮速度环临时调参指令（不在 param 表，单独分发；用法见 SERIALPLOT_SpeedTuneLoop）：
      只改 chassis.tune_* 这几个临时量，绝不触碰 SPEED_PID_DFT 表 —— 试出合适的值后自己填表 */
   if(strcmp(str_name, "tspd") == 0){ chassis.speed_pid[chassis.tune_wheel].target = val; return; }  // 被调轮目标速度 cm/s
@@ -138,9 +243,8 @@ void SERIALPLOT_ChangeParam(char *string){
   if(strcmp(str_name, "tki")  == 0){ chassis.tune_ki = val; return; }                               // 临时 ki
   if(strcmp(str_name, "tkd")  == 0){ chassis.tune_kd = val; return; }                               // 临时 kd
 
-  /* 航向环开关（不在 param 表，单独分发；手动给 vx/vy 看四轮一致性时用）：
-     ang i 0 → 关角度环（w 恒为0，四轮 target 严格相等）   ang i 1 → 开回来（角度环接管 w 纠偏）。
-     flag 定义在 chassis.h，此处已 include */
+  /* 航向环开关（不在 param 表，单独分发；四轮联动测试用）：ang i 0 → 关角度环（w 恒为0，四轮target严格相等）
+     ang i 1 → 开回来（角度环接管 w 纠偏）。flag 定义在 chassis.h，此处已 include */
   if(strcmp(str_name, "ang") == 0){ flag.angle = (uint8_t)val; return; }
 
   /* ★ 四轮统一速度环参数（在线批量改，不在 param 表）：一条指令同时改 4 轮 × 4 个速度段。
@@ -186,70 +290,6 @@ void SERIALPLOT_ChangeParam(char *string){
     return;
   }
 
-  /* ★ 位置式速度环的在线调参（2026-09-25 队友加，2026-09-27 接入本工程；字段说明见 chassis.h）
-     ★ 先说清楚：**位置式和增量式的参数是两套、存在两处，别搞混**
-        增量式 → chassis.speed_seg[轮][速度段] 表（按速度段分 4 档；改它的是 skp/ski/skd 与 kp1~4/ki1~4/kd1~4）
-        位置式 → chassis.speed_pid_pos[轮] 自己身上（四轮各一份、**不分速度段**；改它的是下面这组 p* 指令）
-       位置式压根不查 speed_seg 表 ⇒ 发完 pkp1 再发 pq，看到 W1 还是旧值是正常的（那是增量式的值），
-       要看位置式的值请认 pq 输出里的 P1~P4 / POS 那几行。
-     指令一览（格式仍是 "名字 类型 数值"）：
-       pkp1 f 5.0 / pki1 f 0.1 / pkd1 f 0.0     单轮 kp/ki/kd（轮号 1左前 2左后 3右后 4右前）
-       pomax f 900 / pomin f -900               输出上下限（PWM 量纲）
-       pimax f 3000                             误差积分限幅（★限的是 Σerror，不是 i_out）
-       psep  f 30                               积分分离阈值：|误差|>它 → 不积分（0=关闭）
-       pidz  f 2                                积分死区阈值：|误差|<它 → 不积分（0=关闭）
-       pkip  f 0.001                            |ki| 低于它 → 视为无积分并清空 errorint
-       pmode i 1                                1=位置式(上电默认) 0=增量式 —— 出问题最快的回退开关
-     ★ 前缀辨析：pkp1 是"位置式1号轮 kp"，kp1 是"增量式1号轮 kp"，别混。
-     ★ 判断顺序同样是靠 && 短路先判 [1]/[2] 再判 [3]/[4]，否则发单字符 "p" 会越界读；
-       "pkip" 因 [3]='p' 不落 '1'~'4' 区间，自动短路放行给下面的 strcmp。 */
-  if(str_name[0] == 'p' && str_name[1] == 'k'
-     && (str_name[2] == 'p' || str_name[2] == 'i' || str_name[2] == 'd')
-     && str_name[3] >= '1' && str_name[3] <= '4' && str_name[4] == '\0'){
-    uint8_t wheel = (uint8_t)(str_name[3] - '0');                              // 1~4
-    uint8_t field = (str_name[2] == 'p') ? 0 : (str_name[2] == 'i') ? 1 : 2;  // 0=kp 1=ki 2=kd
-    float *dst = (field == 0) ? &chassis.speed_pid_pos[wheel].kp
-               : (field == 1) ? &chassis.speed_pid_pos[wheel].ki
-                              : &chassis.speed_pid_pos[wheel].kd;
-    *dst = val;
-    return;
-  }
-  /* 位置式的限制/积分条件（四轮统一一套，与 skp/ski/skd 那组同一个思路） */
-#define SET_ALL_POS(field, v) do{                                              \
-    for(uint8_t i = CHASSIS_MOTOR_LF; i <= CHASSIS_MOTOR_RF; i++)              \
-      chassis.speed_pid_pos[i].field = (v);                                    \
-  }while(0)
-  if(strcmp(str_name, "pomax") == 0){ SET_ALL_POS(out_max,      val); return; }
-  if(strcmp(str_name, "pomin") == 0){ SET_ALL_POS(out_min,      val); return; }
-  if(strcmp(str_name, "pimax") == 0){ SET_ALL_POS(integral_max, val); return; }
-  if(strcmp(str_name, "psep")  == 0){ SET_ALL_POS(int_sep_th,   val); return; }
-  if(strcmp(str_name, "pidz")  == 0){ SET_ALL_POS(int_dz,       val); return; }
-  if(strcmp(str_name, "pkip")  == 0){ SET_ALL_POS(ki_eps,       val); return; }
-#undef SET_ALL_POS
-  /* 位置式/增量式切换（★队友强调的指令）：pmode i 1 位置式（上电默认） / pmode i 0 增量式。
-     立即生效、不用复位 —— 两套状态各存一份，切过去只是换掉这一周期读谁 */
-  if(strcmp(str_name, "pmode") == 0){ chassis.speed_pos_mode = (uint8_t)val; return; }
-
-  /* ★ 手动设定速度环目标值（2026-09-25 加，专为"目标钉住不动"地调速度环）：
-       ptgt f 40   四轮 target 全部钉在 40cm/s（正=前进，负=后退，0=目标0），旁路麦轮解算
-       pauto i 0   退出定速 → 车停，回到"静止等指令"（发 mx/my/vx/vy 也会自动交给解算）
-     ★为什么需要它：自动流程里 target 由梯形规划给 —— 峰值只有 20cm/s 且一直在变，
-       想验证 40/80/120cm/s 下 kp/ki 还够不够用，就必须能把目标钉住。
-     ★ptgt 顺手把规划标志清掉：定速期间不该再让梯形规划在后台跑（规划每周期都会改写
-       chassis.v_x/v_y、累加 dist_acc_x/y、把 ti 一直往前推）。速度环的 target 已被
-       speed_dbg_manual 钉住、不受它影响，清掉后行为更可预期。 */
-  if(strcmp(str_name, "ptgt")  == 0){
-    chassis.speed_dbg_tgt     = val;
-    chassis.speed_dbg_manual  = 1;
-    chassis.x_speed_plan_flag = 0;
-    chassis.y_speed_plan_flag = 0;
-    chassis.x_set_speed_flag  = 0;   // 一并清掉，免得 vx/vy 的手动值又来插一脚
-    chassis.y_set_speed_flag  = 0;
-    return;
-  }
-  /* pauto i 0：退出四轮同速定速，速度环 target 交回麦轮解算（v_x/v_y 为 0 ⇒ 车停） */
-  if(strcmp(str_name, "pauto") == 0){ chassis.speed_dbg_manual = 0; return; }
-
   /* ★ 航向环三档参数在线调（2026-09-19 改：kp/ki/kd/bias 四者**每档一套、彼此独立**）
      指令名 = 参数名 + 档号：ykp1/2/3、yki1/2/3、ykd1/2/3、ybias1/2/3
      档号：1 = 旋转档   2 = 低速平移档   3 = 高速平移档。用法：ykp2 f -0.02    ybias2 f 0.05
@@ -277,35 +317,33 @@ void SERIALPLOT_ChangeParam(char *string){
   }
 
   /* 参数查询（2026-09-18 加）：发 "pq i 0" → 串口打印当前参数。
-     内容（★2026-09-27 起"两套速度环参数分开打"，认字母前缀即可）：
-       W1~W4  = **增量式**速度环（speed_seg 表，改它的是 skp/ski/skd 与 kp1~4/ki1~4/kd1~4）
-       P1~P4  = **位置式**速度环（speed_pid_pos[]，改它的是 pkp1~4/pki1~4/pkd1~4）★当前生效的是这段
-       POS    = 位置式的限制与积分条件（out_max/out_min/integral_max/sep/dz/ki_eps）
-       YAW1~3 = 航向环三档（改它的是 ykp1~3 / yki1~3 / ykd1~3 / ybias1~3）
-     ★ 为什么要分开打：上面 W1~W4 打的是 speed_seg 表，而位置式压根不查那张表 ⇒
-       发完 pkp1 再发 pq，看到 W1 纹丝不动会误判成"指令没生效"。位置式的参数在
-       speed_pid_pos[] 自己身上，只有 P1~P4 / POS 那几行能反映 pkp1~4 的结果。
+     内容：W1~W4 = 增量式速度环（speed_seg 表，改它的是 kp1~4 / skp）
+           P1~P4 = 位置式速度环（speed_pid_pos[]，改它的是 pkp1~4 / pki1~4 / pkd1~4）
+           POS   = 位置式的限制与积分条件（out_max/out_min/integral_max/sep/dz/ki_eps）
+           YAW1~3 = 航向环三档（改它的是 ykp1~3 / yki1~3 / ykd1~3 / ybias1~3）
      用途：这些指令改完看不到当前值（OLED 上显示不全），用它确认。
-     注意打印是文本、会插进浮点数据流里。 */
+     注意打印是文本、会插进浮点数据流里，认上面的字母前缀即可。 */
   if(strcmp(str_name, "pq") == 0){
     for(uint8_t w = CHASSIS_MOTOR_LF; w <= CHASSIS_MOTOR_RF; w++){
       UART1_Printf("W%d kp%f ki%f kd%f\r\n", (int)w,
                    chassis.speed_seg[w][0].kp, chassis.speed_seg[w][0].ki, chassis.speed_seg[w][0].kd);
     }
-    /* 位置式速度环参数（2026-09-27 加）：P1~P4 四轮 + POS 限制/积分条件 */
+    /* ★位置式速度环参数（2026-09-25 加）：P1~P4 = 四轮，POS = 限制与积分条件。
+       为什么必须加这段：上面 W1~W4 打的是 speed_seg 表（增量式参数，改它的是 kp1~4/skp），
+       位置式压根不查那张表 ⇒ 发完 pkp1 再 pq 看到的 W1 还是旧值，会误判成"指令没生效"。
+       位置式的参数在 speed_pid_pos[] 自己身上，只有这段能反映 pkp1~4/pki1~4/pkd1~4 的结果。 */
     for(uint8_t w = CHASSIS_MOTOR_LF; w <= CHASSIS_MOTOR_RF; w++){
       UART1_Printf("P%d kp%f ki%f kd%f\r\n", (int)w,
                    chassis.speed_pid_pos[w].kp, chassis.speed_pid_pos[w].ki,
                    chassis.speed_pid_pos[w].kd);
     }
-    UART1_Printf("POS out%f/%f imax%f sep%f dz%f kieps%f mode%d\r\n",
+    UART1_Printf("POS out%f/%f imax%f sep%f dz%f kieps%f\r\n",
                  chassis.speed_pid_pos[CHASSIS_MOTOR_LF].out_max,
                  chassis.speed_pid_pos[CHASSIS_MOTOR_LF].out_min,
                  chassis.speed_pid_pos[CHASSIS_MOTOR_LF].integral_max,
                  chassis.speed_pid_pos[CHASSIS_MOTOR_LF].int_sep_th,
                  chassis.speed_pid_pos[CHASSIS_MOTOR_LF].int_dz,
-                 chassis.speed_pid_pos[CHASSIS_MOTOR_LF].ki_eps,
-                 (int)chassis.speed_pos_mode);
+                 chassis.speed_pid_pos[CHASSIS_MOTOR_LF].ki_eps);
     for(uint8_t st = 0; st < 3; st++){   // 1=旋转 2=低速 3=高速
       UART1_Printf("YAW%d kp%f ki%f kd%f bias%f\r\n", (int)(st + 1),
                    chassis.yaw_param[st].kp, chassis.yaw_param[st].ki,
@@ -428,22 +466,11 @@ void SERIALPLOT_PIDAdjustParam(void){
    退出：本函数不返回（调试期间 main 就停在这里），调完把 main.c 里的这次调用注释掉即可 */
 static const char *SPEED_TUNE_WHEEL_NAME[5] = {"--", "LF", "LB", "RB", "RF"};  // 索引=轮号，与 CHASSIS_MOTOR_* 一致
 
-/* ★取"当前生效那套"速度环的 PWM 输出（2026-09-27 位置式速度环接入后加；与 main.c 的
-   CHASSIS_PwmOut 同一个道理）：速度环有位置式/增量式两套状态，同一时刻只有一套在算、在驱动
-   电机，另一套的 out 是残值。调试打印直接用 speed_pid[w].out 的话，在默认的位置式下会一直打出
-   恒 0，看着像"PID 没输出"。行为：位置式→speed_pid_pos[w].out；增量式→speed_pid[w].out */
-static float SERIALPLOT_PwmOut(uint8_t wheel){
-  return chassis.speed_pos_mode ? chassis.speed_pid_pos[wheel].out
-                                : chassis.speed_pid[wheel].out;
-}
-
 void SERIALPLOT_SpeedTuneLoop(uint8_t wheel){
   if(wheel < CHASSIS_MOTOR_LF || wheel > CHASSIS_MOTOR_RF) wheel = CHASSIS_MOTOR_LF;  // 越界回落左前
   chassis.tune_wheel = wheel;
   chassis.speed_tune = 1;            // 让控制循环只跑速度环（旁路 梯形规划/航向环/麦轮解算）
-  /* 清干净 4 轮 PID 与 PWM：只留被调轮转，其余三轮彻底停住（避免残存的 out 把别的轮子拖起来）
-     ★2026-09-27 位置式接入：位置式的状态（speed_pid_pos[]）同样要清 —— 它的 out 是**绝对 PWM 值**
-       （由 errorint 累加而来），残留下来的话会把被调轮直接拖起来；errorint 不清则起步多冲一下 */
+  /* 清干净 4 轮 PID 与 PWM：只留被调轮转，其余三轮彻底停住（避免残存的 out 把别的轮子拖起来） */
   for(uint8_t i = CHASSIS_MOTOR_LF; i <= CHASSIS_MOTOR_RF; i++){
     PID_INC *pid = &chassis.speed_pid[i];
     pid->target   = 0.0f;
@@ -455,16 +482,6 @@ void SERIALPLOT_SpeedTuneLoop(uint8_t wheel){
     pid->p_out    = 0.0f;
     pid->i_out    = 0.0f;
     pid->d_out    = 0.0f;
-    PID_POS *pp = &chassis.speed_pid_pos[i];
-    pp->target   = 0.0f;
-    pp->actual   = 0.0f;
-    pp->out      = 0.0f;
-    pp->p_out    = 0.0f;
-    pp->i_out    = 0.0f;
-    pp->d_out    = 0.0f;
-    pp->error0   = 0.0f;
-    pp->error1   = 0.0f;
-    pp->errorint = 0.0f;
     TB6612_Control(i, 0);
   }
   chassis.tune_pulse = 0;
@@ -473,11 +490,10 @@ void SERIALPLOT_SpeedTuneLoop(uint8_t wheel){
     OLED_Printf(0,  0, OLED_8X16_HALF, "tune:%s kp:%04.2f", SPEED_TUNE_WHEEL_NAME[wheel], chassis.tune_kp);
     OLED_Printf(0, 16, OLED_8X16_HALF, "ki:%04.2f kd:%04.2f", chassis.tune_ki, chassis.tune_kd);
     OLED_Printf(0, 32, OLED_8X16_HALF, "tar:%+04.1f p:%+03d", pid->target, chassis.tune_pulse);
-    OLED_Printf(0, 48, OLED_8X16_HALF, "act:%+04.1f o:%+05.0f", pid->actual, SERIALPLOT_PwmOut(wheel));
+    OLED_Printf(0, 48, OLED_8X16_HALF, "act:%+04.1f o:%+05.0f", pid->actual, pid->out);
     OLED_Update();
-    /* 4通道：SerialPlot 画前3条看收敛；第4条脉冲看量化台阶（整数，画出来是阶梯）
-       ★第3通道是"当前生效那套速度环"的 PWM（位置式/增量式自动选，见上面 SERIALPLOT_PwmOut） */
-    UART1_Printf("%f %f %f %d\r\n", pid->target, pid->actual, SERIALPLOT_PwmOut(wheel), chassis.tune_pulse);
+    /* 4通道：SerialPlot 画前3条看收敛；第4条脉冲看量化台阶（整数，画出来是阶梯） */
+    UART1_Printf("%f %f %f %d\r\n", pid->target, pid->actual, pid->out, chassis.tune_pulse);
     if(UART1_RxFlag){
       UART1_RxFlag = 0;
       SERIALPLOT_ChangeParam((char *)UART1_RxBuf);
@@ -490,27 +506,25 @@ void SERIALPLOT_SpeedTuneLoop(uint8_t wheel){
    目的：给"车身整体"一个目标速度，看四个轮子一起转动时 实际速度 vs 目标速度 的关系。
         四轮目标由麦轮解算给出：纯 vy / 纯 vx 工况下四个 target 应当恒相等，
         所以"4 条 actual 曲线散开的程度" = 四轮速度环 + 机械阻力的一致性。
-  ★ 与单轮调参模式(SERIALPLOT_SpeedTuneLoop)的关键区别：本模式**不旁路麦轮解算**，
-    走完整控制流程（麦轮解算 → 4轮速度环），即"正常的四轮一起跑"。
-    （单轮调参模式必须旁路：麦轮 4 方程 3 未知数，数学上不存在只让一轮非零的 v_x/v_y/w）
-  串口指令（SerialPlot 用户指令区，格式 "名字 类型 数值"）：
-    vy f 30    ★ 车身整体速度 cm/s（前进为正 / 负为后退）—— 这就是"改 target"的那个值，随时可改
-    vx f 20      车身整体横移速度 cm/s（右移为正）
-    ang i 1      临时开/关航向环（默认 0 关闭，见下）
-    ★2026-09-27 起另有更直接的入口（推荐，比本函数还灵活）：ptgt f 40 四轮同速定速 / pauto i 0 退出。
-  航向环默认关闭（ang=0）：关掉后 w 恒为 0，四个轮子 target 严格相等，最适合看四轮一致性。
-    想测"带纠偏的真实工况"就发 ang i 1 打开 —— 此时角度环会输出 w，四轮 target 会各差一点。
-  串口 8 通道输出（SerialPlot 通道号从 1 数起）：
-    1~4: 左前 / 左后 / 右后 / 右前  目标速度 cm/s（正常应完全重合，画出来就是一条线）
-    5~8: 左前 / 左后 / 右后 / 右前  实际速度 cm/s（四轮一致性看这里）
-  退出：本函数不返回（调试期间 main 就停在这里），测完把 main.c 里的这次调用注释掉即可。
-  （想看每轮 PWM：OLED 第 4 行已显示；要进串口就加进 printf 变 12 通道，UART1_TxLengthMax=200 够用） */
+   ★ 与单轮调参模式(SERIALPLOT_SpeedTuneLoop)的关键区别：本模式**不旁路麦轮解算**，
+     走完整控制流程（麦轮解算 → 4轮速度环），即"正常的四轮一起跑"。
+     （单轮调参模式必须旁路：麦轮 4 方程 3 未知数，数学上不存在只让一轮非零的 v_x/v_y/w）
+   串口指令（SerialPlot 用户指令区，格式 "名字 类型 数值"）：
+     vy f 30    ★ 车身整体速度 cm/s（前进为正 / 负为后退）—— 这就是"改 target"的那个值，随时可改
+     vx f 20      车身整体横移速度 cm/s（右移为正）
+     ang i 1      临时开/关航向环（默认 0 关闭，见下）
+   航向环默认关闭（ang=0）：关掉后 w 恒为 0，四个轮子 target 严格相等，最适合看四轮一致性。
+     想测"带纠偏的真实工况"就发 ang i 1 打开 —— 此时角度环会输出 w，四轮 target 会各差一点。
+   串口 8 通道输出（SerialPlot 通道号从 1 数起）：
+     1~4: 左前 / 左后 / 右后 / 右前  目标速度 cm/s（正常应完全重合，画出来就是一条线）
+     5~8: 左前 / 左后 / 右后 / 右前  实际速度 cm/s（四轮一致性看这里）
+   退出：本函数不返回（调试期间 main 就停在这里），测完把 main.c 里的这次调用注释掉即可。
+   （想看每轮 PWM：OLED 第 4 行已显示；要进串口就加进 printf 变 12 通道，UART1_TxLengthMax=200 够用） */
 void SERIALPLOT_ChassisTestLoop(void){
   /* 关航向环 + 清 w：让四轮 target 严格相等，纯粹观察四个速度环的一致性 */
   flag.angle = 0;
   chassis.w  = 0.0f;
-  /* 清干净 4 轮 PID 与 PWM，从零起步（避免上一次运行残留的 out 让轮子先窜一下）
-     ★2026-09-27 位置式接入：位置式那套状态（speed_pid_pos[]）一起清 —— 见 SERIALPLOT_SpeedTuneLoop 的同一段注释 */
+  /* 清干净 4 轮 PID 与 PWM，从零起步（避免上一次运行残留的 out 让轮子先窜一下） */
   for(uint8_t i = CHASSIS_MOTOR_LF; i <= CHASSIS_MOTOR_RF; i++){
     PID_INC *pid = &chassis.speed_pid[i];
     pid->target   = 0.0f;
@@ -522,16 +536,6 @@ void SERIALPLOT_ChassisTestLoop(void){
     pid->p_out    = 0.0f;
     pid->i_out    = 0.0f;
     pid->d_out    = 0.0f;
-    PID_POS *pp = &chassis.speed_pid_pos[i];
-    pp->target   = 0.0f;
-    pp->actual   = 0.0f;
-    pp->out      = 0.0f;
-    pp->p_out    = 0.0f;
-    pp->i_out    = 0.0f;
-    pp->d_out    = 0.0f;
-    pp->error0   = 0.0f;
-    pp->error1   = 0.0f;
-    pp->errorint = 0.0f;
     TB6612_Control(i, 0);
   }
   /* 手动设速标志置 1：否则控制循环每周期都会把 v_x/v_y 归零（见 CHASSIS_Control_Loop 规划执行段）
@@ -550,15 +554,11 @@ void SERIALPLOT_ChassisTestLoop(void){
     PID_INC *p2 = &chassis.speed_pid[CHASSIS_MOTOR_LB];
     PID_INC *p3 = &chassis.speed_pid[CHASSIS_MOTOR_RB];
     PID_INC *p4 = &chassis.speed_pid[CHASSIS_MOTOR_RF];
-    /* OLED：整车目标速度 + 航向环开关 + 四轮的 目标/实际/PWM（每行 4 个值，顺序 LF/LB/RB/RF）
-       ★2026-09-27 位置式接入：PWM 那行必须取"当前生效那套速度环"的输出（SERIALPLOT_PwmOut），
-         直接打 p1->out 的话，在默认的位置式下会恒为残值 0，看着像"没输出" */
+    /* OLED：整车目标速度 + 航向环开关 + 四轮的 目标/实际/PWM（每行 4 个值，顺序 LF/LB/RB/RF） */
     OLED_Printf(0,  0, OLED_8X16_HALF, "%+4d y%+4d k%.1f", (int)chassis.v_y, (int)chassis.pos_y, p1->kp);
     OLED_Printf(0, 16, OLED_8X16_HALF, "tar%+04.0f%+04.0f%+04.0f%+04.0f", p1->target, p2->target, p3->target, p4->target);
     OLED_Printf(0, 32, OLED_8X16_HALF, "act%+04.0f%+04.0f%+04.0f%+04.0f", p1->actual, p2->actual, p3->actual, p4->actual);
-    OLED_Printf(0, 48, OLED_8X16_HALF, "out%+04.0f%+04.0f%+04.0f%+04.0f",
-                SERIALPLOT_PwmOut(CHASSIS_MOTOR_LF), SERIALPLOT_PwmOut(CHASSIS_MOTOR_LB),
-                SERIALPLOT_PwmOut(CHASSIS_MOTOR_RB), SERIALPLOT_PwmOut(CHASSIS_MOTOR_RF));
+    OLED_Printf(0, 48, OLED_8X16_HALF, "out%+04.0f%+04.0f%+04.0f%+04.0f", p1->out, p2->out, p3->out, p4->out);
     OLED_Update();
     /* 8 通道：前 4 条 = 四轮目标速度（应重合为一条），后 4 条 = 四轮实际速度（分散度 = 一致性） */
     UART1_Printf("%f %f %f %f %f %f %f %f\r\n",
@@ -572,37 +572,127 @@ void SERIALPLOT_ChassisTestLoop(void){
   }
 }
 
-/* ==================== 四轮实际值实时输出（2026-09-25 加） ====================
-   目的：串口1(115200) 实时打四个轮子的**实际速度**，SerialPlot/串口助手直接看 4 条曲线。
-         看什么：四轮一致性(曲线散开程度) / 起转迟滞(目标给了但 actual 迟迟不走) /
-                 停车反接(目标 0 后 actual 迅速归零) / 速度环跟踪(actual 能不能追上 target)。
-   通道顺序（与 chassis.h 的 ChassisMotorIndex 一致）：
-     1=左前LF  2=左后LB  3=右后RB  4=右前RF    单位 cm/s（20ms 下 1 个编码器脉冲 = 2.27cm/s）
-   发送格式："%.1f %.1f %.1f %.1f\r\n" —— **纯数字、没有前缀文字**，SerialPlot 按空格分通道即可；
-     用串口助手看就是一行 4 个数。小数只留 1 位：分辨率 2.27cm/s，留 6 位纯属刷屏
-     （想和别的打印一样用 %f，就把下面那条 UART1_Printf 的格式改回 "%f %f %f %f\r\n"）。
-   ★为什么是"泵"函数（非阻塞 + 内部按 WHEEL_ACT_SEND_MS 节流）而不是 while 里直接发：
-      调用点只管频繁地调，发不发、隔多久发由本函数按 HAL_GetTick 判断 ——
-      ① 主循环转一圈的时间不固定（OLED/按键/视觉解析都占时间），节流后周期才稳定；
-      ② 车在跑的时候主循环往往停在上层的阻塞等待里（见 robot.c），所以那几个等待循环里也要调本函数。
-   ★调用点（开关/周期都在 serialplot.h 的 WHEEL_ACT_SEND_EN / WHEEL_ACT_SEND_MS）：
-      Core/Src/main.c  主循环开头 + "红蓝方选择"菜单循环里
-      Mycode/robot.c   ROBOT_Angle 等停止档的循环、ROBOT_Move 的两段等待循环
-   ★绝不放在 TIM7 1ms 中断里（别搬过去）：UART1_Printf 是阻塞发送，一行≈3ms@115200，
-     塞进中断会把 20ms 控制周期拖长 → 速度环/航向环时序全乱。
-   ★和别的串口1打印混在一起怎么办：现场用单键 'v' 关掉（见 main.c 的 UART1_DebugCmd），
-     或把 serialplot.h 的 WHEEL_ACT_SEND_EN 改 0 重新编译。 */
-uint8_t serialplot_wheel_on = WHEEL_ACT_SEND_EN;   // 运行期开关：1=发 0=停（串口1单键 'v' 切换）
+/* ==================== 航向环（角度环）运动中的表现调试（2026-09-27 改） ====================
+   用途：跑一次长距斜移，看航向环能不能把车压在目标朝向上（走直线）。
+   输出（串口 3 通道）：1 目标角度°  2 实际角度°  3 输出 w(rad/s)。OLED 四行同名，
+       第 4 行额外给一个误差 e 和当前档位 s（0旋转 / 1低速 / 2高速 / 3停止，见 chassis.h 的 YAW_STAGE_*）。
+   运动：串口 rgo 触发一次 CHASSIS_Start_Move(-88, 433, 120, 120, 120, 120)
+       —— 等价于 main.c 里那条 ROBOT_Move(mode_red?-88:88, 433, SPD_LONG_V, …, SPD_LONG_A)。
+       ★ 刻意用非阻塞的 CHASSIS_Start_Move 而不是 ROBOT_Move：ROBOT_Move 内部两个 while 会
+         阻塞到车停稳（robot.c:93 / 113），整个移动过程一个数都发不出来，而那正是要看的一段。
+   ★ 本模式进来默认 flag.angle = 1、target_yaw = YAW_TARGET_NONE（锁住当前朝向）。
+     要主动转向：串口 target f 90。
+   —— 下面速度环那套调参指令全部保留可用（现在不占通道了；配 ptgt 悬空观察时仍有意义）：
+   串口指令（SerialPlot 用户指令区，格式 "名字 类型 数值"）：
+     pwhl i 1     选被观察的轮子（1左前 2左后 3右后 4右前），默认 1
+     pmode i 0/1  增量式 / 位置式切换（上电默认位置式）
+     ang  i 0     关航向环（建议：关掉后 w 恒 0、四轮 target 严格相等，速度环曲线更干净）
+     —— 位置式调参：pkp1~4 / pki1~4 / pkd1~4、pomax / pomin / pimax / psep / pidz / pkip
+     —— 增量式调参：skp / ski / skd、kp1~4 / ki1~4 / kd1~4
+     pq   i 0     打印当前参数
+   曲线判读（本函数存在的意义）：
+     out ≠ p+i+d          → 输出被限幅（顶到 pomax/pomin），该减 kp 或收紧积分，别再加积分
+     i_out 单调爬到不动    → 积分饱和，开积分分离 psep / 积分死区 pidz 或收紧 pimax
+     p_out 画成方波、act 抖 → kp 过大（编码器量化台阶 2.27cm/s 被 kp 放大成了抖动）
+   退出：本函数不返回（调试期间 main 就停在这里），调完把 main.c 里那次调用注释掉即可。*/
+/* ★2026-09-27：原来这里写死一组"±10cm 自动往复"的常量（SPEED_DBG_DIST/SPEED/ACC/HOLD），
+   已删除 —— 距离和速度现在全部由串口给，想走多远走多远：
+     mx <cm>      x 方向走一次（正 = 右移），走完自动停
+     my <cm>      y 方向走一次（正 = 前进），走完自动停
+     mv <cm/s>    两条 mx/my 用的规划速度（默认 20）
+     mvacc <cm/s²> 两条 mx/my 用的规划加减速（默认 30） */
 
-void SERIALPLOT_WheelActualPump(void){
-  if(!serialplot_wheel_on) return;                 // 开关关掉：一个字都不发
-  static uint32_t t_last = 0;                      // 上次发送时刻(ms)：节流用
-  uint32_t now = HAL_GetTick();
-  if(now - t_last < WHEEL_ACT_SEND_MS) return;     // 还没到发送间隔：本次不打扰调用方
-  t_last = now;
-  UART1_Printf("%.1f %.1f %.1f %.1f\r\n",
-               (double)chassis.speed_pid[CHASSIS_MOTOR_LF].actual,   // 1 左前
-               (double)chassis.speed_pid[CHASSIS_MOTOR_LB].actual,   // 2 左后
-               (double)chassis.speed_pid[CHASSIS_MOTOR_RB].actual,   // 3 右后
-               (double)chassis.speed_pid[CHASSIS_MOTOR_RF].actual);  // 4 右前
+/* 出一行数据：OLED 四行 + 串口 3 通道 + 收串口指令 */
+static void SpeedPidDebugOut(void){
+  /* ★2026-09-27：本函数改成专门观察**航向环（角度环）**，速度环那 12 个通道让位。
+       tar = yaw_pid.target 锁定的目标朝向（°）
+       act = yaw_pid.actual 陀螺仪实测朝向（°）
+       out = yaw_pid.out    航向环输出的 w（rad/s，限幅 ±2.8，见 chassis.h:108）
+     OLED 第 4 行补一个 e（角度误差 °）和当前档位 s：
+     档位决定本周期用的是哪套 kp/kd —— 0旋转 / 1低速平移 / 2高速平移 / 3停止档（见 chassis.h 的 YAW_STAGE_*）。
+     曲线判读：移动中 act 应该咬着 tar 走（直线就是这两个重合）；out 是纠偏力度，
+     out 长时间顶在 ±2.8 说明 kp 不够或车被卡住；out 在停止档会被控制循环归零，属正常。 */
+  float tar = chassis.yaw_pid.target;
+  float act = chassis.yaw_pid.actual;
+  float out = chassis.yaw_pid.out;
+  float err = chassis.yaw_pid.error0;
+  /* 自增计数：这个数在跳 = 本函数确实在跑、串口确实在发（那"没曲线"就是 SerialPlot 侧的配置问题）；
+     这个数不动 = 根本没进到本函数（没烧录新固件 / main.c 那次调用被注释 / 卡在前面某处）。 */
+  static uint32_t out_cnt = 0;
+  out_cnt++;
+  OLED_Printf(0,  0, OLED_8X16_HALF, "tar%+9.2f", tar);
+  OLED_Printf(0, 16, OLED_8X16_HALF, "act%+9.2f", act);
+  OLED_Printf(0, 32, OLED_8X16_HALF, "out%+9.2f", out);
+  OLED_Printf(0, 48, OLED_8X16_HALF, "e%+7.2f s%d %3u", err, (int)chassis.yaw_stage, (unsigned)(out_cnt % 1000));
+  OLED_Update();
+  /* 通道（3 个）：1 目标角度 2 实际角度 3 输出 w(rad/s) */
+  UART1_Printf("%f %f %f\r\n", tar, act, out);
+  if(UART1_RxFlag){
+    UART1_RxFlag = 0;
+    SERIALPLOT_ChangeParam((char *)UART1_RxBuf);
+  }
+  HAL_Delay(10);
+}
+
+void SERIALPLOT_SpeedPidDebug(void){
+  /* ★2026-09-27：本模式现在的主线是观察**航向环**（角度环）。
+     速度环那一套调参指令（pkp1~4 / ptgt / pwhl …）都还留着、随时能用，只是不再占屏幕和通道。 */
+  chassis.tune_wheel = CHASSIS_MOTOR_LF;
+  /* ★默认开航向环（2026-09-27 改，原来在这里是 flag.angle = 0）。
+     必须同时把 target_yaw 置成哨兵 YAW_TARGET_NONE：控制循环首次进 flag.angle 分支时会
+     把"当前朝向"锁成目标（chassis.c:502）。不置哨兵的话，target_yaw 里可能还留着上一段
+     流程的旧角度，一开环车立刻掉头去追那个角度。
+     之后想主动转向：串口 target f 90（target 在 param 表里）。
+     ★注意：进定速模式（ptgt）后四轮 target 被钉住，航向环的 w 进不到轮子上 —— 测角度环时别开。 */
+  flag.angle = 1;
+  chassis.target_yaw = YAW_TARGET_NONE;
+  chassis.w = 0.0f;
+  /* 两套速度环的状态与 PWM 一起清干净，从零起步（免得上一段动作残留的 out 让轮子先窜一下） */
+  for(uint8_t i = CHASSIS_MOTOR_LF; i <= CHASSIS_MOTOR_RF; i++){
+    PID_INC *pid = &chassis.speed_pid[i];
+    pid->target   = 0.0f;
+    pid->actual   = 0.0f;
+    pid->out      = 0.0f;
+    pid->err      = 0.0f;
+    pid->last_err = 0.0f;
+    pid->prev_err = 0.0f;
+    pid->p_out    = 0.0f;
+    pid->i_out    = 0.0f;
+    pid->d_out    = 0.0f;
+    PID_POS *pp = &chassis.speed_pid_pos[i];
+    pp->target   = 0.0f;
+    pp->actual   = 0.0f;
+    pp->out      = 0.0f;
+    pp->p_out    = 0.0f;
+    pp->i_out    = 0.0f;
+    pp->d_out    = 0.0f;
+    pp->error0   = 0.0f;
+    pp->error1   = 0.0f;
+    pp->errorint = 0.0f;
+    TB6612_Control(i, 0);
+  }
+  /* 关掉"单轮调参模式"（若先前跑过 SERIALPLOT_SpeedTuneLoop 会把它置 1）：
+     它一旦为 1，控制循环会用 chassis.tune_kp/ki/kd 盖掉位置式自己的 kp/ki/kd，
+     那在这里用 pkp1~4 调参就全白调了 —— 本模式要的是走 speed_pid_pos[] 自己那套参数 */
+  chassis.speed_tune = 0;
+  /* ★2026-09-27：进来默认"静止等指令"，车不动，屏幕和曲线在等。
+     测航向环 → 发 rgo 跑那条长距斜移（-88, 433, 120/120）；
+     想走别的距离 → 发 mx/my；想悬空定速看速度环 → 发 ptgt。 */
+  chassis.speed_dbg_manual = 0;
+  chassis.speed_dbg_tgt    = 0.0f;
+  chassis.pos_x = 0.0f;
+  chassis.pos_y = 0.0f;
+  while(1){
+    /* ★2026-09-27：本循环是"纯等指令"，进来就是静止。
+         rgo                 跑一次长距斜移 (-88, 433, 120/120)，测航向环用
+         mx <cm> / my <cm>   单轴走一次固定距离，速度/加速度看 mv / mvacc
+         ptgt f <速度>       四轮同速定速观察（悬空测起步用），pauto 退出
+       指令触发后规划由 TIM7 中断里的控制循环推进，这里只负责出数 —— 所以整个移动过程都有曲线。
+       定速期间把规划标志按死为 0：不让梯形规划在后台改写 v_x/v_y、累加 dist_acc、推进 ti。 */
+    if(chassis.speed_dbg_manual){
+      chassis.x_speed_plan_flag = 0;
+      chassis.y_speed_plan_flag = 0;
+    }
+    SpeedPidDebugOut();
+  }
 }

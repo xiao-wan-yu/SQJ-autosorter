@@ -140,22 +140,23 @@ void CHASSIS_Init(void){
   chassis.tune_kd    = SPEED_PID_DFT[CHASSIS_MOTOR_LF][0].kd;
   chassis.tune_pulse = 0;
 
-  /* ==================== 位置式速度环初值（2026-09-25 加，字段说明见 chassis.h） ====================
+  /* ==================== 位置式速度环初值（2026-09-25 加，串口在线调，字段说明见 chassis.h） ====================
      ★ 这套 kp/ki **不能照搬上面增量式那张表** —— 两者语义不同：
          增量式  out += kp*(e-e_prev) + ...  → kp 是"误差变化量"的增益
          位置式  out  = kp*e + ki*Σe + ...   → kp 是"绝对误差"的增益，量纲 PWM/(cm/s)
-       数量级恰好接近（都在 4~10），所以先拿增量式那两组当起点试，但**必须重新调**。
-     起调顺序：
+       数量级恰好接近（都在 4~6），所以先拿增量式那两组当起点试，但**必须重新调**。
+     起调顺序（配合 main.c 里 SERIALPLOT_SpeedPidDebug 的 6 通道输出）：
        ① pki1~pki4 全置 0 → 只剩 P。调 pkp 到"给定 20cm/s 能稳定起转、不持续振荡"
-          （起转 PWM 60~110，kp=10 时误差 20cm/s 就给 200 → 压得过，所以 kp 从 5~10 附近起调）
-       ② 再加 ki（0.05 → 0.1 → …）→ 盯 i_out，看它慢慢把稳态误差顶掉、且不冲过 pomax
+          （起转 PWM 60~110，kp=5 时误差 20cm/s 就给 100 → 刚够，所以 kp 从 5 附近起调）
+       ② 再加 ki（0.05 → 0.1 → …）→ 盯 i_out 通道，看它慢慢把稳态误差顶掉、且不冲过 pomax
        ③ 启动/换向时 i_out 冲得猛 → 开积分分离 psep f 30（误差 >30cm/s 期间不积分）
           到位后 i_out 拖着不收     → 开积分死区 pidz f 2（误差 <2cm/s 期间不积分）
        ④ 全程盯 out 是否顶到 pomax：顶了就减 kp 或收紧 pimax，**不要继续加积分**
      ★ 限制默认"先放开、后收紧"：积分分离/死区默认 0（=关闭），先把裸 PID 跑起来再逐个开。 */
   /* ★2026-09-27：四轮统一用一组现场实测可用的参数（kp10 / ki0.6），四轮完全同参。
      用途：悬空四轮同速跑，四条实际值曲线本该高度重合 —— 哪条明显偏低或掉到 0，
-     就是那个轮子机械阻力大 / 推不动，再单独给它调 pkp/pki。 */
+     就是那个轮子机械阻力大 / 推不动，再单独给它调 pkp/pki。
+     （更早的版本这里是全 0，做成"只调左前轮"的单轮环境；现在改成四轮一起跑。） */
   static const float SPEED_POS_KP_DFT[5] = {0.0f, 10.0f, 10.0f, 10.0f, 10.0f};
   static const float SPEED_POS_KI_DFT[5] = {0.0f,  0.6f,  0.6f,  0.6f,  0.6f};
   static const float SPEED_POS_KD_DFT[5] = {0.0f,  0.0f,  0.0f,  0.0f,  0.0f};  // kd 留 0：速度来自编码器有量化台阶(2.27cm/s)，微分会放大抖动
@@ -182,8 +183,8 @@ void CHASSIS_Init(void){
     pp->int_sep_th   = 0.0f;                 // 积分分离阈值：0 = 关闭（需要时串口 psep 打开）
     pp->int_dz       = 0.0f;                 // 积分死区阈值：0 = 关闭（需要时串口 pidz 打开）
   }
-  chassis.speed_pos_mode   = 1;   // ★默认位置式。要切回增量式：串口 pmode i 0，立即生效无需复位
-  chassis.speed_dbg_manual = 0;   // 调试手动定速：默认关（串口 ptgt f <速度> 打开，pauto i 0 关回）
+  chassis.speed_pos_mode = 1;   // ★默认位置式（本次就是要调它）。要切回增量式：串口 pmode i 0，立即生效无需复位
+  chassis.speed_dbg_manual = 0; // 调试手动定速：默认关（串口 ptgt f <速度> 打开，pauto i 0 关回）
   chassis.speed_dbg_tgt    = 0.0f;
 }
 
@@ -323,10 +324,8 @@ static void CHASSIS_Stop_Now(void){
 }
 
 /**
-  * @brief 速度环段（4轮）：读编码器 → 里程计 → 脉冲换算cm/s → 取PID参数 → PID → PWM输出
+  * @brief 速度环段（4轮）：读编码器 → 里程计 → 脉冲换算cm/s → 取PID参数 → 增量式PID → PWM输出
   * @note  从 CHASSIS_Control_Loop 尾部原样抽出，供"正常行驶"与"单轮调参"两条路径共用
-  *        用哪套 PID 由 chassis.speed_pos_mode 决定：1=位置式（PID_PosSpeedUpdate，默认）/
-  *        0=增量式（PID_IncUpdate，旧逻辑），两套状态各存一份、互不干扰，串口 pmode i 0/1 在线切
   */
 static void CHASSIS_SpeedLoop(void){
   /* 读4轮编码器一次（清零法），供里程计与速度环共用，避免二次读取读到0 */
@@ -421,7 +420,7 @@ static void CHASSIS_SpeedLoop(void){
     /* ==================== 位置式 / 增量式 二选一（2026-09-25 加） ====================
        target/actual 直接用上面刚算好的那份（speed_pid[i].target / .actual），位置式只是把它俩
        拷进自己的结构再运算 ⇒ 上游（麦轮解算/规划/里程计/滤波/零漂保护）一行都不用改。
-       切换开关见 chassis.h 的 speed_pos_mode（上电默认 1=位置式；串口 pmode i 0/1 在线切）。
+       切换开关见 chassis.h 的 speed_pos_mode（串口 pmode i 0/1 在线切）。
        注：上面那段"选参数"（speed_tune / speed_seg 表）在位置式模式下会白跑一次（把值写进
        pid->kp/ki/kd 但没人读）—— 无害，刻意保留以免改动过大；位置式的参数在 speed_pid_pos[i] 里。 */
     if(chassis.speed_pos_mode){

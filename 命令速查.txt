@@ -14,7 +14,7 @@ git push
 
 【③ 开发完 · 全量备份 + 存一个"当天版本"（一条命令）】
 .\同步到全量备份.ps1 -Name "超声波避障"
-  (自动: 整个工作区镜像到 SQJ_collab → 提交 → 打版本标签
+(自动: 整个工作区镜像到 SQJ_collab → 提交 → 打版本标签
    backup-2026.8.27-超声波避障 → 推送到你的备份仓库)
 
 【④ 随时回到某天的版本（在 B 里看）】
@@ -126,6 +126,13 @@ git pull 报冲突 → 把报错发给我，不要自己乱删
  名字：mx my go gb tspd tkp tki tkd ang skp ski skd
        kp1~kp4 ki1~ki4 kd1~kd4 ykp1~3 yki1~3 ykd1~3 ybias1~3 pq at
        + 参数表 kp ki kd target vx vy w mv mvacc
+   ★速度环两套参数（2026-09-27 起默认走位置式）：
+      增量式 = kp1~4/ki1~4/kd1~4 与 skp/ski/skd（写 speed_seg 表，按速度段分4档）
+      位置式 = pkp1~4/pki1~4/pkd1~4（写 speed_pid_pos[]，四轮各一份、不分速度段）★当前生效
+      位置式限制/积分条件：pomax pomin pimax psep pidz pkip
+      切换：pmode i 1 位置式(默认) / pmode i 0 增量式（立即生效、不用复位）
+      定速调试：ptgt f 40 四轮钉住40cm/s  pauto i 0 退出定速
+      ★发 pq 时 W1~W4 是增量式的、P1~P4 才是现在生效的；改 pkp1 后 W1 不动是正常的
  ★kp/ki/kd 已失效（航向环每20ms按工况覆盖）→ 用 ykp1/ykp2/ykp3 那一组
 
 【其它串口】串口1 会打出 TX/RX2/RX4 日志，流程卡住时看它

@@ -1,8 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"D:/Programming code/MCUProject/STM32F407VET6Project/DIY/7_AutomatedSortingRobot_26/build/Debug/cmake_install.cmake",
-		"D:/Programming code/MCUProject/STM32F407VET6Project/DIY/7_AutomatedSortingRobot_26/build/Debug/cmake/stm32cubemx/cmake_install.cmake"
-	],
-	"Parallel" : false
-}
