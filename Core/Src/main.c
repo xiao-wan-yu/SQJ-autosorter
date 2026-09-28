@@ -71,57 +71,39 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-/* FLAG 结构体定义已移至 Mycode/chassis.h（main.c 定义变量、chassis.c 等模块引用） */
+/* FLAG 结构体定义在 Mycode/chassis.h（main.c 定义变量）*/
 
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-/* UART1 接收模板：帧格式 S;A;B;C;D;E;F;G（8个32位整数，分号分隔） */
-#define UART1_DATA_NUM 8                     // 每帧数据个数，按需修改
+/* UART1 帧格式 S,A,B,C,D,E,F,G（8 个整数，逗号分隔）*/
+#define UART1_DATA_NUM 8                     // 每帧数据个数
 
-/* ==================== ★★ 调试用"起始阶段"选择(按键0) ★★ ====================
-   开机进"红蓝方选择"界面后：按键0 = 循环切换起始阶段，按键3 = 按选好的阶段开始执行。
-   ★默认值(0=完整流程)时，主流程一条语句都不变，和不加这套调试入口时完全一样。
-   新增一个起点只需4步：① 这里加一个 DBG_START_xxx；② 在 DBG_START_NAME/DESC 表里加一项；
-                        ③ 在 main() 的"调试起点跳转"处加一个 goto；④ 在对应阶段开头打个标签(xxx_START:) */
-#define DBG_START_ALL        0      //完整流程：圆盘机→仓库倒球→正面识别→阶梯→立柱→仓库倒方块→回家(默认)
-#define DBG_START_ZHENGMIAN  1      //从"正面识别前"开始：跳过圆盘机+仓库倒球，车自己走到阶梯识别位
-#define DBG_START_LIZHU      2      //★从"立柱"开始：直接跑 立柱前校准 → 绕柱转圈 → 仓库倒方块 → 回家
-#define DBG_START_HUIJIA     3      //从"回家"开始：跳过前面全部，直接跑回家那段(红蓝区找色→停进红蓝区)
-#define DBG_START_COLORCAL   4      //★颜色传感器单独校准：黑→红→蓝→白 四色重标定判色阈值(与比赛流程无关，跑完回菜单)
-#define DBG_START_MAX        DBG_START_COLORCAL  //按键0 循环切换的上限(=最后一个起点)
+/* ==================== ★★ 调试用“起始阶段”选择(KEY0 切、KEY3 开始) ★★ ====================
+   新增一个起点：① 加 DBG_START_xxx；② 在 DBG_START_NAME/DESC 表加一项；
+   ③ main() 的“调试起点跳转”处加一个 goto；④ 在阶段开头打 xxx_START: 标签。
+   默认 ALL 时主流程一条语句不变。 */
+#define DBG_START_ALL        0      //完整流程(默认)：圆盘机→倒球→正面识别→阶梯→立柱→倒方块→回家
+#define DBG_START_ZHENGMIAN  1      //从“正面识别前”开始(跳过圆盘机+倒球)
+#define DBG_START_LIZHU      2      //从“立柱”开始：立柱前校准→绕柱→倒方块→回家
+#define DBG_START_HUIJIA     3      //从“回家”开始(红蓝区找色→停进红蓝区)
+#define DBG_START_COLORCAL   4      //颜色单独校准(黑→红→蓝→白，跑完回菜单)
+#define DBG_START_MAX        DBG_START_COLORCAL  //KEY0 切换上限(=最后一个起点)
 
-/* ==================== ★★ 移动速度三档标准（2026-09-20 换新底盘后统一）★★ ====================
-   队友重调的新底盘取消了"破静摩擦整形"：速度环第一拍输出 ≈ kp×目标速度（默认位置式速度环每轮
-   kp=10，增量式整定后 ≈5.5），实测起转 PWM 60~110 ⇒ 目标速度太小（十几 cm/s）时第一拍推不动，
-   要等积分项爬升 ≈0.2~0.3s 才动。所以速度按"用途"分三档，
-   **主流程所有移动指令统一用这三个宏，不再各处手写数字**
-   （2026-09-27 复查：位移类里残留的手写数字已全部换成宏）：
-     ① SPD_SHORT_V/A = 40/50   —— 定点走位：有明确终点、走固定距离的 ROBOT_Move
-        （两轴里较大距离 < 50cm；≥50cm 用长距档）
-        ★2026-09-27 由 20/30 提到 40/50：短位移(≤20cm)原来 20cm/s"给了指令还不走、要等积分"，
-          40cm/s 才做得到"给就走"；加速度同时提到 50，让斜坡更快越过起转阈值。
-     ② SPD_AVG_V     = 10      —— 匀速靠近 / 边判边走：等激光、等测距、等灰度/颜色、视觉对准、
-        前后脉冲校准这一类。**速度只给 V（恒速），没有终点、由传感器/视觉决定什么时候停**
-     ③ SPD_LONG_V/A  = 120/120 —— 长距高速跑图（两轴里较大距离 ≥ 50cm；上限 160 = SPEED_TARGET_MAX）
-   ★为什么"判断类"用 10 而不用 ①档（越慢落点越准）：
-     GY53 测距的 PWM 档更新只有 ≈5Hz(200ms)、颜色判色带 150ms 去抖 ⇒ 从"条件成立"到"停稳"
-     车还要多走 速度×0.2~0.35s：命令 10cm/s ≈ 2~4cm、命令 40cm/s ≈ 8~14cm。
-     所以判断类宁可慢：多花一点时间，换落点稳定。要整体调速只改 SPD_AVG_V 一个数。
-   ★距离为 0 的那个轴，速度/加速度填什么都一样（规划长度0、判停也跳过它），一律填同一组。
-   ★三角波提醒（2026-09-27 按 40/50 重算）：位移 d < v²/2a = 40²/(2×50) = 16cm 的那些走的是三角波，
-     峰值只有 v_peak = √(a·d)：d=3→12、d=7→19、d=9→21、d=15→27cm/s ⇒ d≤7cm 时峰值 <20cm/s，
-     第一拍可能推不动（先迟滞一下、再靠积分窜出去）。现场若发现"走不到位/起步发肉"，
-     就把那一行的 max_a 单独加大到 100~200（只影响那一条；峰值随 √a 长：a=200 时 d=3 也有 24cm/s）。
-   ★判断类里的"一步"（脉冲式：给速度+限时）原本用于阶梯的前后/左右校准，2026-09-21 已随校准一起删掉；
-     原因是 ROBOT_Move 单次 ≤3cm 走不动（实测 ≥4cm 才起得来），而校准要修的正是几厘米的偏差。
-   ★（历史）原还有两条"前后抖" ROBOT_Move(0,±2,0,100,0,100) 故意用 100 快抖，整理时已删，
-     所以"三档标准"之外现在只剩上面那条"极短位移可单独加大 max_a"的特例。 */
-#define SPD_SHORT_V   40     // ① 定点走位 目标速度 cm/s（2026-09-27 由 20 提到 40）
-#define SPD_SHORT_A   50     // ① 定点走位 加减速 cm/s²（2026-09-27 由 30 提到 50）
-#define SPD_AVG_V     10     // ② 匀速靠近/边判边走 恒速 cm/s（5好像太慢了）
-#define SPD_LONG_V   120     // ③ 长距高速 目标速度 cm/s（别超 160）
+/* ==================== ★★ 移动速度三档标准（主流程统一用这三个宏，不再手写数字）★★ ====================
+   ① SPD_SHORT_V/A = 40/50  定点走位：有终点的 ROBOT_Move（两轴较大距离 <50cm）；
+      位移 d < v²/2a = 16cm 走三角波，峰值 √(a·d)，d≤7cm 时 <20cm/s 可能推不动 ⇒
+      现场“走不到位/起步发肉”就把那一行的 max_a 单独加到 100~200。
+   ② SPD_AVG_V = 10  匀速靠近/边判边走：等激光、等测距、等灰度/颜色、视觉对准等，
+      只给恒速、没有终点；整体调速只改这一个数。
+   ③ SPD_LONG_V/A = 120/120  长距跑图（较大距离 ≥50cm；上限 160 = SPEED_TARGET_MAX）。
+   ★判断类用 10 而非 40：GY53 测距约 5Hz、判色带 150ms 去抖 ⇒ 条件成立后车还要多走
+     速度×0.2~0.35s，慢一点换落点稳定。距离为 0 的轴速度/加速度填什么都一样，填同一组。 */
+#define SPD_SHORT_V   40     // ① 定点走位 目标速度 cm/s
+#define SPD_SHORT_A   50     // ① 定点走位 加减速 cm/s²
+#define SPD_AVG_V     10     // ② 匀速靠近/边判边走 恒速 cm/s
+#define SPD_LONG_V   120     // ③ 长距高速 目标速度 cm/s(别超160)
 #define SPD_LONG_A   120     // ③ 长距高速 加减速 cm/s^2
 /* USER CODE END PD */
 
@@ -137,16 +119,15 @@ FLAG flag;
 
 int16_t data_encoder = 0;
 
-int32_t UART1_Data[UART1_DATA_NUM] = {0};    // 存放解析后的8个32位整数
-uint8_t CAM_Data[7] = {0};    // 存放视觉发送来的坐标数据（一帧：包头0xA1|类型|x两字节|y两字节|包尾0x0B）
+int32_t UART1_Data[UART1_DATA_NUM] = {0};
+uint8_t CAM_Data[7] = {0};    // 视觉坐标帧：A1|类型|x低x高|y低y高|0x0B
 
-bool mode_red = true;  // 红蓝模式标志：true=红方，false=蓝方
+bool mode_red = true;  // true=红方 false=蓝方
 
-//阶梯(8物块)夹取工作模式：1=按顺序计数(第二字节 0x00不夹/0x01夹)；2=视觉反馈编号(0xMN: M=第几个物块1~8, N=1夹/0不夹, 如0x11=第1个夹、0x60=第6个不夹)
-uint8_t JieTi_Grab_Mode = 1;   // 现场切换时改这里（置1/置2）
+//阶梯夹取模式：1=按序号计数(cmd 0x00不夹/0x01夹)；2=视觉编号(0xMN: M=第几个1~8, N=1夹/0不夹)
+uint8_t JieTi_Grab_Mode = 1;   // 现场切换改这里
 
-/* ★调试起始阶段的名字/说明(顺序必须和 DBG_START_xxx 一致)：OLED 第3行"k3:GO xxx"+第4行说明用，
-   8x16半高字体一行最多16个字符，名字/说明都别写太长 */
+/* 调试起点的名字/说明(顺序同 DBG_START_xxx)：OLED 第3/4行显示，8x16半高一行最多16字符 */
 static const char * const DBG_START_NAME[] = { "ALL", "ZM", "LZ", "HOME", "CAL" };
 static const char * const DBG_START_DESC[] = { "full flow", "front recog", "pillar run", "go home", "color calib" };
 
@@ -165,19 +146,10 @@ void SystemClock_Config(void);
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 
-  if(htim == &htim7){ //1ms产生一次中断
+  if(htim == &htim7){ //1ms 定时中断
 
-    // static uint8_t count1 = 0;
-    // if(++count1 >= 5){
-    //   count1 = 0;
-    //   ICM42688Mahony_Update();
-    // }
+    // (已废弃) ICM42688 5ms 更新 与 CAR_Control_Loop 10ms 车体控制周期
 
-    // static uint16_t ms_cnt = 0;
-    // if(++ms_cnt >= 10){          // 每10ms执行一次车体控制周期
-    //   ms_cnt = 0;
-    //   CAR_Control_Loop();        // PID速度闭环 + 麦轮运动学 + 里程计
-    // }
 
 
     //hwt101ct陀螺仪数据更新
@@ -191,7 +163,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
     }
 
 
-    //车体20ms控制周期：速度闭环（第一阶段）—— ★计数阈值必须和 chassis.h 的 ENCODER_TIME_S(0.020f) 同步
+    //车体20ms控制周期(须与 chassis.h 的 ENCODER_TIME_S=0.020f 同步)
     static uint16_t count2 = 0;
     if(flag.chassis && ++count2 >= 20){
       count2 = 0;
@@ -199,7 +171,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
     }
 
   }
-  /* 清零法无需编码器溢出中断（TIM3/TIM4），故无 htim3/htim4 分支 */
+  /* 编码器用清零法，无 htim3/htim4 溢出中断分支 */
 
 }
 
@@ -209,18 +181,15 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 
 /* USER CODE END 0 */
 
-/* ================= 正面识别通信显示(整个"正面识别"阶段只有这一个函数在动屏幕) =================
-   一屏四行，位置固定，一眼看出"走到第几步 + 两个串口各自收到了什么"：
-     y= 0  8x16  进度0="ZM 0/3 TO POS"(还没发0xA2) → 1="ZM 1/3 SEND OK" → 2="ZM 2/3 LETTER OK" → 3="ZM DONE 0xA7 OK"
-     y=16  8x16  "V4 A,B 0xAB OK"      副视觉(备用串口UART4)：WAIT / 字母(A~D)+原始字节 / BAD
-     y=32  8x16  "V2 0xA7 OK"          主视觉(串口2)：WAIT / 0xA7 OK / 收到的其它字节(BAD)
-     y=48  6x8   "r4:1 r2:2 U4:RX 12s" 收帧数 + 串口4在听(RX正常/ERR停过) + 进入本阶段秒数(心跳)
-   ★状态一变(或100ms心跳)就调用一次：函数内部把四行一次性画完再刷新，
-     不会出现"只改半屏 / 字符串变短留旧字"的花屏。
-   rx4/rx2 传主循环里的收帧数 comm_rx4/comm_rx2；字母直接取 ZhengMian_Letter(0xA~0xD → 'A'~'D') */
+/* ================= 正面识别通信显示(本阶段只有这一个函数动屏幕) =================
+   一屏四行：y=0  8x16 “ZM 0/3 TO POS”→“ZM 1/3 SEND OK”→“ZM 2/3 LETTER OK”→“ZM DONE 0xA7 OK”
+             y=16 “V4 A,B 0xAB OK” 副视觉(UART4)：字母(A~D)+原始字节 / WAIT / BAD
+             y=32 “V2 0xA7 OK”     主视觉(UART2)：WAIT / OK / 其它字节 BAD
+             y=48 6x8  收帧数 + 串口4接收状态(RX/ERR) + 本阶段秒数(不动=死等在某一步)
+   ★状态一变或 100ms 心跳调用一次：函数内四行一次画完再刷新，不会花屏/留旧字。 */
 #define ZM_ST_PREP    0      //进度0：还没发0xA2(正在移动到识别位)
 #define ZM_ST_SEND    1      //进度1：0xA2已发给主视觉+副视觉
-#define ZM_ST_LETTER  2      //进度2：副视觉字母已收到→已转发主视觉+已回执副视觉
+#define ZM_ST_LETTER  2      //进度2：副视觉字母已收→已转发主视觉+已回执副视觉
 #define ZM_ST_RECV    3      //进度3：主视觉的0xA7已收到，正面识别结束
 #define ZM_RES_WAIT   0      //结果：还没收到
 #define ZM_RES_OK     1      //结果：收到有效内容
@@ -229,24 +198,21 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 static uint8_t  zm_step     = ZM_ST_PREP;   //通信进度(0=还没发0xA2)
 static uint8_t  zm_v4_res   = ZM_RES_WAIT;  //副视觉(串口4)结果状态
 static uint8_t  zm_v4_byte  = 0;            //副视觉原始字节
-static uint8_t  zm_v4_len   = 0;            //副视觉这一帧的帧长(帧长不是1时显示长度)
+static uint8_t  zm_v4_len   = 0;            //副视觉帧长(≠1 时显示长度)
 static uint8_t  zm_v2_res   = ZM_RES_WAIT;  //主视觉(串口2)结果状态
 static uint8_t  zm_v2_byte  = 0;            //主视觉原始字节
 static uint32_t zm_t0       = 0;            //进入本阶段的时刻(第4行"秒数"用)
 
-/* 副视觉正面识别结果(0xAB~0xCD)：高4位=第一个字母、低4位=第二个字母(存原始nibble，0xA~0xD)
-   ★原来声明在 main() 里面，移到文件顶部是为了让显示函数 ZM_ShowComm() 也能读到，不重复存一份 */
+/* 副视觉结果(0xAB~0xCD)：高/低 4 位各是一个字母(0xA~0xD)；放文件顶部供 ZM_ShowComm() 读 */
 uint8_t ZhengMian_Letter[2] = {0, 0};
 
-/* nibble(0xA~0xD) → 字母('A'~'D')；不是这几个值时原样变成字符，方便一眼看出收到了什么 */
+/* nibble(0xA~0xD)→字母(A~D)；其它值原样成字符，便于看出收到了什么 */
 static char ZM_Nibble2Char(uint8_t nib){
   return (nib >= 0x0A && nib <= 0x0D) ? (char)('A' + nib - 0x0A) : (char)('0' + (nib & 0x0F));
 }
 
 static void ZM_ShowComm(int rx4, int rx2){
-  /* 整屏清掉(0~63行)：①新字符串比旧的短时不会留旧字；
-     ②清掉上一屏"在 y=48 用 8x16 大字体"残留的下半截(y=56~63)——
-       不清的话它会顶在第4行的6x8小字下面，看起来像两行小字互相覆盖 */
+  /* 整屏清 0~63 行：新串比旧的短时不留旧字，也清掉 y=48 用 8x16 时残留的下半截 */
   OLED_Clear();
 
   /* 第1行：通信进度 */
@@ -255,7 +221,7 @@ static void ZM_ShowComm(int rx4, int rx2){
   else if(zm_step == ZM_ST_LETTER) OLED_Printf(0,  0, OLED_8X16_HALF, "ZM 2/3 LETTER OK");
   else                             OLED_Printf(0,  0, OLED_8X16_HALF, "ZM DONE 0xA7 OK");
 
-  /* 第2行：副视觉(备用串口UART4)的字母结果 */
+  /* 第2行：副视觉(UART4)字母结果 */
   if(zm_v4_res == ZM_RES_OK){
     OLED_Printf(0, 16, OLED_8X16_HALF, "V4 %c,%c 0x%02X OK",
                 ZM_Nibble2Char(ZhengMian_Letter[0]), ZM_Nibble2Char(ZhengMian_Letter[1]), zm_v4_byte);
@@ -271,7 +237,7 @@ static void ZM_ShowComm(int rx4, int rx2){
   else if(zm_v2_res == ZM_RES_BAD) OLED_Printf(0, 32, OLED_8X16_HALF, "V2 0x%02X BAD", zm_v2_byte);
   else                             OLED_Printf(0, 32, OLED_8X16_HALF, "V2 WAIT 0xA7");
 
-  /* 第4行(6x8)：收帧数 + 串口4接收状态 + 进入本阶段秒数(一直在涨=程序在跑，不动=死等在某一步) */
+  /* 第4行(6x8)：收帧数+串口4接收状态+本阶段秒数(不动=死等在某一步) */
   OLED_Printf(0, 48, OLED_6X8_HALF, "r4:%d r2:%d U4:%s %02ds",
               rx4, rx2, (huart4.RxState == HAL_UART_STATE_BUSY_RX) ? "RX" : "ERR",
               (int)((HAL_GetTick() - zm_t0) / 1000U % 100U));
@@ -279,66 +245,36 @@ static void ZM_ShowComm(int rx4, int rx2){
   OLED_Update();
 }
 
-/* ================= 阶梯阶段参数（2026-09-21 再精简：只走固定距离）=================
-   阶梯阶段只做三件事：**读每坑"夹不夹" + 动作组 + 每个坑走固定距离并计数**。
-   ★原来的"左右对准(cam_x 挪车)"和"前后测距校准(走一步)"整块删掉了（连同下面这些参数）：
-     实测那套校准效果不好 —— 一步只有 1~2cm、落点靠测距/像素反推，来回摆还拖时间；
-     不如老老实实按固定距离走，位置由"进阶梯时的到位 + 坑间距"决定。
-   ★朝向不用额外管：底盘一直锁向（target_yaw = 进阶梯时校好的那个朝向），
-     走固定位移 20cm/s ≥ 介入阈值，走的过程中角度环一直在纠偏。
-   ★视觉协议：画面里没目标 → 视觉一个字节都不发；有目标但这一坑不用夹 → 照样发帧、坐标有效，只是 cmd 说不夹。
-     所以"等不到帧" = 视野里没目标 = 这一坑不夹；cmd **只用来决定夹不夹**，不再拿坐标挪车。
-   ★2026-09-27 现场补充：**没目标时视觉也照样发帧(坐标填0)**，所以"有没有东西"不能只靠"等不到帧"判——
-     对准前还要看原始 x（见下面 JIETI_X_BAD_MAX 和 JieTi_Adjust_X），否则没物块的坑会被 x=0 一直往左带。 */
-#define JIETI_IMG_CX          160     //视觉x是0~320像素，减它转成相对画面中心的偏移（只用于屏幕显示）
-#define JIETI_VIS_MS         200U     //等主视觉一帧的超时(ms)：站在坑前读这一坑的 cmd 用（帧间隔约20~50ms，够）
-/* ---------------- ★"这一帧到底有没有目标"的判定(2026-09-27 加) ----------------
-   现场现象：某个坑**没物块**，车却一直往左校准(不是等不到帧，是视觉照样在发帧)。
-   原因：没目标时视觉发的帧里坐标会填 0(或 0xFFFF 之类)，而 cx = x-160 正好是很大的负数
-        (0 → -160、0xFFFF → -161)，被当成"目标在最左边" → 每帧都往左挪一轮。
-   所以对准前先看**原始 x**：x=0 或超出量程 = 这一帧没目标 = 跳过对准，照常走固定距离去下一个坑。 */
-#define JIETI_X_BAD_MAX      1000U    //★原始x大于它 = 无效帧(0xFFFF 之类)；x=0 同样按"没检测到"处理
-#define JIETI_XFIX_MAX_MS    3000U    //★单坑"左右校准"最长耗时(ms)：坐标一直是假的/一直不满足容差时的收手时限
-                                      //  (0 = 不限时，回到"一直校到满足"的老行为)
-/* ---------------- 走近阶梯的前测距目标(GY53_2) ----------------
-   全阶段只剩"进阶梯时走近"用这一次：走到 90mm 附近就停（提前 20mm 停，补读数滞后）；
-   之后每个坑不再做任何测距校准（前后校准 2026-09-21 已删）。 */
-#define JIETI_FWD_TARGET_MM   90      //★目标前后距离(mm)：也是"走近阶梯"的停止距离
+/* ================= 阶梯阶段参数（固定位移 + 逐坑校准）=================
+   本阶段只做：读每坑“夹不夹”(cmd) + 动作组 + 第2~8坑走固定距离 + 每坑都逐坑校准并计数；
+   第1坑就在“进阶梯到位”那个点(不走位)，**第1~8坑一律做左右+前后校准，跟这一坑夹不夹无关**；
+   朝向：走位前 ROBOT_Angle 转一次“正对阶梯”的绝对角，之后一律直接 ROBOT_MoveSpeed(底盘原生锁当前朝向)。
+   ★视觉协议：没目标时也可能发帧(坐标填0)，cmd 只决定夹不夹，不再拿坐标挪车。 */
+#define JIETI_IMG_CX          160     //视觉x 0~320，减它=相对画面中心偏移(只用于显示)
+#define JIETI_VIS_MS         200U     //等主视觉一帧的超时(ms)：读本坑 cmd 用(帧间隔约20~50ms)
+#define JIETI_CMD_WAIT_MS    1000U     //★第1坑读 cmd 的总时限(ms)：按 JIETI_VIS_MS 反复等，到它就收手
+                                       //  (第1坑守着“进阶梯到位”点，等帧前没有走位+校准那段余量，一轮 200ms 太紧)
+/* ---- “这一帧有没有目标”：没目标时视觉也发帧、坐标填0，只看 cx 会被当成“目标在最左” ---- */
+#define JIETI_X_BAD_MAX      1000U    //★原始x>它=无效帧(0xFFFF)；x=0 也算没检测到
+#define JIETI_XFIX_MAX_MS    3000U    //★单坑左右校准时限(ms)：坐标一直不满足容差就收手
+                                      //  (0=不限时)
+/* ---- 前测距目标：①“走近阶梯”到 50mm 附近停，实测是50；②第1~8坑逐坑前后校准(JieTi_Adjust_Y)的目标 ---- */
+#define JIETI_FWD_TARGET_MM   50      //★目标前后距离(mm)：既是“走近阶梯”的停止距离，也是逐坑前后校准的目标
 
-/* ---------------- 8个坑固定位移步进(计数就靠它) ----------------
-   ★两个"走多远"都是现场拿尺量出来的：
-     JIETI_STEP_CM       = 同一个阶梯里相邻两个坑的距离
-     JIETI_STEP_CROSS_CM = 换阶梯那一步的距离(第2→3个坑、第6→7个坑，就是动作组57/60/63切换的地方)
-   每走完一段固定位移 = 到了下一个坑；站定后等一帧读这个坑的 cmd(夹不夹)，处理完计数 +1 */
-#define JIETI_STEP_CM         14      //★阶梯内坑间距(cm)：实际是8,但是要给15
-#define JIETI_STEP_CROSS_CM  18      //★换阶梯那一步走多远(cm)：第2→3个、第6→7个坑(矮/中/高阶梯之间)实际是10,要给16
-#define JIETI_STEP_SPEED      (float)SPD_SHORT_V   //走固定位移速度 = 短距档(40cm/s)：要≥20 才压得过起转PWM
-#define JIETI_STEP_ACC        (float)SPD_SHORT_A   //★加减速(cm/s²) = 短距档(50)：8cm 三角波峰值 √(50×8)=20cm/s，
-                                                  //  刚好够起转（原来单独写 30：峰值只有 √(30×8)=15.5cm/s(<20)，
-                                                  //  每步会先迟滞一下再窜出去，能走、就是慢半拍）；
-                                                  //  2026-09-27 起跟随 SPD_SHORT_A，想"一拍就起转"再单独提到 100~150
-/* ---------------- ★★ 阶梯跑完去哪儿：**就一个开关**，改这一个数即可切换 ----------------
-   1 = 阶梯跑完先去【立柱】：绕柱一圈(LiZhu_Circle_Run) → 走到仓库中间倒方块 → 再回家（★正常流程用这个）
-   0 = 阶梯跑完【直接回家】：跳过立柱段（临时简化流程/单独测后面几段时用）
-   ★立柱段和回家段里的绝对角都过了 Yaw_Abs()：跳转测试(yaw_shift_deg≠0)时自动换算，
-     正常流程(yaw_shift_deg=0)原样不变，所以这个开关两种情况下都能用。
-   ★跳转测试的红蓝摆车姿态相差 180°（场地镜像）：SetYawShift(红方姿态角) 会自动给蓝方 +180°。
-   ★注意"回家"段的头几步位移是按"立柱那边跑完"的位置写的；若置 0 从阶梯旁直接回家、
-     落点不对，改回家段最前面那几条 ROBOT_Move 即可(见 HUIJIA_START 标签)。 */
+/* ---- 8 个坑固定位移：STEP=同阶梯相邻坑间距；CROSS=换阶梯那一步(第2→3、第6→7个坑) ---- */
+#define JIETI_STEP_CM         14      //★阶梯内坑间距(cm)：实际8，要给15
+#define JIETI_STEP_CROSS_CM  18      //★换阶梯那一步(cm)：实际10，要给16
+#define JIETI_STEP_SPEED      (float)SPD_SHORT_V   //走位速度=短距档(要≥20 才压得过起转PWM)
+#define JIETI_STEP_ACC        (float)SPD_SHORT_A   //★加速度=短距档：8cm 峰值 √(50×8)=20cm/s 刚好够起转(想一拍就起转可提到100~150)
+/* ---- 阶梯跑完去哪儿：1=先去立柱(绕柱→倒方块→回家) 0=直接回家；两段的绝对角都过 Yaw_Abs() ---- */
 #define JIETI_GO_LIZHU          1     //★1=阶梯跑完先去立柱   0=阶梯跑完直接回家
-/* ---------------- ★"等到条件满足"类死等的超时保护(修"车停着不动=卡死") ----------------
-   阶梯/仓库/回家几个定位点都是 `while(激光或测距还没到位);` 这种原地空转等待：
-   设计上"走十几厘米就该满足"，但传感器没接好 / 读数卡住 / 车被顶住时永远出不来——
-   现场"车停在那儿不动、屏幕和串口也不动了"多半就是卡在这几行。
-   WAIT_WHILE(条件, 标识)：原地等到条件不再成立，最长等 WAIT_TIMEOUT_MS；超时就打一行 TIMEOUT 退出，
-   后面紧跟的"停车/刹车"语句照常执行 → 不会再永久卡死，而且串口能看出是哪一处超的。
-   ★6000ms 是按 10cm/s 走十几厘米给的余量；正常这些等待只要 1~4s，别把这个值改得太小。 */
-#define WAIT_TIMEOUT_MS     6000U     //"等条件"类循环的最长等待(ms)
+/* ---- “等条件”类死等的超时保护：WAIT_WHILE(条件,标识) 最长 WAIT_TIMEOUT_MS(6000ms)，超时打 TIMEOUT 后继续 ---- */
+#define WAIT_TIMEOUT_MS     6000U     //“等条件”类循环的最长等待(ms)
 #define WAIT_WHILE(cond, tag)                                            \
   do{                                                                    \
     uint32_t _wait_t0 = HAL_GetTick();                                   \
     while(cond){                                                         \
-      SERIALPLOT_WheelActualPump();      /* 串口1实时发四轮实际值：这种原地死等也要有数据（见 serialplot.c） */ \
+      SERIALPLOT_WheelActualPump();      /* 串口1实时发四轮实际值：死等循环里也要有数据(见 serialplot.c) */ \
       if(HAL_GetTick() - _wait_t0 > WAIT_TIMEOUT_MS){                    \
         UART1_Printf("TIMEOUT: %s\r\n", tag);                            \
         break;                                                           \
@@ -346,67 +282,44 @@ static void ZM_ShowComm(int rx4, int rx2){
     }                                                                    \
   }while(0)
 
-/* ================== 阶梯阶段：保持锁向目标（否则越走越斜） ==================
-   ★ROBOT_MoveSpeed() 内部会把 chassis.target_yaw 置成哨兵(YAW_TARGET_NONE)，
-     让底盘控制循环下一拍"锁定当前朝向"。角度环本身一直是开的(flag.angle=1)，
-     但阶梯阶段车一直在左右/前后动、视觉每来一帧就设一次速度，
-     于是"已经被走歪的朝向"被反复当成新目标锁住 → 角度环只保持歪掉的朝向、
-     不再往原目标纠偏 → 现象就是"越来越斜、像没开角度环"。
-   ★所以阶梯阶段统一用下面的 JieTi_MoveSpeed() 设速：设完速度立刻把目标朝向恢复回
-     进入阶梯时校好的那个值。
-   ★2026-09-20 新底盘下正好衔接得很自然（见 chassis.h 的 YAW_MOVE_MIN_SPEED）：
-     ① 阶梯阶段的速度都 <20cm/s → 落在"角度环不介入"区，平移期间 w 恒 0（不瞎纠偏、不会拧头）；
-     ② 每次停车/设 0 速后，控制循环落回"旋转档"，这时才按 target_yaw 纠偏 —— 也就是
-        每个动作之间都自动把朝向掰回 jieti_keep_yaw。
-     所以这个函数现在只干一件事：把"要锁的朝向"固定成进阶梯时校好的那个，
-     而不是让哨兵把"当前已经走歪的朝向"当新目标锁住。 */
-static float jieti_keep_yaw = -1.0f;   //阶梯阶段目标朝向(°)，-1=还没锁(没锁就不动它)
+/* ================== 阶梯阶段朝向：用底盘原生锁向（2026-09-28 删掉专用封装）==================
+   ROBOT_MoveSpeed() 内部把 target_yaw 置哨兵(YAW_TARGET_NONE) → 控制循环把“调用那一刻的朝向”
+   锁成目标角，平移全程角度环照它纠偏 —— 这就是全工程通用的“平时的速度环 + 角度环”用法。
+   ★原来本阶段还套了一层“保持锁向”的专用设速封装：每次设完速度把 target_yaw 改回“进阶梯时
+     校好的绝对角”，防“本阶段频繁设速、把已经走歪的朝向反复当新目标锁住”。那套封装连同它的
+     目标角变量已按用户要求于 2026-09-28 整块删除 —— 阶梯段现在与其他段完全一样：走位前
+     ROBOT_Angle 转一次，之后一律直接调 ROBOT_MoveSpeed（哨兵锁当前朝向）。 */
 
-/* ================== ★调试跳转的"角度基准换算"（2026-09-21，每个起点一套 + 红蓝差180°）==================
-   为什么需要它（"单独测某一段时角度乱套"的根因）：
-     · 正常发车：上电时车头朝前 → HWT101CT 的 0° 就是"前"，所以程序里的绝对角
-       0=前 / 90=右 / 180=后 / 270=左 都是按"场地"说的。
-     · 单独测某一段：车是**按那一段起点的姿态摆好再上电**的 → HWT 的 0° 变成"那一段的车头方向"，
-       整套绝对角相对场地都转过了一个角度，再直接拿去 ROBOT_Angle 就会白转、越走越乱。
-   做法：跳转入口调用 SetYawShift(红方姿态角)，它会按红蓝自动补 180°（场地镜像），
-        之后**每一处绝对角都过一遍 Yaw_Abs()**：
-          · ZM / HOME 起点：红方摆"倒完球姿态"(车头朝右 → 90)  → 蓝方自动 270(车头朝左)
-          · LZ      起点：红方摆"立柱起点姿态"(车头朝右 → 90)  → 蓝方自动 270(车头朝左)
-             ★2026-09-26 改：立柱起点不再先转到 270（那句已注释掉），正式流程走到这儿就是车头朝右(90)，
-               所以本入口 SetYawShift 也用 90；写成 270 时 Yaw_Abs(90) 会算成 180°，
-               绕完一圈后还要再转半圈（现场现象：单独测立柱，绕完一圈车直接转身朝后）
-        例：shift=270 时 Yaw_Abs(270)→0（=摆车朝向，不转）、Yaw_Abs(90)→180、Yaw_Abs(0)→90。
-   正常流程(yaw_shift_deg=0)时 Yaw_Abs() 原样返回，行为一个字都不变。 */
-static uint16_t yaw_shift_deg = 0;   //0=不换算；否则=本次摆车姿态相对"车头朝前"转过的角度(°)
-static uint32_t Yaw_Abs(uint32_t normal_angle){   //把"正常基准角"换算成本次实际该转的角度
+/* ================== ★调试跳转的“角度基准换算”（每个起点一套，红蓝差180°）==================
+   正常发车时上电车头朝前，HWT 的 0° 就是“前”；单独测某段时车按该段姿态摆好再上电，
+   HWT 的 0° 变成“该段车头方向” ⇒ 绝对角都要过 Yaw_Abs() 换算。
+   跳转入口调 SetYawShift(红方姿态角)，蓝方自动 +180°（场地镜像）；红方按“倒完球/立柱起点
+   姿态”车头朝右=90。★立柱入口也用 90（不是270）：LIZHU_START 前那句“先转到270”已注释掉，
+   写成 270 会让 Yaw_Abs(90)=180°，绕完一圈还要再转半圈。
+   正常流程 yaw_shift_deg=0 时 Yaw_Abs() 原样返回，行为一个字不变。 */
+static uint16_t yaw_shift_deg = 0;   //0=不换算；否则=摆车姿态相对“车头朝前”转过的角度(°)
+static uint32_t Yaw_Abs(uint32_t normal_angle){   //把“正常基准角”换算成本次该转的角度
   if(yaw_shift_deg == 0) return normal_angle;
   return (normal_angle + (360U - yaw_shift_deg)) % 360U;
 }
-/* 跳转测试的角度基准统一入口：红方传"红方摆车姿态角"，蓝方自动 +180°（场地镜像） */
+/* 角度基准统一入口：红方传红方摆车姿态角，蓝方自动 +180°(场地镜像) */
 static void SetYawShift(uint16_t red_shift_deg){
   yaw_shift_deg = (uint16_t)((red_shift_deg + (mode_red ? 0U : 180U)) % 360U);
   UART1_Printf("DEBUG: yaw base shift = %u deg (mode %s)\r\n",
                (unsigned)yaw_shift_deg, mode_red ? "RED" : "BLUE");
 }
 
-//在原有基础上加了锁定目标朝向的代码：设完速度立刻把目标朝向恢复回进入阶梯时校好的那个值
-static void JieTi_MoveSpeed(float x_speed, float y_speed){
-  ROBOT_MoveSpeed(x_speed, y_speed);
-  if(jieti_keep_yaw >= 0.0f) chassis.target_yaw = jieti_keep_yaw;  //恢复锁向目标(停车后角度环会按它纠偏)
-}
-
-/* ---------------- 阶梯阶段运行时状态(视觉/显示共用) ---------------- */
-static int16_t  jieti_cam_x     = 0;       //最近一帧：目标距画面中心偏移(负=偏左 / 正=偏右)
-static uint16_t jieti_cam_px    = 0;       //最近一帧的原始x(0~320像素)：判"这一帧有没有目标"用(x=0/超量程=没检测到)
+/* ---- 阶梯阶段运行时状态(视觉/显示共用) ---- */
+static int16_t  jieti_cam_x     = 0;       //最近一帧：目标距画面中心偏移(负=偏左 正=偏右)
+static uint16_t jieti_cam_px    = 0;       //最近一帧原始x(0~320)：判“有没有目标”用
 static uint8_t  jieti_cmd       = 0;       //最近一帧：cmd(要不要夹)
-static uint8_t  jieti_blk_now   = 0;       //当前是第几个坑(1~8，0=还没对准第一个)
+static uint8_t  jieti_blk_now   = 0;       //当前第几个坑(1~8，0=还没对准第一个)
 
-/* 实时显示"当前是第几个坑(物块)"+最近一帧视觉x：只占第4行(y=48, 6x8)，
-   不动第1/2行(JIETI letter x y / scan & grab...)和第3行(实时测距) */
+/* 显示当前第几个坑+最近一帧视觉x：只占第4行(6x8)，不动第1/2/3行 */
 static void JieTi_ShowBlockNo(uint8_t no, uint8_t total, int16_t cam_x){
   OLED_ClearArea(0, 48, 128, 8);                                  //只清第4行
   if(no >= 1 && no <= total){
-    /* X+12/X-30 = 最近一帧视觉给的"目标离画面中心多远"，现场一眼看出对准情况 */
+    /* X+12/X-30 = 目标离画面中心多远 */
     OLED_Printf(0, 48, OLED_6X8_HALF, "BLK %u/%u X%+4d", (unsigned)no, (unsigned)total, (int)cam_x);
   }else{
     OLED_Printf(0, 48, OLED_6X8_HALF, "BLK -/%u", (unsigned)total);  //还没对准第一个坑
@@ -414,48 +327,36 @@ static void JieTi_ShowBlockNo(uint8_t no, uint8_t total, int16_t cam_x){
   OLED_Update();
 }
 
-/* ================= 阶梯阶段：视觉(主视觉/串口2)发来的信息，转发到串口1 =================
-   现场调试用：阶梯阶段每收到视觉发来的一帧，就把内容原样(十六进制) + 解析结果打到串口1
-   (电脑，115200)，一眼看出"视觉发的到底是要夹还是不夹(cmd)、坐标是多少(x/y)"。
-   一条日志一行(与正面识别阶段的 RX2/RX4 日志同一格式，好对着看)：
-     RX2 #12 len=7: A3 01 20 00 40 00 0B | A3 cmd=0x01 x=32 y=64 cx=-128
-     帧长不够一个A3包(7字节)、或帧里没有 0xA3...0x0B → 前半段照样打，后面跟 " | no A3"
-   ★打印点只有一个：对准阶段等帧(JieTi_GetVision)时收到一帧就打一帧——那正是视觉给
-     "要夹/不要夹 + 坐标"的时刻。机械臂动作、走固定位移这些整段阻塞期间不打印
-     (那段时间收到的帧本来就被清掉，没必要看)。
-   ★JIETI_VIS_LOG=1 开(默认)；=0 关：只对准、一条都不打(怕刷屏/嫌占串口就置0) */
-#define JIETI_VIS_LOG         1        //1=开启阶梯阶段视觉信息转发；0=关闭
-#define JIETI_VIS_LOG_BYTES   8        //每条日志最多原样打几个字节(A3包7字节，8够看)
+/* ================= 阶梯阶段：主视觉(UART2)每来一帧就把原样字节+解析结果打到串口1 =================
+   RX2 #12 len=7: A3 01 20 00 40 00 0B | A3 cmd=0x01 x=32 y=64 cx=-128
+   帧里没有完整 A3..0x0B 时前半段照样打，后面跟 “ | no A3”；JIETI_VIS_LOG=0 关。 */
+#define JIETI_VIS_LOG         1        //1=开 0=关
+#define JIETI_VIS_LOG_BYTES   8        //每条日志最多原样打几个字节
 
-static uint32_t jieti_vis_cnt = 0;     //阶梯阶段累计收到主视觉多少帧(看帧号就知道视觉在不在发)
+static uint32_t jieti_vis_cnt = 0;     //本阶段累计收帧数
 
-/* 处理主视觉刚发来的一帧：先原样转发到串口1，再在缓冲里找 A3...0x0B 完整包，
-   把 cmd(要不要夹) / x / y 解析出来存进 jieti_cam_x / jieti_cmd 给对准逻辑用
-   返回 1 = 这一帧里有合法A3包；0 = 没有新帧 或 帧里没有A3包 */
+/* 处理主视觉一帧：先原样转发串口1，再找 A3..0x0B 包，解析 cmd/x/y 存 jieti_cmd/jieti_cam_x；返回1=有合法包 */
 static uint8_t JieTi_VisionPoll(void){
-  if(!VISION1_RxFlag) return 0;                        //没有新帧：直接走(几乎不占时间)
-  VISION1_RxFlag = 0;                                  //必须立即清零
-  uint8_t len = VISION1_RxRealLength;                  //这一帧的实际字节数
-  jieti_vis_cnt++;                                     //累计收帧数(转发开关关掉也照样在数)
+  if(!VISION1_RxFlag) return 0;
+  VISION1_RxFlag = 0;
+  uint8_t len = VISION1_RxRealLength;
+  jieti_vis_cnt++;
 
   if(JIETI_VIS_LOG){
     UART1_Printf("RX2 #%u len=%u:", (unsigned)jieti_vis_cnt, (unsigned)len);
     for(uint8_t k = 0; k < len && k < JIETI_VIS_LOG_BYTES; k++)
-      UART1_Printf(" %02X", VISION1_RxBuf[k]);         //原样：帧里到底是什么，一眼看出来
+      UART1_Printf(" %02X", VISION1_RxBuf[k]);
   }
 
-  for(uint8_t i = 0; i + 7 <= len; i++){               //在缓冲里找 A3...0x0B 完整包
+  for(uint8_t i = 0; i + 7 <= len; i++){
     if(VISION1_RxBuf[i] == 0xA3 && VISION1_RxBuf[i + 6] == 0x0B){
       uint16_t px = (uint16_t)VISION1_RxBuf[i + 2]
-                  | ((uint16_t)VISION1_RxBuf[i + 3] << 8);          //x像素(低字节在前,0~320)
+                  | ((uint16_t)VISION1_RxBuf[i + 3] << 8);          //x像素(低字节在前，0~320)
       uint16_t py = (uint16_t)VISION1_RxBuf[i + 4]
                   | ((uint16_t)VISION1_RxBuf[i + 5] << 8);          //y像素(本阶段不用)
-      /* ★不做"值域闸门"式过滤（2026-09-21 起）：视觉给的真坐标原样收下，别把真坐标挡掉。
-         但原始 x 另外存一份(jieti_cam_px)：对准逻辑要用它区分"有目标"和"没检测到"
-         —— 2026-09-27 现场：没目标时视觉**也会发帧**(坐标填 0)，只看 cx 会把这类帧
-            当成"目标在最左边"，于是没物块的坑一直往左校(见 JieTi_Adjust_X)。 */
+      /* ★不做值域过滤(真坐标原样收)；原始 x 另存 jieti_cam_px，对准逻辑用它区分“有目标/没检测到” */
       jieti_cam_x  = (int16_t)px - JIETI_IMG_CX;        //减160 → 目标距画面中心偏移
-      jieti_cam_px = px;                                //原始x(0~320)：判定有没有目标用
+      jieti_cam_px = px;                                //原始x(0~320)：判定有没有目标
       jieti_cmd   = VISION1_RxBuf[i + 1];               //cmd(要不要夹，含义看 JieTi_Grab_Mode)
       if(JIETI_VIS_LOG)
         UART1_Printf(" | A3 cmd=0x%02X x=%u y=%u cx=%d\r\n",
@@ -464,33 +365,32 @@ static uint8_t JieTi_VisionPoll(void){
       return 1;
     }
   }
-  if(JIETI_VIS_LOG) UART1_Printf(" | no A3\r\n");      //不是A3包/帧不完整：也打出来，免得"没反应"查不出来
+  if(JIETI_VIS_LOG) UART1_Printf(" | no A3\r\n");      //不是A3包/帧不完整也打出来，便于查“没反应”
   return 0;
 }
 
-/* 清掉主视觉残留帧：只认之后的实时坐标(走完固定位移后 / 夹取动作后调用) */
+/* 清残留帧：只认之后的实时坐标(走完固定位移后/夹取动作后调用) */
 static void JieTi_FlushVision(void){
   VISION1_RxFlag = 0;
   VISION1_RxRealLength = 0;
   memset(VISION1_RxBuf, 0, VISION1_RxLength);
 }
 
-/* 取一帧主视觉A3包(等不到就返回0)；结果存进 jieti_cam_x / jieti_cmd
-   ★收到的每一帧都会先被 JieTi_VisionPoll() 转发到串口1(见上方)，这里只管等 + 取 */
+/* 取一帧 A3 包(超时返回0)，结果存 jieti_cam_x/jieti_cmd；每帧已由 JieTi_VisionPoll 转发串口1 */
 static uint8_t JieTi_GetVision(uint32_t wait_ms){
   uint32_t t0 = HAL_GetTick();
   while((HAL_GetTick() - t0) < wait_ms){
-    if(JieTi_VisionPoll()) return 1;     //这一帧里有A3包：已转发串口1 + jieti_cam_x/jieti_cmd 已更新
+    if(JieTi_VisionPoll()) return 1;     //这一帧有A3包：已转发+已更新 jieti_cam_x/jieti_cmd
   }
   return 0;
 }
 
-/*阶梯测距校准前后函数*/
+/*前后测距校准(JieTi_Adjust_Y)*/
 static void JieTi_Adjust_Y(int Target_Y_Distance){
   while(1){
                 uint16_t dis = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);
-                //加入校准，x给30，y给20
-                if(dis > ((Target_Y_Distance - 10) + 5)){
+                //校准容差：x 给 30 像素，y 给 20mm
+                if(dis > (Target_Y_Distance + 5)){
                   for(uint8_t i = 0; i < 5; i++)
                   {
                     ROBOT_MoveSpeed(0, 20);
@@ -500,7 +400,7 @@ static void JieTi_Adjust_Y(int Target_Y_Distance){
 
                   }
                 }
-                else if(dis  < ((Target_Y_Distance - 10) - 5)){
+                else if(dis  < (Target_Y_Distance - 5)){
                   for(uint8_t i = 0; i < 5; i++)
                   {
                     ROBOT_MoveSpeed(0, -20);
@@ -513,16 +413,10 @@ static void JieTi_Adjust_Y(int Target_Y_Distance){
             }
 }
 
-/*阶梯视觉校准左右函数：用阶梯处视觉实时返回的x坐标(jieti_cam_x=目标离画面中心的偏移)定，容差±30像素
-  ★没东西 → 直接跳过、一下都不动(2026-09-27 加)：
-     ① 等不到帧(视野里没目标) → 不校；
-     ② 帧来了、但原始 x 是"没检测到"的无效值(0 / 超出量程) → 也不校。
-     两种情况都立刻返回，接着照常走固定距离去下一个坑。
-     —— 原来只判"等不到帧"：视觉没目标时若照样发帧(坐标填0)，cx=-160 就被当成"目标在最左边"，
-        于是一路往左挪；填 0xFFFF 时 (int16_t)0xFFFF=-1 → cx=-161，同一个病。
-  ★兜底时限 JIETI_XFIX_MAX_MS：坐标一直进不了容差带(比如视觉一直重复同一帧旧坐标)时到点收手，
-     绝不无限往一边挪车；置 0 = 不限时(老行为：一直校到满足)。
-  ★单次调整量没动：每轮仍是"5 次脉冲"，且速度用 JieTi_MoveSpeed(阶梯阶段不能破锁向)。 */
+/* 阶梯左右校准(JieTi_Adjust_X)：按视觉 x 偏移对准，容差±30 像素
+   ★没东西就不动(2026-09-27 加)：① 等不到帧 → 不校；② 帧在但原始 x=0/超量程 → 也不校
+     （否则 x=0 → cx=-160 会被当成“目标在最左”，把没物块的坑一路往左带）
+   ★JIETI_XFIX_MAX_MS(默认3s) 兜底收手；每轮调整量 = 5 次脉冲，直接 ROBOT_MoveSpeed(锁当前朝向)。 */
 static void JieTi_Adjust_X(void){
   uint32_t t0 = HAL_GetTick();
   while(1){
@@ -538,9 +432,9 @@ static void JieTi_Adjust_X(void){
                 if(cx > 15){
                   for(uint8_t i = 0; i < 5; i++)
                   {
-                    JieTi_MoveSpeed(30, 0);
+                    ROBOT_MoveSpeed(30, 0);
                     HAL_Delay(15);
-                    JieTi_MoveSpeed(0, 0);
+                    ROBOT_MoveSpeed(0, 0);
                     HAL_Delay(25);
 
                   }
@@ -548,9 +442,9 @@ static void JieTi_Adjust_X(void){
                 else if(cx < -15){
                   for(uint8_t i = 0; i < 5; i++)
                   {
-                    JieTi_MoveSpeed(-30, 0);
+                    ROBOT_MoveSpeed(-30, 0);
                     HAL_Delay(15);
-                    JieTi_MoveSpeed(0, 0);
+                    ROBOT_MoveSpeed(0, 0);
                     HAL_Delay(25);
                   }
                 }
@@ -564,65 +458,47 @@ static void JieTi_Adjust_X(void){
             }
 }
 
-/* ★2026-09-21 变更记录（阶梯阶段）：
-   · 删掉：左右视觉对准（JieTi_GoAlign，连同 JIETI_ALIGN_BAND / JIETI_ALIGN_MS / JIETI_NOVIS_MS）、
-     "走一步"的脉冲式校准（JieTi_Step / JieTi_WaitCoord / JIETI_STEP_MS / JIETI_STEP_SETTLE_MS）、
-     第3行测距显示（JieTi_ShowFwdMm）—— 实测那几套校准效果不好。
-   · 改成：位置靠"进阶梯到位 + 每个坑走固定距离"，朝向靠底盘锁向。 */
+/* 2026-09-21：删掉旧的左右对准/脉冲走一步/第3行测距显示，改为固定距离走位 + 底盘锁向 */
 
-/* ★2026-09-27 加回逐坑校准（放在"每个坑走完固定距离"之后，顺序固定"先左右、再前后"）：
-     JieTi_Adjust_X() 用阶梯处视觉实时返回的 x 坐标对准左右（容差±30像素）；
-     JieTi_Adjust_Y() 用前测距对准前后（容差±20mm，原函数没动）；
-     两个都是 while(1)：只要返回来的值不满足容差就一直校，里面那 5 次脉冲 = 一次调整量。
-   ★同日修"没物块也一直往左校"：JieTi_Adjust_X 现在先判"这一帧有没有目标"——
-     等不到帧，或 原始x=0/超出量程(视觉没检测到时填的假坐标) → 直接跳过对准、一下都不动；
-     另有 JIETI_XFIX_MAX_MS(默认3s) 兜底时限：坐标一直不满足也到点收手，不会无限往一边挪。
-     ★"夹不夹"仍只看 cmd（见 M1.5），跟有没有坐标无关。 */
-/* ==================== 立柱阶段：视觉通信（主视觉/串口2，2026-09-27 加入）====================
-   通信方式和"正面识别(0xA2) / 阶梯(0xA3)"完全同一套，只是立柱阶段换成了下面两个字节：
-     ① 我 → 主视觉(UART2)：0xA4    告诉它"进立柱阶段、开始识别"（绕圈前发一次；到位才发，
-                                    和正面识别"到位才发0xA2"同一个道理）
-     ② 主视觉 → 我：A4 | cmd | x低 | x高 | y低 | y高 | 0x0B   ← 7字节包，布局和阶梯 A3 包一模一样
-        cmd = 0x00 不用拍 / ≠0 要拍（"要不要停下拍一张"；判据只有下面钩子里那一行，改就改那一处）
-     ③ 我 → 主视觉(UART2)：0xA9    绕完一整圈、本阶段结束（发完主视觉就可以收工）
-   ★为什么是串口2：主视觉接在 UART2（用 VISION1_ 那一组宏和 UART2_Printf，与圆盘机/正面识别/阶梯完全一致）
-
-   本机流程（LiZhu_Circle_Run() 里；串口调试指令 7 走同一套）：
-     清残留 + 重启串口2 → 发 0xA4 → 边绕边收包 → 收到 cmd≠0 的包就停车 → 动作组 107
-     → 等 LIZHU_PIC_MS → 清残留 → 接着绕；绕满 355° 停车 → 发 0xA9
-
-   ★2026-09-27：实测视觉回包的包头还是阶梯那套 0xA3（绕圈 481 帧全是 A3，cmd=1 就是"要夹/要拍"），
-     所以 LIZHU_ACCEPT_A3=1 时 A3 包一样触发停车拍；确认视觉只发 A4 后把它置 0 就恢复只认 A4。
-
-   串口1 日志（两个开关，调哪段就开哪段）：
-     LIZHU_VIS_LOG=1 每帧一行：RX2 #12 len=7: A3 01 C0 00 48 00 0B | 0xA3 cmd=0x01 x=448 y=72
-                     LIZHU_VIS_LOG_NOA4=0 就只打能解析出包的帧（否则≈20帧/s 全打）
-     LIZHU_DIST_LOG=0 绕圈那行测距 d=.. e=.. 关掉（测距已调好，串口现在留给视觉）
-     PIC #1 cmd=0x01 x=32 y=64 yaw=137   ← 每停一次拍一行(yaw=停下时已绕角度)
-   屏幕第4行："LZ rx481 n481 p0" = 收帧数 / 其中没解析出包的帧数 / 已拍次数 */
-#define LIZHU_VIS_LOG          1        //串口1：1=视觉发来一帧就打一行(实时看视觉发了什么)；0=不打
-#define LIZHU_VIS_LOG_NOA4     1        //    1=每帧都打；0=只打能解析出包的帧(≈20帧/s 时防刷屏)
-#define LIZHU_VIS_LOG_BYTES    8        //    每行最多原样打几个字节(7字节包，8够看)
-#define LIZHU_VIS_SNAP_BYTES   32       //    每帧先抄进局部数组再解析/打印(为何要抄见 LiZhu_VisionPoll 注释)
-#define LIZHU_DIST_LOG         0        //串口1：1=绕圈每200ms打一行测距 d=.. e=.. l4=.. yaw=..；0=不打
+/* ★逐坑校准（**第1~8坑都做**：第1坑守着“进阶梯到位”点做，第2~8坑走完固定距离后做；
+   顺序固定：先左右 JieTi_Adjust_X，再前后 JieTi_Adjust_Y）：
+   X 用视觉 x(容差±30像素)、Y 用前测距(容差±20mm)；都是 while(1)，5 次脉冲=一次调整量；
+   没物块/坐标无效时不校(左右那步内部跳过)；★校准与“这一坑夹不夹”无关：不夹也先校准再读 cmd。 */
+/* ==================== 立柱阶段：视觉通信（主视觉/串口2）====================
+   与“正面识别(0xA2)/阶梯(0xA3)”同一套通信，只换字节：
+     ① 我→视觉(UART2) 0xA4：进立柱阶段、开始识别（开圈前发一次，同“到位才发0xA2”）
+     ② 视觉→我：A4 | cmd | x低 | x高 | y低 | y高 | 0x0B（7字节，布局同 A3 包）
+        cmd = 0x00 不用拍 / ≠0 要拍（判据只在 LiZhu_Circle_Run 的钩子里那一行）
+     ③ 我→视觉(UART2) 0xA9：绕完一整圈、本阶段结束
+   流程：清残留+重启串口2 → 发 0xA4 → 边绕边收包 → cmd≠0 停车 → 动作组107 → 等 LIZHU_PIC_MS
+     → 清残留 → 接着绕；绕满 355° 停车 → 发 0xA9
+   ★2026-09-27 实测视觉回包包头还是 0xA3，故 LIZHU_ACCEPT_A3=1 时 A3 包一样触发停车拍；
+     确认视觉只发 A4 后置 0 即恢复只认 A4。
+   日志(串口1)：每帧一行 “RX2 #12 len=7: A3 01 ...”，每停一次拍一行 “PIC #1 cmd=.. yaw=..”。
+   屏幕第4行 “LZ rx481 n481 p0” = 收帧数 / 没解析出包的帧数 / 已拍次数 */
+#define LIZHU_VIS_LOG          1        //串口1：1=每帧一行 0=不打
+#define LIZHU_VIS_LOG_NOA4     1        //    1=每帧都打 0=只打能解析出包的帧(≈20帧/s 防刷屏)
+#define LIZHU_VIS_LOG_BYTES    8        //    每行最多原样打几个字节
+#define LIZHU_VIS_SNAP_BYTES   32       //    每帧先抄进局部数组再解析/打印(为何要抄见 LiZhu_VisionPoll)
+#define LIZHU_DIST_LOG         0        //串口1：1=绕圈每200ms打一行测距；0=不打
 #define LIZHU_VIS_HEAD         0xA4     //我→视觉：进立柱阶段（视觉回包包头也用它）
 #define LIZHU_VIS_END          0xA9     //我→视觉：立柱结束
-#define LIZHU_ACCEPT_A3        1        //1=也认阶梯的 0xA3 包(cmd≠0 一样停车拍，实测视觉还发A3)；
+#define LIZHU_ACCEPT_A3        1        //1=也认阶梯的 0xA3 包(实测视觉还发A3)；
                                         //  0=只认 A4 包
 #define LIZHU_PIC_MS           2500U    //跑完动作组107后等它做完的时间(ms)
 #define LIZHU_PIC_COOLDOWN_MS  1000U    //两次"停拍"的最短间隔(ms)：防同一目标连拍；0=不防
 #define LIZHU_VIS_HEAL_MS      100U     //串口2自愈+屏幕刷新的节拍(ms)
 
-static uint32_t lizhu_vis_cnt = 0;      //本阶段累计收到主视觉多少帧(看它到底在不在发)
+static uint32_t lizhu_vis_cnt = 0;      //本阶段累计收帧数
 static uint32_t lizhu_pic_cnt = 0;      //本阶段停下来拍了几次
 static uint8_t  lizhu_pic_cmd = 0;      //最近一个包的 cmd(0=不用拍 / ≠0=要拍)
-static uint16_t lizhu_pic_x   = 0;      //最近一个包的 x(只进日志，立柱阶段不做对准)
-static uint16_t lizhu_pic_y   = 0;      //最近一个包的 y(同上)
+static uint16_t lizhu_pic_x   = 0;      //最近一包的 x(只进日志)
+static uint16_t lizhu_pic_y   = 0;
 static uint32_t lizhu_pic_t   = 0;      //上一次"停拍"的时刻(冷却计时用)
 static uint32_t lizhu_heal_t  = 0;      //串口2自愈 / 屏幕刷新的计时
-static uint32_t lizhu_nopkt_cnt = 0;    //收到帧但没解析出包的次数(屏幕 rx/n 一起看：n 一直=rx 就是包没对上)
+static uint32_t lizhu_nopkt_cnt = 0;    //收到帧但没解析出包的次数
 
-/* 只在第4行(6x8)刷一行状态：绕圈循环里"能不打屏就不打屏"（OLED 刷新≈几 ms，会拖慢 10ms 节拍） */
+/* 只在第4行(6x8)刷状态：OLED 刷新约几 ms，会拖慢绕圈 10ms 节拍 */
 static void LiZhu_ShowComm(void){
   OLED_ClearArea(0, 48, 128, 8);
   OLED_Printf(0, 48, OLED_6X8_HALF, "LZ rx%u n%u p%u",
@@ -630,14 +506,14 @@ static void LiZhu_ShowComm(void){
   OLED_Update();
 }
 
-/* 清掉主视觉残留帧（发 0xA4 前 / 每次拍完都清一次：只认之后的实时帧，防旧包重复触发） */
+/* 清残留帧(发0xA4前/拍完都清)：只认之后的实时帧，防旧包重复触发 */
 static void LiZhu_FlushVision(void){
   VISION1_RxFlag = 0;
   VISION1_RxRealLength = 0;
   memset(VISION1_RxBuf, 0, VISION1_RxLength);
 }
 
-/* 串口2自愈：出错停了 / DMA 关了 就立刻重新拉起来（和正面识别循环里那段一模一样） */
+/* 串口2自愈：出错停/DMA关了就重新拉起来 */
 static void LiZhu_VisionHeal(void){
   if((huart2.RxState != HAL_UART_STATE_BUSY_RX) || ((hdma_usart2_rx.Instance->CR & DMA_SxCR_EN) == 0U)){
     HAL_UART_AbortReceive(&huart2);
@@ -647,32 +523,26 @@ static void LiZhu_VisionHeal(void){
   }
 }
 
-/* 是不是合法包头：0xA4=立柱包；LIZHU_ACCEPT_A3=1 时阶梯的 0xA3 也算 */
+/* 合法包头：0xA4=立柱包；LIZHU_ACCEPT_A3=1 时 0xA3 也算 */
 static uint8_t LiZhu_IsHead(uint8_t b){
   return (uint8_t)((b == LIZHU_VIS_HEAD) || (LIZHU_ACCEPT_A3 && b == 0xA3));
 }
 
-/* 处理主视觉刚发来的一帧：原样打一行日志 + 在缓冲里找包
-   包格式：包头 | cmd | x低 | x高 | y低 | y高 | 0x0B（也有3字节简包：包头|cmd|0x0B）
-   cmd/x/y 存进 lizhu_pic_cmd/x/y；返回 1 = 这一帧里有合法包（日志里就是解析出结果那一行） */
+/* 处理主视觉一帧：原样打一行日志 + 找包(A4|cmd|x低x高|y低y高|0x0B，也有3字节简包)；返回1=有合法包 */
 static uint8_t LiZhu_VisionPoll(void){
-  if(!VISION1_RxFlag) return 0;                        //没有新帧：直接走(几乎不占时间)
-  VISION1_RxFlag = 0;                                  //必须立即清零
-  /* ★先把这一帧"抄一份"再解析/打印(解析和日志看同一份数据)：
-     收帧回调 HAL_UARTEx_RxEventCallback() 里已把 DMA 重新武装到同一个 VISION1_RxBuf，
-     视觉≈20帧/s 一直在发，而"解析(µs)"到"一条日志打完(约4ms)"之间下一帧就可能已经把缓冲覆盖。
-     不抄的后果(2026-09-27 实测日志)：一行里"原始字节"和"解析结果"来自两帧、对不上
-     ——例：#203 原样字节写的是 x=0x7F y=0x2F，同行却解析成 x=0 y=0；#195/#286/#513 反过来
-     (原样全0却解析出坐标)。535帧里出现5~6行这种"假故障"，解析逻辑本身没错。
-     抄一份(µs级)后两条信息同源，也把"解析到半新半旧的帧"的概率降到可忽略。 */
+  if(!VISION1_RxFlag) return 0;
+  VISION1_RxFlag = 0;
+  /* ★先把这一帧“抄一份”再解析/打印(两者同源)：收帧回调已把 DMA 重新武装到同一个 RxBuf，
+     视觉约20帧/s 一直在发，“解析(µs)”到“日志打完(约4ms)”之间缓冲就可能被覆盖；
+     不抄会出现“原始字节与解析结果来自两帧”的假故障(实测 535 帧里 5~6 行)。 */
   uint8_t buf[LIZHU_VIS_SNAP_BYTES];
-  uint8_t len = VISION1_RxRealLength;                  //这一帧的实际字节数
+  uint8_t len = VISION1_RxRealLength;
   if(len > (uint8_t)LIZHU_VIS_SNAP_BYTES) len = (uint8_t)LIZHU_VIS_SNAP_BYTES;  //超长帧只取前32字节(包都在7字节内)
   memcpy(buf, VISION1_RxBuf, len);
-  lizhu_vis_cnt++;                                     //累计收帧数(日志关掉也照样在数)
+  lizhu_vis_cnt++;
 
   uint8_t hit = 0, head = 0;
-  for(uint8_t i = 0; i + 2 <= len; i++){               //在缓冲里找包
+  for(uint8_t i = 0; i + 2 <= len; i++){
     if(!LiZhu_IsHead(buf[i])) continue;
     if(i + 7 <= len && buf[i + 6] == 0x0B){            //7字节标准包
       head = buf[i];
@@ -690,7 +560,7 @@ static uint8_t LiZhu_VisionPoll(void){
     if(hit) break;
   }
 
-  if(LIZHU_VIS_LOG && (LIZHU_VIS_LOG_NOA4 || hit)){    //日志：原样字节 + 解析结果(能不能对上包一眼看出)
+  if(LIZHU_VIS_LOG && (LIZHU_VIS_LOG_NOA4 || hit)){    //日志：原样字节+解析结果
     UART1_Printf("RX2 #%u len=%u:", (unsigned)lizhu_vis_cnt, (unsigned)len);
     for(uint8_t k = 0; k < len && k < LIZHU_VIS_LOG_BYTES; k++)
       UART1_Printf(" %02X", buf[k]);
@@ -701,14 +571,14 @@ static uint8_t LiZhu_VisionPoll(void){
       UART1_Printf(" | no pkt\r\n");
   }
 
-  if(!hit) lizhu_nopkt_cnt++;                          //没解析出包(屏幕 rx/n 一起看)
+  if(!hit) lizhu_nopkt_cnt++;
   return hit;
 }
 
-/* 立柱阶段开始：清残留 → 重启串口2的DMA接收(万一之前出错停了) → 发 0xA4 → 复位本阶段计数 */
+/* 立柱阶段开始：清残留 → 重启串口2接收 → 发 0xA4 → 计数复位 */
 static void LiZhu_VisionStart(void){
-  LiZhu_FlushVision();                                 //清掉上一阶段(阶梯 A3 流)留下的旧帧
-  HAL_UART_AbortReceive(&huart2);                      //★强制复位+重启：保证进本阶段时串口2是真的"在听"
+  LiZhu_FlushVision();                                 //清掉阶梯阶段留下的旧帧
+  HAL_UART_AbortReceive(&huart2);                      //★强制复位重启，保证串口2真的在听
   HAL_UARTEx_ReceiveToIdle_DMA(&huart2, UART2_RxBuf, UART2_RxLength);
   __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
 
@@ -721,12 +591,12 @@ static void LiZhu_VisionStart(void){
   lizhu_pic_t   = HAL_GetTick() - LIZHU_PIC_COOLDOWN_MS;   //第一拍不受冷却限制
   lizhu_heal_t  = HAL_GetTick();
 
-  UART2_Printf("%c", LIZHU_VIS_HEAD);                  //发 0xA4：告诉主视觉进入立柱阶段，开始识别
+  UART2_Printf("%c", LIZHU_VIS_HEAD);                  //发 0xA4：告诉主视觉进入立柱阶段、开始识别
   UART1_Printf("LZ TX 0xA4 -> V1(UART2)\r\n");
   LiZhu_ShowComm();
 }
 
-/* 立柱阶段结束：发 0xA9 告诉主视觉本阶段结束（正常绕完一圈发；丢测距提前退出也发） */
+/* 立柱结束：发 0xA9(绕完一圈发；丢测距提前退出也发) */
 static void LiZhu_VisionStop(void){
   UART2_Printf("%c", LIZHU_VIS_END);
   UART1_Printf("LZ TX 0xA9 -> V1(UART2)\r\n");
@@ -734,67 +604,24 @@ static void LiZhu_VisionStop(void){
 }
 
 
-/* ==================== 立柱转圈：绕柱（2026-09-26：开环三旋钮 + 两路可选反馈）====================
-   立柱阶段(LiZhu_Flag==1) 和串口调试指令 7 都调它，同一套代码。
-
-   【原理】车头一直指着柱子、车身横着走 ⇒ 轨迹天然是以柱子为圆心的圆
-       圆半径 r = V_TAN / (W_TURN × π/180)     （V_TAN cm/s = 横向走多快；W_TURN °/s = 车头摆多快）
-       本车 r 由几何定死：测距 17 + 传感器到车心 14 + 柱半径 4 = 35cm
-
-   【W_TURN 怎么算 —— 改 V_TAN 就照这条重算，没有别的东西要跟着改】
-       W_TURN = V_TAN / r × 57.3   ⇒  r=35cm 时：W_TURN = 1.64 × V_TAN
-         V_TAN = 5→8.2 ｜ 10→16.4 ｜ 14→22.9 ｜ 20→32.7      （整圈时间 = 360/W_TURN 秒）
-       反过来改半径：r = 57.3 × V_TAN / W_TURN （V_TAN=10 时：W=12→48cm、16.4→35cm、20→29cm）
-     ★16.4 是"几何值"（假设四轮精确跑出命令速度）。实测纯开环平均半径会小 13%（见文末【实测】），
-       但**闭环就该填几何值**：测距反馈把半径压到目标后，平衡点要求 w = V_TAN/r，正是这个数。
-
-   【要调的只有这几行（都在函数开头，改完重新烧）】
-       ① 三个旋钮：V_TAN=10 / W_TURN=16.4 / V_RAD=3
-       ② 两个开关：FB_DIST=0 / FB_LASER=0（都置 0 = 纯开环）
-       ③ 激光参数：LAS_YAW=4（纠偏摆速）/ LAS_TAN=0（切向纠偏，默认不用）
-       其余 DEFAULT 段是定死的几何常数，不用动。
-
-   【两路反馈（可单独开关，互不影响）】
-       FB_DIST ：车头正对柱子 ⇒ 测距值就是半径。偏大往前靠、偏小往后退（调径向速度 v_y：
-                 满幅 3cm 误差 → V_RAD cm/s；v_y=0 时半径只由 V_TAN/W_TURN 决定）
-       FB_LASER：左4右2 两个激光平行打柱（间距≈柱半径），一个有一个没有 = 横向偏了 → 调车头摆速 w
-     ★为什么全写成"速度"而不是"误差×增益"：增益一顶限幅就变成开关环（9.25 实测 1.96s 周期呼吸、
-       27.5% 时间顶限幅）。现在斜率写死 3cm，手里只有几个速度，怎么调都不会退化成开关环。
-
-   【怎么调（一次只动一个值）】
-     ① e 绕一圈一直在同一符号上变大 → 改 W_TURN（e 为正 = 越来越远 = 圆太大 → 调大；e 为负 → 调小）。
-        e 绕一圈正好摆一次（最低点在 yaw≈180）→ 开环固有摆动，改 W_TURN 没用，交给 FB_DIST
-     ② 前轮顶着走/一顿一顿：靠柱那对前轮 = V_TAN×(1−28.15/r) = 0.18×V_TAN（10 → 1.9cm/s），
-        同一时刻后轮 1.8×V_TAN = 18cm/s —— 绕圈几何决定的、不是故障（V_TAN<8 时前轮才真推不动；
-        想让它有劲：V_TAN 提到 15，或半径放到 48cm → 前轮 0.41×V_TAN）
-     ③ 开 FB_DIST 后：V_RAD = 半径环的阻尼，ζ = V_RAD×r/(6×V_TAN) ≈ V_RAD/1.7（V_TAN=10 时）
-          · ζ≈1（V_RAD≈1.7）临界阻尼、最快不振荡
-          · V_RAD=3（ζ≈1.75）过阻尼、更稳对噪声不敏感  ← 起步先用这个
-          · 半径慢慢上下"呼吸"→ 加到 4~5；被噪声推得一抽一抽 → 降到 1.5~2
-        ★别超 V_TAN 的一半；V_RAD 只决定"追上目标的速度"，不改目标半径
-     ④ 开 FB_LASER 后：车头来回摆 → LAS_YAW 调小；偏了不回来 → 调大（≈1/4 基准摆速起步，方向反取负）
-        ★LAS_TAN 想试"用切向速度纠偏"再改成 1~3（同样别超 V_TAN 的一半）
-     ⑤ 两路都开：这台车没有独立转向，激光摆头会顺带改半径（r=V_TAN/w）→ 打架就先关一路
-
-   【实测（2026-09-26 一趟：V_TAN=10 / W_TURN=16.4 / 纯开环）—— 开环只能这样，摆动改不掉】
-      e 从 −4 滑到 −79（d 从 160 掉到 80mm、还卡住约 100°），末尾回到 +14 ⇒
-      半径"绕一圈正好摆一个完整正弦"：最低≈26cm、最高≈36cm、整圈平均比目标小约 4.6cm。
-      · 运动学：dψ/dt = −(v_x/r²)Δr、dΔr/dt = v_x·ψ（ψ = 车头偏离"指向柱子"的角度）
-        ⇒ 无阻尼简谐振动，周期 = 整圈时间（实测最低点恰在 yaw≈180°，与理论吻合）
-        ⇒ 摆动是开环的结构性质，旋钮消不掉，只能靠反馈压。
-      · 摆幅只由起步那一刻决定：A ≈ √(Δr₀² + (r·ψ₀)²)，实测 A≈4.6cm ⇒ 起步车头就差约 8°。
-      · 摆动中心 = 真实 v_x/w 比：实测 29.4cm（比几何小 13% ⇒ 靠柱前轮跑不满：v_x 偏小、w 偏大）
-        ⇒ 纯开环想跑准，只能按这个比例微调 W_TURN；开 FB_DIST 后它自己收敛（稳态误差=0）。
-      ★"d 卡在 80mm 不动" = 读数出窗口被丢了、打印的是上次值（真实半径更小），不是半径稳住了。
-
-   串口每 200ms 一行：d=测距mm e=半径误差mm(正=远) l4/r2=左右激光(1=看到柱) vx/vy=切向/径向(0.1cm/s)
-                      w=角速度×100 yaw=已绕角度° ｜ yaw 不涨=卡住；355° 该停
-
-   【立柱视觉通信（2026-09-27 加入；协议/开关/日志的说明在本函数上方那一整段"立柱阶段：视觉通信"里）】
-      到位发 0xA4 → 边绕边收视觉的包 → cmd≠0 就停车跑动作组 107(等 LIZHU_PIC_MS) → 接着绕
-      → 绕完整圈发 0xA9。两个可调值：LIZHU_PIC_MS(等 107 做完的时间)、LIZHU_PIC_COOLDOWN_MS(两次停拍最小间隔)。
-      串口1日志：每收一帧一行 "RX2 #.."，每拍一次一行 "PIC #.."；不想刷屏就把 LIZHU_VIS_LOG 置 0。
-   ========================================================================== */
+/* ==================== 立柱转圈：绕柱（开环三旋钮 + 两路可选反馈）====================
+   原理：车头一直指着柱子、车身横着走 ⇒ 轨迹天然是以柱为圆心的圆，r = V_TAN/(W_TURN×π/180)。
+   本车 r 由几何定死：测距 17 + 传感器到车心 14 + 柱半径 4 = 35cm。
+     W_TURN = V_TAN/r×57.3 ⇒ r=35cm 时 W_TURN = 1.64×V_TAN（V_TAN=10→16.4°/s，整圈约22s）；
+     反算 r = 57.3×V_TAN/W_TURN。★闭环就填这个几何值：半径被测距压到目标后平衡点要求 w=V_TAN/r；
+     纯开环实测平均半径小 13%(靠柱前轮跑不满)，按实测比例凑 W_TURN 只是临时手段。
+   要调的只有函数开头几行：① V_TAN / W_TURN / V_RAD；② FB_DIST / FB_LASER；③ LAS_YAW / LAS_TAN；
+     其余 DEFAULT 段是定死的几何常数，不用动。
+   两路反馈(可单独开关)：FB_DIST 调径向速度 v_y(车头正对柱子 ⇒ 测距就是半径，满幅3cm → V_RAD cm/s)；
+     FB_LASER 调车头摆速 w(左4右2 平行打柱，一个有一个没有 = 横向偏了)。
+     ★全写成“速度”而不是“误差×增益”：增益一顶限幅就变成开关环(9.25 实测 1.96s 周期呼吸)。
+   怎么调(一次只动一个值)：e 绕一圈一直在同一符号变大 → 改 W_TURN；
+     e 绕一圈正好摆一次(最低点 yaw≈180) → 开环固有摆动，改 W_TURN 没用，交给 FB_DIST；
+     V_RAD = 半径环阻尼 ζ ≈ V_RAD/1.7(V_TAN=10)：1.7≈临界、3≈过阻尼(先用它)，别超 V_TAN 一半；
+     激光抖 → LAS_YAW 调小，偏了不回来 → 调大；两路都开互相打架就先关一路。
+   ★靠柱那对前轮天生慢(0.18×V_TAN)：绕圈几何决定，不是故障；V_TAN<8 才真推不动。
+   串口每200ms一行：d=测距mm e=半径误差mm(正=远) l4/r2=左右激光 vx/vy=切向/径向(0.1cm/s)
+                     w=角速度×100 yaw=已绕角度°(不涨=卡住；355° 该停) */
 
 static void LiZhu_Circle_Run(void)
 {
@@ -805,50 +632,43 @@ static void LiZhu_Circle_Run(void)
   UART1_Printf("circle start\r\n");
 
   /* ===== ① 三个可调参数（开环基本圆 + 反馈强度都在这三行）===== */
-  const float V_TAN  = 10.0f;               // 切向速度 cm/s（>0 逆时针 / <0 顺时针）—— 只管快慢（★本轮定 10）
-  const float W_TURN = 16.4f;               // 车头摆速 °/s（只填正的；大小由公式算出来，见下）
-  const float V_RAD  = 3.0f;                // 径向速度 cm/s（只有 FB_DIST=1 才起作用：路线像椭圆 → 加；车身一冲一停（抖）→ 减。）
-  /* ★W_TURN 怎么算：W_TURN = V_TAN / r × 57.3（r 由几何定死，见下一行）
-       ⇒ V_TAN=10 时：10/35 × 57.3 = 16.4°/s（整圈 360/16.4 ≈ 22s）
-       ⇒ 通用表：W_TURN = 1.64 × V_TAN（5→8.2、10→16.4、14→22.9、20→32.7）；反算 r = 57.3×V_TAN/W_TURN
-     ★闭环必须填几何值：半径被测距反馈压到目标后，平衡点要求 w = V_TAN/r，正是它。
-       纯开环实测平均半径小 13%（前轮跑不满），按实测比例凑 W_TURN 只是临时手段，别当基准。 */
+  const float V_TAN  = 10.0f;               // 切向速度 cm/s(>0 逆时针 <0 顺时针)
+  const float W_TURN = 16.4f;               // 车头摆速 °/s(只填正的，大小由上面公式算)
+  const float V_RAD  = 3.0f;                // 径向速度 cm/s(仅 FB_DIST=1 有效：路线像椭圆→加；一冲一停→减)
+  /* ★W_TURN = V_TAN/r×57.3，r 由几何定死(见函数头) */
   /* r 由几何定死：车心到柱轴 = 前测距(立柱校准停在 170mm) + 传感器到车心 14 + 柱半径 4 = 35cm */
 
   /* ===== ② 两个反馈开关（0=关 1=开；都置0 = 只有三个旋钮的纯开环圆）===== */
   const uint8_t FB_DIST  = 1;               // 测距反馈：测距偏大→往前靠、偏小→往后退（调 v_y）
-  const uint8_t FB_LASER = 1;               // 双激光反馈：一个有一个没有→横向偏了（调 w，可选同时调 v_x）
+  const uint8_t FB_LASER = 1;               // 双激光反馈：一个有一个没有→横向偏了(调 w)
 
-  /* ===== ③ 激光反馈参数（只有 FB_LASER=1 才用到；LAS_TAN=0 表示切向那一路不用）===== */
+  /* ===== ③ 激光反馈参数（仅 FB_LASER=1 用）===== */
   const float LAS_YAW = 4.0f;               // 偏了时额外加的车头摆速 °/s（纠偏主力；方向反了取负）
-  const float LAS_TAN = -2.0f;               // 偏了时额外加的切向速度 cm/s（想试"调切向速度"就改成 1~3，别超 V_TAN 一半）
+  const float LAS_TAN = -2.0f;               // 额外切向速度 cm/s(默认不用；想试改成 1~3，别超 V_TAN 一半)
 
   /* ===== DEFAULT：定死常数（不用调，理由都写在这）===== */
   const float RAD_FULL_CM = 3.0f;           // 测距反馈满幅误差：≥3cm 都按满幅算（斜率=V_RAD/3cm，写死）
-  const float RAD_DEAD_CM = 0.3f;           // 测距反馈死区 ±3mm（读数残余抖动别变成轮子一直抖）
+  const float RAD_DEAD_CM = 0.3f;           // 测距反馈死区 ±3mm
   const float D_ALPHA     = 0.5f;           // 测距一阶低通系数（压掉 GY-53 的 ±5~10mm 抖动）
-  const float GY53_2_OFFSET_CM = 14.0f;     // 前测距(GY53_2)到车心的纵向距离 cm（实测；算半径的几何常数）
-  const float PIPE_RADIUS_CM   = 4.0f;      // 柱子(水管)半径 4cm（外径 8cm；算半径的几何常数）
+  const float GY53_2_OFFSET_CM = 14.0f;     // 前测距(GY53_2)到车心纵向距离 cm(几何常数)
+  const float PIPE_RADIUS_CM   = 4.0f;      // 柱子半径 4cm(外径8；几何常数)
 
-  /* ★靠柱那对前轮天生很慢（绕圈几何决定：r=35cm 时 0.18×V_TAN=1.9cm/s，同时后轮 1.8×V_TAN=18cm/s）——
-     不是故障；V_TAN<8 时它才真的推不动，想让它有劲就加大 V_TAN 或把半径调大。 */
+  /* ★靠柱那对前轮天生很慢(0.18×V_TAN)：绕圈几何决定，不是故障；V_TAN<8 才真推不动 */
   float v_tan  = V_TAN;                                         // 切向速度 cm/s（= 旋钮值，不做任何隐藏修改）
   float dir    = (v_tan < 0.0f) ? -1.0f : 1.0f;                 // 绕向：+1 逆时针 / -1 顺时针（由 V_TAN 符号定）
   float w_base = dir * W_TURN * 0.0174532925f;                  // 开环基准角速度 rad/s（w>0 逆时针）
-  float r_knob = (W_TURN > 0.05f) ? fabsf(V_TAN) / (W_TURN * 0.0174532925f) : 999.0f;  // 旋钮隐含半径cm（串口对照用）
+  float r_knob = (W_TURN > 0.05f) ? fabsf(V_TAN) / (W_TURN * 0.0174532925f) : 999.0f;  // 旋钮隐含半径 cm(串口对照用)
 
-  /* ===== 测距定参考：开圈前静止采 12 次，只收有效值(8~22cm)、取中值，就用它当目标半径 =====
-     不写死 180mm：起步时半径误差≈0，一开圈不会先往柱里冲（9.25 写死 180 而实测 194 → 起振源）。
-     ★FB_DIST=0 时这组数只用于串口显示（e 就是给你调 W_TURN 看的），不参与控制。 */
+  /* ===== 测距定参考：开圈前静止采 12 次，只收有效值(8~22cm)取中值当目标半径 ⇒ 起步 e≈0，不会先往柱里冲；FB_DIST=0 时只用于串口显示 ===== */
   uint16_t d_ok[10];                            // 有效采样缓存
   uint8_t  n = 0;                               // 有效采样个数
   for(uint8_t i = 0; i < 12; i++){              // 最多采12次
     uint16_t dd = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);
-    if(dd >= 80 && dd <= 220){                  // 只收8~22cm：丢目标返回2000/杂散直接丢弃
+    if(dd >= 80 && dd <= 220){                  // 只收 8~22cm(丢目标返回2000/杂散直接丢)
       d_ok[n++] = dd;
       if(n >= 10) break;
     }
-    HAL_Delay(30);                              // 采样间隔，避开电机/震动噪声
+    HAL_Delay(30);                              // 采样间隔，避开噪声
   }
   UART1_Printf("valid=%d\r\n", n);
   uint8_t have_ref = (n >= 3) ? 1 : 0;          // 有没有真实的半径参考（FB_DIST=0 时只影响打印）
@@ -858,7 +678,7 @@ static void LiZhu_Circle_Run(void)
       return;
     }
     UART1_Printf("no pipe; open-loop anyway\r\n");   // 纯开环不需要测距，照跑（e 只作显示）
-    d_ok[0] = 180; n = 1;                       // 显示用的名义值 180mm（此时 e 的零点随便，看趋势就行）
+    d_ok[0] = 180; n = 1;                       // 显示用名义值 180mm(e 的零点随便，看趋势)
   }
   /* 冒泡排序取中值：比平均更抗单次大值/小值 */
   for(uint8_t i = 0; i < n-1; i++)
@@ -871,7 +691,7 @@ static void LiZhu_Circle_Run(void)
   /* ===== 开圈前把配置打到串口，一眼确认"这次到底开了什么" ===== */
   UART1_Printf("cfg: V_TAN=%d W_TURN=%d -> r~%dcm | V_RAD=%d | fb dist=%d laser=%d\r\n",
                (int)V_TAN, (int)W_TURN, (int)r_knob, (int)V_RAD, FB_DIST, FB_LASER);
-  /* ★半径几何对照：车心到柱轴 = 测距 + 14 + 4 = 35cm —— 这一行直接告诉你本圈的 W_TURN 该填多少 */
+  /* ★半径对照：车心到柱轴 = 测距+14+4 = 35cm —— 这行直接告诉你本圈 W_TURN 该填多少 */
   if(have_ref){
     float r_tgt = d_ref_cm + GY53_2_OFFSET_CM + PIPE_RADIUS_CM;
     UART1_Printf("ref=%dmm -> r_tgt=%dcm -> W_TURN_ideal=%d (x0.1deg/s; now=%d)\r\n",
@@ -882,7 +702,7 @@ static void LiZhu_Circle_Run(void)
   if(FB_LASER) UART1_Printf("laser: LAS_YAW=%d deg/s LAS_TAN=%d cm/s\r\n",
                             (int)LAS_YAW, (int)LAS_TAN);
 
-  /* ===== 接管底盘：角度环让位（w 由本闭环接管）+ 手动设速标志（防控制循环把速度归零）===== */
+  /* ===== 接管底盘：角度环让位 + 手动设速标志 ===== */
   flag.angle = 0;
   chassis.v_x = 0.0f;  chassis.v_y = 0.0f;  chassis.w = 0.0f;
   chassis.x_speed_plan_flag = 0;
@@ -891,82 +711,64 @@ static void LiZhu_Circle_Run(void)
   chassis.y_set_speed_flag  = 1;
 
   float yaw_last = HWT101CT_Data.yaw;           // 起点朝向（此时车头正对柱子）
-  float yaw_acc  = 0.0f;                        // 陀螺仪累积转角(°)（车头一直跟着柱子转，所以它就等于已绕角度）
+  float yaw_acc  = 0.0f;                        // 陀螺仪累积转角°=已绕角度(车头一直跟着柱子转)
   uint8_t  lost      = 0;                       // 连续无效测距计数
   uint8_t  lost_stop = 0;                       // 丢目标保护停车标志
   uint32_t t_prt     = HAL_GetTick();           // 打印节拍
 
-  /* ===== 视觉通信开始（★立柱阶段）：清残留 → 重启串口2接收 → 发 0xA4 =====
-     为什么放在这里而不是函数开头：前面"静止采 10 次测距定参考半径"要先跑完（车还在原地校半径），
-     现在这一步正好是"马上要开圈了"，和正面识别"到位才发 0xA2"同一个道理。
-     发完 0xA4 视觉就开始识别，之后边绕边收它的包(0xA4；认 A3 见 LIZHU_ACCEPT_A3)，收到"要拍"就停车跑动作组 107。 */
+  /* ===== 视觉通信开始：清残留→重启串口2接收→发 0xA4（放这里是因为“静止采测距定参考”要先跑完，同“到位才发0xA2”）===== */
   LiZhu_VisionStart();
 
   while(fabsf(yaw_acc) < 355.0f){           // 绕满一整圈
-    /* ===== 读一次测距（每拍都读：显示 + 测距反馈都用它）=====
-       有效窗口 80~220mm；丢目标/杂散 → 保持上次值（误差不跳）；
-       ★只有"测距反馈开着"时才做连续20次的保护停车（纯开环不需要测距，丢目标照转）
-       ★杂散交给"固定斜率 + V_RAD 封顶"消化（一次杂散最多把车推 0.6cm），不用冻结读数来治：
-         9.25 把窗口收到 150~215 后，d 一越界就整段冻结、相位滞后变大，反而更难收。 */
+    /* ===== 读一次测距(显示+测距反馈都用)：有效窗口 80~220mm，丢目标/杂散保持上次值；只有 FB_DIST=1 才做连续20次保护停车；杂散靠“固定斜率+V_RAD封顶”消化 ===== */
     uint16_t dd = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);
     if(dd >= 80 && dd <= 220){
-      d_cm = d_cm + D_ALPHA * ((float)dd / 10.0f - d_cm);   // 一阶低通（几十 ms 的滞后，可忽略）
+      d_cm = d_cm + D_ALPHA * ((float)dd / 10.0f - d_cm);   // 一阶低通(几十 ms 滞后，可忽略)
       lost = 0;
     }else if(FB_DIST && ++lost >= 20){
       lost_stop = 1; break;
     }
-    /* ★读日志提醒：读数出窗口(贴太近 dd<80 或没打到柱子)时 d_cm 会一直保持上次值不更新，
-       所以串口看到 "d=80 卡住不动、l4/r2 在闪" 不是"半径稳住了"，而是读数被丢了
-       （真实半径只会比 80mm 更小）。纯开环(FB_DIST=0)时这不算问题，照转。 */
+    /* ★读数出窗口时 d_cm 保持上次值不更新：串口看到“d=80 卡住、l4/r2 在闪”是读数被丢了，不是半径稳住了 */
     float e = d_cm - d_ref_cm;                              // 半径误差 cm（正 = 离柱子比目标远）
 
-    /* ===== 读两个激光（每拍都读，只为串口显示；★纠不纠由 FB_LASER 决定）=====
-       ★纯开环调试时先看这行的 l4/r2：正对柱子应该一直是 1 1，能直接看出偏的方向和程度 */
+    /* ===== 读两个激光(仅串口显示；纠不纠由 FB_LASER 决定)：正对柱子应一直 1 1 ===== */
     uint8_t l4 = LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin);   // 左激光（有障碍=1）
-    uint8_t r2 = LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin);   // 右激光
+    uint8_t r2 = LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin);
 
     /* ===== ① 基准：开环圆（三个旋钮）===== */
-    float vx = v_tan;                                       // 切向：横向沿圈走（车头正对柱子，圆心就在车头正前方）
+    float vx = v_tan;                                       // 切向：横向沿圈走(圆心在车头正前方)
     float vy = 0.0f;                                        // 径向：默认不动
-    float w  = w_base;                                      // 车头摆速：开环基准（r = V_TAN/W_TURN 就靠它）
+    float w  = w_base;                                      // 车头摆速：开环基准(r=V_TAN/W_TURN 靠它)
 
-    /* ===== ② 测距反馈（FB_DIST=1）：测距值偏大偏小 → 调径向速度 =====
-       远（正误差）→ 往车头方向前进（车头正对柱子，所以就是朝柱子靠）→ 半径收回来
-       近（负误差）→ 后退（背离柱子）→ 半径退出去；±3mm 死区内不动 */
+    /* ===== ② 测距反馈：偏大→往前靠、偏小→往后退(调 v_y)；±3mm 死区内不动 ===== */
     if(FB_DIST){
       float u = e / RAD_FULL_CM;                            // 归一化：±1 封顶 = 满幅
       if(u >  1.0f)      u =  1.0f;
       else if(u < -1.0f) u = -1.0f;
       if(fabsf(e) < RAD_DEAD_CM) u = 0.0f;
-      vy = V_RAD * u;                                       // 满幅 V_RAD cm/s（斜率 = V_RAD/3cm，写死）
+      vy = V_RAD * u;                                       // 满幅 V_RAD cm/s(斜率写死 V_RAD/3cm)
     }
 
-    /* ===== ③ 双激光反馈（FB_LASER=1）：一个有一个没有 = 横向偏了 =====
-       左4右2 两个激光平行打柱子（间距≈柱半径 4cm，柱宽 8cm）：
-         · 1 1 → 柱轴在车头轴线 ±2cm 内 = 正对，不纠
-         · 左4有 右2无 → 柱子偏在车头轴线**左边** → 车头往左摆（w 加正 = 逆时针）
-         · 右2有 左4无 → 柱子偏在**右边** → 车头往右摆（w 减）
-         · 0 0 → 偏了 6cm 以上 / 丢失 → 这一拍不纠（看串口 l4/r2 就知道）
-       ★纠偏方向只跟"柱子在左还是右"有关，和绕向(V_TAN正负)无关。
-       ★切向那一路（LAS_TAN≠0 才用）：柱子偏右 → vx 加正、偏左 → vx 加负
-         （由 dp/dt = d·w − vx 得出：w 那一路和 vx 那一路对横向偏移是同向效果）。 */
+    /* ===== ③ 双激光反馈：左4右2 平行打柱(间距≈柱半径，柱宽8cm) =====
+             · 1 1 → 正对，不纠；0 0 → 偏了6cm以上/丢失，这一拍不纠
+             · 左4有右2无 → 柱偏在车头轴线左边 → 车头往左摆(w 加正)；反之往右摆
+           ★纠偏方向只跟“柱子在左还是右”有关，与绕向无关；切向那一路只有 LAS_TAN≠0 才用 */
     if(FB_LASER){
-      int8_t s = 0;                                         // +1 = 柱子偏左（要往左摆/往负方向偏）
+      int8_t s = 0;                                         // +1 = 柱子偏左
       if(l4 && !r2)      s = +1;
       else if(r2 && !l4) s = -1;
       w  += (float)s * LAS_YAW * 0.0174532925f;             // 车头纠偏（默认走这一路）
-      vx += (float)s * LAS_TAN;                             // 切向纠偏（默认 LAS_TAN=0 = 不用）
+      vx += (float)s * LAS_TAN;                             // 切向纠偏(默认不用)
     }
 
     /* ===== 下发：三个速度解耦，互不干涉 ===== */
-    if(w >  YAW_PID_OUT_MAX) w =  YAW_PID_OUT_MAX;          // 摆速别超角度环的限幅（打印的就是真下发的）
+    if(w >  YAW_PID_OUT_MAX) w =  YAW_PID_OUT_MAX;          // 摆速不超角度环限幅
     else if(w < -YAW_PID_OUT_MAX) w = -YAW_PID_OUT_MAX;
     chassis.v_x = vx;
     chassis.v_y = vy;
     chassis.w   = w;
 
-    /* 测距打印(每200ms，LIZHU_DIST_LOG=1 才打)：d=测距mm e=半径误差mm l4/r2=左/右激光 vx/vy=速度 w yaw°
-       LIZHU_DIST_LOG=0 = 关掉(串口让给视觉)，代码留着，改回 1 就恢复 */
+    /* 测距打印(每200ms，LIZHU_DIST_LOG=1 才打)：d=测距mm e=误差mm l4/r2=激光 vx/vy=速度 w yaw° */
     if(LIZHU_DIST_LOG && HAL_GetTick() - t_prt >= 200){
       UART1_Printf("d=%d e=%d l4=%d r2=%d vx=%d vy=%d w=%d yaw=%d\r\n",
                    (int)(d_cm * 10.0f), (int)(e * 10.0f), l4, r2,
@@ -975,46 +777,44 @@ static void LiZhu_Circle_Run(void)
       t_prt = HAL_GetTick();
     }
 
-    /* ===== 识别钩子（★立柱视觉通信）：边绕边收包 → cmd≠0 就要"停下拍一张" =====
-       够不够格当包由 LiZhu_VisionPoll 判(包头 0xA4；LIZHU_ACCEPT_A3=1 时 0xA3 也算) */
+    /* ===== 识别钩子：边绕边收包 → cmd≠0 就停车拍一张(够不够格当包由 LiZhu_VisionPoll 判)===== */
     if(LiZhu_VisionPoll()){
-      /* 判据就这一行：cmd≠0 = 要拍(0x00=不用拍)；视觉改约定只改这里。
-         冷却：拍完 LIZHU_PIC_COOLDOWN_MS 内再来"要拍"也不停(防同一目标连拍)。 */
+      /* 判据就这一行：cmd≠0=要拍；冷却 LIZHU_PIC_COOLDOWN_MS 内再来也不停(防同一目标连拍) */
       if(lizhu_pic_cmd != 0U && (HAL_GetTick() - lizhu_pic_t) >= LIZHU_PIC_COOLDOWN_MS){
         chassis.v_x = 0.0f;  chassis.v_y = 0.0f;  chassis.w = 0.0f;   //① 停车
         HAL_Delay(100);                                               //   等速度环把车刹稳(≈5个控制周期)
 
         runActionGroup(107, 1);                                       //② 拍：动作组 107
-        HAL_Delay(LIZHU_PIC_MS);                                      //   等它跑完(先给 2500ms；按现场标定改 LIZHU_PIC_MS)
-        // runActionGroup(104, 1); HAL_Delay(2500);                   //   ★若 107 跑完不自带回"识别状态"，把这行放开
+        HAL_Delay(LIZHU_PIC_MS);                                      //   等它跑完(按现场标定改 LIZHU_PIC_MS)
+        //   ★若 107 跑完不自带回“识别状态”，放开这行: runActionGroup(104, 1); HAL_Delay(2500);
 
-        LiZhu_FlushVision();                                          //③ 拍期间滞留的旧帧全清（只认之后的实时帧）
-        yaw_last = HWT101CT_Data.yaw;                                 //   拍的时候车没走：这段陀螺仪抖动不算进"已绕角度"
+        LiZhu_FlushVision();                                          //③ 拍期间滞留的旧帧全清
+        yaw_last = HWT101CT_Data.yaw;                                 //   拍时车没走：这段陀螺仪抖动不算进“已绕角度”
         lizhu_pic_t = HAL_GetTick();
         lizhu_pic_cnt++;
         UART1_Printf("PIC #%u cmd=0x%02X x=%u y=%u yaw=%d\r\n",
                      (unsigned)lizhu_pic_cnt, (unsigned)lizhu_pic_cmd,
                      (unsigned)lizhu_pic_x, (unsigned)lizhu_pic_y, (int)fabsf(yaw_acc));
-        lizhu_pic_cmd = 0;                                            //   本包处理完(下一包由 Poll 重新填)
-        t_prt = HAL_GetTick();                                        //   打印节拍重新计时(拍完别立刻再刷一行 d=..)
+        lizhu_pic_cmd = 0;
+        t_prt = HAL_GetTick();
         LiZhu_ShowComm();                                             //   第4行刷新"拍了几次"
       }
     }
 
-    /* ===== 串口2自愈 + 屏幕心跳（100ms 一次；本循环节拍 10ms，这里只读寄存器，代价≈0）===== */
+    /* ===== 串口2自愈 + 屏幕心跳（100ms 一次）===== */
     if(HAL_GetTick() - lizhu_heal_t >= LIZHU_VIS_HEAL_MS){
       lizhu_heal_t = HAL_GetTick();
       LiZhu_VisionHeal();
     }
 
-    /* 陀螺仪累积转角判断已绕角度 */
+    /* 用陀螺仪累积转角判断已绕角度 */
     float ddg = HWT101CT_Data.yaw - yaw_last;
     yaw_last = HWT101CT_Data.yaw;
     if(ddg > 180.0f)       ddg -= 360.0f;
     else if(ddg < -180.0f) ddg += 360.0f;
     yaw_acc += ddg;
 
-    HAL_Delay(10);                          // 本循环节拍（测距/激光都是阻塞读，这里 10ms 只是节拍）
+    HAL_Delay(10);                          // 本循环节拍(读数都是阻塞读)
   }
   /* 停车 + 恢复角度环（重新锁向当前朝向） */
   chassis.v_x = 0.0f;  chassis.v_y = 0.0f;  chassis.w = 0.0f;
@@ -1022,42 +822,31 @@ static void LiZhu_Circle_Run(void)
   chassis.y_set_speed_flag = 0;
   flag.angle = 1;
   chassis.target_yaw = YAW_TARGET_NONE;
-  LiZhu_VisionStop();                        //★本阶段结束：发 0xA9 通知主视觉（绕完一整圈 / 丢测距提前退出，都发）
+  LiZhu_VisionStop();                        //★发 0xA9 通知主视觉(绕完/提前退出都发)
   if(lost_stop) UART1_Printf("LOST! stop\r\n");
   else          UART1_Printf("circle done (yaw=%d)\r\n", (int)fabsf(yaw_acc));
 }
 
 
 
-/* ==================== ★★ 串口1"单键传感器单独测试"（2026-09-26 加入）★★ ====================
-   目的：以前想单独测一路传感器，都得现场写一段 OLED_Printf/UART1_Printf 再编译烧录一遍 ——
-         现在统一成"发一个字母 = 持续打印那一路，再发一次关"，车停在"红蓝方选择"菜单界面就能看：
-           c = 颜色 TCS34725（C/R/G/B 原始值 + H/S/V + 判色名；判色阈值见 tcs34725.h）
-           g = 双测距 GY53（front=前 GY53_2 / back=后 GY53_1，单位 mm；2000=超量程/无目标）
-           l = 双激光（L4=左 PD7 / R2=右 PC8 / L3=备用 PB14，1=有障碍物）
-           e = 四轮编码器（自上次控制周期20ms以来累计的脉冲 + 里程计位置/速度）
-           y = 陀螺仪 HWT101CT（yaw 实测 / 航向环目标角 / 航向环开关）
-           r = 灰度 GRAY3 八路数字量（1=浅/白 0=深/黑，循线用；GRAY1 的位置已换颜色传感器）
-           m = 颜色采样一次（打一行 CAL[...]，字段同 KEY0 起点 CAL 模式，用来标定判色阈值）
-           i = 全传感器快照一次（上面 6 路各打一行；不想常开、只想看一眼时用）
-   实现：本块只提供"六路打印 + 泵 + 开关的公共写法"，开关本身在下面 UART1_DebugCmd 的单键分支里。
-     ★泵 = 非阻塞 + 各自按间隔节流（DBG_xxx_MS）：调用点频繁调，发不发由它按 HAL_GetTick 判断 ——
-       所以现场可以一直开着跑比赛，不占控制周期（只占串口带宽，串口1 115200 一行≈4ms）。
-     ★调用点：main.c 主循环开头 + "红蓝方选择"菜单循环里（紧跟 SERIALPLOT_WheelActualPump）。
-       即：车停在菜单/在菜单里手动测车时，这几路日志一直有效。
-     ★故意不放进 robot.c 的那些阻塞等待循环里（四轮实际值那个泵是放那儿的）：
-       单次 GY53 读数最坏要等 75ms、双激光各最长 5ms(内部5ms消抖)，塞进"等激光/等颜色"这类
-       条件循环会把停下来的时机拖后几厘米 —— 调试输出绝不能改变被调对象的行为。
-       ★所以比赛流程跑动期间这几路不会刷（车一进流程就没人调泵了，回到菜单才继续）。
-         想"车跑动时也一直看 e 编码器 / y 陀螺仪"，把 DBG_SensorLogPump() 加到 robot.c 那三个
-         SERIALPLOT_WheelActualPump() 旁边即可（这两路只读寄存器/全局量，无传感器 I/O，
-         代价≈每 100ms 多一行串口）；但要有数：那是会改变停车时机的调试输出，只适合调参阶段。
-     ★本块不动 OLED：屏幕各行已被菜单/流程占用，传感器数值一律走串口1。 */
+/* ==================== ★★ 串口1“单键传感器单独测试” ★★ ====================
+   发一个字母 = 持续打印那一路，再发一次关(车停在菜单界面就能看)：
+     c=颜色 TCS34725(原始RGBC+HSV+判色)   g=双测距 GY53(front/back，2000=超量程)
+     l=双激光(L4/R2/L3，1=有障碍)          e=四轮编码器(脉冲+里程计位置/速度)
+     y=陀螺仪(yaw/目标角/环开关)           r=灰度 GRAY3 八路(1=白 0=黑)
+     m=颜色采样一次(打一行 CAL，标定判色阈值用)  i=全传感器快照一次
+   实现：本块只有“六路打印 + 泵 + 开关的公共写法”，开关在 UART1_DebugCmd 的单键分支。
+     ★泵 = 非阻塞 + 各自按 DBG_xxx_MS 节流，调用点频繁调即可，不占控制周期；
+       调用点：主循环开头 + “红蓝方选择”菜单循环(紧跟 SERIALPLOT_WheelActualPump)。
+     ★故意不放进 robot.c 的阻塞等待循环里：单次 GY53 最坏 75ms、双激光各最长 5ms，塞进
+       “等激光/等颜色”这类循环会把停车时机拖后几厘米 —— 调试输出不能改变被调对象的行为。
+       想在跑动时也看 e/y，可把 DBG_SensorLogPump() 加到 robot.c 那三处泵旁边(只读寄存器，代价小)。
+     ★本块不动 OLED：屏幕已被菜单/流程占用，传感器数值一律走串口1。 */
 #define DBG_COL_MS   200U   /* 颜色   打印间隔(ms)：一次 I2C 读≈1~2ms，200ms 足够看稳定值 */
 #define DBG_DIS_MS   300U   /* 双测距 打印间隔(ms)：GY53 本身约 5Hz(200ms) 才更新一次 */
-#define DBG_LAS_MS   200U   /* 双激光 打印间隔(ms)：单次读取最长 5ms(内部消抖)，别给更密 */
+#define DBG_LAS_MS   200U   /* 双激光 打印间隔(ms)：单次读取最长 5ms(内部消抖) */
 #define DBG_ENC_MS   100U   /* 编码器 打印间隔(ms)：只读寄存器，几乎不占时间 */
-#define DBG_YAW_MS   100U   /* 陀螺仪 打印间隔(ms)：数据由串口3中断刷新，本处纯打印 */
+#define DBG_YAW_MS   100U   /* 陀螺仪 打印间隔(ms)：数据由串口3中断刷新，这里纯打印 */
 #define DBG_GRAY_MS  200U   /* 灰度   打印间隔(ms)：8 位串行读 ≈1ms */
 
 static uint8_t  dbg_on_col  = 0, dbg_on_dis  = 0, dbg_on_las  = 0;
@@ -1065,7 +854,7 @@ static uint8_t  dbg_on_enc  = 0, dbg_on_yaw  = 0, dbg_on_gray = 0;
 static uint32_t dbg_t_col   = 0, dbg_t_dis   = 0, dbg_t_las   = 0;
 static uint32_t dbg_t_enc   = 0, dbg_t_yaw   = 0, dbg_t_gray  = 0;
 
-/* --- 六路打印：只读传感器 / 只读底盘状态，绝不改任何控制量（单路开关日志和 'i' 快照共用）--- */
+/* --- 六路打印：只读传感器/底盘状态，绝不改控制量 --- */
 static void DBG_PrintColor(void)          /* 颜色：原始 RGBC + H/S/V + 判色结果 */
 {
   TCS34725_RGBC rgbc;
@@ -1086,7 +875,7 @@ static void DBG_PrintDist(void)           /* 双测距：front=前(GY53_2) / bac
   UART1_Printf("DIS front=%4umm back=%4umm\r\n", (unsigned)d_f, (unsigned)d_b);
 }
 
-static void DBG_PrintLaser(void)          /* 双激光：1=有障碍物（L3 是备用那一路，一起看一眼） */
+static void DBG_PrintLaser(void)          /* 双激光：1=有障碍(L3 是备用那一路，一起看一眼) */
 {
   UART1_Printf("LAS L4=%u R2=%u L3=%u\r\n",
                (unsigned)LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin),
@@ -1120,7 +909,7 @@ static void DBG_PrintGray(void)           /* 灰度 GRAY3：探头1~8，"1"=浅(
 }
 /* --- 六路打印函数结束（下面接 泵 / 开关公共写法 / 快照 / 颜色采样）--- */
 
-/* 单键开关的公共写法：翻转标志 + 报 ON/OFF + 打开时立刻来一行（现场不用干等一个节流周期） */
+/* 单键开关公共写法：翻转标志 + 报 ON/OFF + 打开时立刻来一行 */
 static void DBG_ToggleLog(uint8_t *on, uint32_t *t, void (*print_f)(void), const char *name, uint32_t ms)
 {
   *on = (uint8_t)(!(*on));
@@ -1129,7 +918,7 @@ static void DBG_ToggleLog(uint8_t *on, uint32_t *t, void (*print_f)(void), const
   if(*on) print_f();
 }
 
-/* 节流泵：非阻塞，谁开着、谁到点了就打一行（主循环/菜单循环里频繁调，与四轮实际值那个泵同一套路） */
+/* 节流泵：非阻塞，谁开着、谁到点就打一行(主循环/菜单循环里频繁调) */
 static void DBG_SensorLogPump(void)
 {
   uint32_t now = HAL_GetTick();
@@ -1141,15 +930,14 @@ static void DBG_SensorLogPump(void)
   if(dbg_on_gray && (uint32_t)(now - dbg_t_gray) >= DBG_GRAY_MS){ dbg_t_gray = now; DBG_PrintGray();  }
 }
 
-/* 'i'：全传感器快照一次（六路各一行；不常开、只想看一眼时用） */
+/* “i”：全传感器快照一次(六路各一行) */
 static void DBG_SensorSnapshot(void)
 {
   DBG_PrintColor(); DBG_PrintDist(); DBG_PrintLaser();
   DBG_PrintEnc();   DBG_PrintYaw();  DBG_PrintGray();
 }
 
-/* 'm'：颜色采样一次 —— 打一行 CAL 格式（字段与 KEY0 起点里的 CAL 校准模式一致），
-   现场拿回来按"相邻两类取中间值"改 tcs34725.h 的 TCS_BLUE_S_MAX / TCS_BLUE_V_MAX / TCS_BLACK_V_THRESH */
+/* “m”：颜色采样一次，打一行 CAL(字段同 KEY0 的 CAL 模式)，用来改 tcs34725.h 的判色阈值 */
 static void DBG_PrintColorCal(void)
 {
   TCS34725_RGBC rgbc;
@@ -1165,39 +953,22 @@ static void DBG_PrintColorCal(void)
 
 
 
-/* ==================== 串口1调试指令：解析 + 就地执行（菜单界面也能用） ====================
-   ★为什么要有这个函数（"发 7,0,0,0,0,0,0,0 没反应"就是它的原因）：
-     ① 车平时停在下面"红蓝方选择"那个 while(1) 菜单里，主循环体根本没往下走 ——
-        解析串口的代码在主循环里，菜单里没人解析，所以发什么指令都毫无反应(连回显都没有)。
-     ② 原来"单独测试转圈"那几个 if 之前还有一句无条件的 UART1_Data[0]=0;，
-        它把刚解析出来的指令(7)提前清成 0 → 下面那几个调试 if 永远进不去。
-     现在把"解析 + 回显 + 圆周调试指令"提成本函数：主循环里调一次，菜单循环里也调一次，
-     不管车停在哪个界面，发指令都立刻生效。
-   帧格式："S,A,B,C,D,E,F,G"（逗号分隔、8 个整数，串口1发出去记得带换行）
-     S = UART1_Data[0] 是命令号：
-       3 = 车体走固定距离 + 转到指定角度（2026-09-26 起 3 也收进本函数，菜单界面发就生效）
-       5 = 原地转到任意角（5,角度,0,...）并打印耗时
-       7 = 立柱绕圈 LiZhu_Circle_Run()（切向/径向/车头摆速三个“速度”解耦，实现在本函数上方）
-       9 = 舵机动作组（9,组号,次数,0,...；组号 0 = 停止所有）
-   返回 1 = 这一帧已被本函数处理掉（3/5/7/9 都是把动作跑完才返回）；
-          0 = 没收到帧，或不认识的命令号（不认识的只回显 S=... 那一行，不执行任何动作）
-   要改绕圈参数（V_TAN 切向速度 / W_TURN 车头摆速 / V_RAD 径向速度）和两个反馈开关（FB_DIST / FB_LASER）就去改上面 LiZhu_Circle_Run() 函数开头那几行 const，别改散落的其它地方
-   ------------------------------------------------------------------------------------------
-   ================== 单键指令（整帧只有 1 个字符；2026-09-26 整理后的完整表）==================
-   运动键： w/s/a/d = 前进/后退/左移/右移（持续走，发 x 停）   W/S/A/D = 同上但只走 1 秒自动停
-            x 或空格或回车 = 停车      +/- = 测试速度 ±10cm/s（默认 30，10~100）
-            o = 里程清零      p = 状态(yaw/速度/里程)
-   ★原地转角不在单键里（原来的单键 1/2/3/4 已删，避免和数值指令 3 混淆）：
-     用 5,角度,0,...（本函数，带耗时）或 at f 角度（SerialPlot 指令区）
-   传感器单测键（再发一次关；菜单界面就能用，实现见上方 DBG_ 那一大块）：
-            c=颜色  g=双测距  l=双激光  e=编码器  y=陀螺仪  r=灰度GRAY3  v=四轮实际值(默认关)
-            m=颜色采样一次(打一行 CAL)        i=全传感器快照一次
-   帮助键 h / ? = 打印下面这张表的完整版（含数值指令 S,A,B... 和调参指令"名字 类型 数值"）
-   ★下面函数体里的 ①②③ 是"帧的三种类型"，和这里的键分组不是一回事，见那里的注释。
-   ★用法：上电后在"红蓝方选择"菜单界面直接发（这个函数菜单循环里也在调），不用进比赛流程。
-   ------------------------------------------------------------------------------------------ */
+/* ==================== 串口1调试指令：解析 + 回显 + 就地执行（菜单界面也能用）====================
+   ★为什么要提成函数：车平时停在下面“红蓝方选择”菜单里，主循环体不往下走，菜单里没人解析串口 ⇒
+     发指令毫无反应；主循环与菜单循环各调一次本函数后，停在哪都能立刻生效。
+   帧格式：“S,A,B,C,D,E,F,G”(逗号分隔 8 个整数，串口1发时带换行)，S = UART1_Data[0]：
+     3 = 走固定距离 + 转到指定角度(带耗时)；5 = 原地转到任意角；7 = 立柱绕圈 Looping_Circle()；
+     9 = 舵机动作组(9,组号,次数；组号0=停止所有)
+   返回 1 = 本帧已被处理(3/5/7/9 都跑完动作才返回)；0 = 没收到帧或不认识的命令号(只回显)
+   要改绕圈参数就去改 LiZhu_Circle_Run() 开头那几个 const，别改散落的地方。
+   ------------------------------------------------------------------
+   单键(整帧只有1个字符)：w/s/a/d=前后左右移动(持续，x 停)、W/S/A/D=同上前进1秒自动停、
+     x/空格/回车=停车、+/-=测试速度±10cm/s(默认30，10~100)、o=里程清零、p=状态；
+     c/g/l/e/y/r/v=传感器日志开关、m=颜色采样一次、i=全传感器快照、h/?=帮助表。
+   ★原地转角不在单键里(单键 1/2/3/4 已删)：用 5,角度,0,... 或 at f 角度。
+   ★函数体里的 ①②③ 是“帧的三种类型”，与这里的键分组不是一回事。 */
 static uint8_t UART1_DebugCmd(void){
-  /* ★单键手动测试用的状态（对应下面 ① 单键分支；静态变量在两次调用之间保持） */
+  /* ★单键手动测试状态(对应下面 ① 单键分支，静态变量在两次调用间保持) */
   static uint32_t cmd_stop_at = 0;      /* 定时自动停车的时刻（大写 W/S/A/D = 走 1 秒自动停） */
   static float    cmd_spd     = 30.0f;  /* 单键测试速度 cm/s（+/- 每档 10，范围 10~100） */
   if(cmd_stop_at != 0 && (int32_t)(HAL_GetTick() - cmd_stop_at) >= 0){
@@ -1205,36 +976,31 @@ static uint8_t UART1_DebugCmd(void){
     ROBOT_MoveSpeed(0.0f, 0.0f);
     UART1_Printf("AUTO STOP (1s)\r\n");
   }
-  if(!UART1_RxFlag) return 0;                       // DMA空闲中断没收到帧：什么都不做
-  UART1_RxFlag = 0;                                 // 必须立即清零
-  char line[UART1_RxLength + 1];                    // 拷贝一份并补'\0'（DMA缓冲末尾没有结束符）
+  if(!UART1_RxFlag) return 0;
+  UART1_RxFlag = 0;
+  char line[UART1_RxLength + 1];                    // 拷贝一份(DMA缓冲末尾无结束符，需自己补0)
   uint16_t len = UART1_RxRealLength;
-  if(len > UART1_RxLength) len = UART1_RxLength;    // 防越界
+  if(len > UART1_RxLength) len = UART1_RxLength;
   memcpy(line, UART1_RxBuf, len);
   line[len] = '\0';
 
-  /* ==================== 帧的三种类型（2026-09-26 整理：原来是"有没有逗号"两分法）====================
-     ① 单键 = 去掉首尾空白/换行后只剩 1 个字符（w/s/a/d/x/p/+/h + 传感器测试键 c/g/l/e/y/r/m/i）
-     ② 调参 = 帧里有空格、没有逗号 → "名字 类型 数值"，交给 serialplot.c 的 SERIALPLOT_ChangeParam
-     ③ 数值 = 帧里有逗号 → "S,A,B,C,D,E,F,G"，按 UART1_Data[0] 分发（3/5/7/9）
-     ★为什么不再只按"有没有逗号"分：那样发 "vx f 30"（首字符 v）只会切换四轮日志、
-       "ykp2 f 0.9"（首字符 y）直接报 unknown key —— SerialPlot 那套调参指令一条都进不来。
-     ★单键这段只做"设恒速/转向/开关日志"，不做位置闭环：
-       所有移动都用 ROBOT_MoveSpeed()，它开启航向环并**锁定发指令那一刻的朝向**（走直线），
-       所以"歪不歪"看 p 状态行里的 yaw 有没有被拉住。
-       ★2026-09-20 新底盘的分档（chassis.h）：速度 <20cm/s 角度环**不介入**（w 恒 0，平移期间不纠偏），
-         20~80 走低速平移档、>80 走高速平移档；原地不动（发 x 停车后）自动落"旋转档"按 target_yaw 纠偏。
-         所以单键测试想验"纠偏灵不灵"，就用 ≥20cm/s 走（命令 10 在新底盘下就是真的 10cm/s，不再被整形顶高）。
-     ★原地转角不在单键里：用 5,角度,0,... 或 at f 角度（单键 1/2/3/4 已删，避免和数值指令 3 混淆）。 */
-  /* 先判"这帧到底算哪一类"：去掉首尾空白/换行后只剩 1 个字符，才算单键 */
+  /* ==================== 帧的三种类型 ====================
+       ① 单键 = 去掉首尾空白/换行后只剩 1 个字符(含传感器测试键 c/g/l/e/y/r/m/i)
+       ② 调参 = 有空格、没有逗号 → “名字 类型 数值”，交给 serialplot.c 的 SERIALPLOT_ChangeParam
+       ③ 数值 = 有逗号 → “S,A,B,C,D,E,F,G”，按 UART1_Data[0] 分发(3/5/7/9)
+       ★为什么不再只按“有没有逗号”分：“vx f 30” 会被单键分支截胡、SerialPlot 调参一条都进不来。
+       ★单键只做“设恒速/开关日志”：移动都走 ROBOT_MoveSpeed()，它锁住发指令那一刻的朝向；
+         底盘速度 <20cm/s 角度环不介入，≥20cm/s 才纠偏 ⇒ 想验“纠偏灵不灵”就用 ≥20cm/s 走。
+       ★原地转角用 5,角度,0,... 或 at f 角度。 */
+  /* 先判帧类型：去掉首尾空白/换行后只剩 1 个字符才算单键 */
   char    *kc_s = line;
-  while(*kc_s == ' ' || *kc_s == '\t') kc_s++;                        /* 跳过前导空白 */
+  while(*kc_s == ' ' || *kc_s == '\t') kc_s++;
   uint16_t kc_n = 0;
-  while(kc_s[kc_n] != '\0' && kc_s[kc_n] != '\r' && kc_s[kc_n] != '\n') kc_n++;  /* 数到行尾 */
-  while(kc_n > 0 && (kc_s[kc_n-1] == ' ' || kc_s[kc_n-1] == '\t')) kc_n--;       /* 去掉尾随空白 */
+  while(kc_s[kc_n] != '\0' && kc_s[kc_n] != '\r' && kc_s[kc_n] != '\n') kc_n++;
+  while(kc_n > 0 && (kc_s[kc_n-1] == ' ' || kc_s[kc_n-1] == '\t')) kc_n--;
 
   if(kc_n <= 1){
-    char    c     = (kc_n == 1) ? kc_s[0] : 'x';   /* 纯回车/纯空格 → 按"停车"处理，保持老手感 */
+    char    c     = (kc_n == 1) ? kc_s[0] : 'x';   /* 纯回车/空格 → 按停车处理 */
     float   vx    = 0.0f, vy = 0.0f;
     uint8_t timed = 0;
     switch(c){
@@ -1259,26 +1025,23 @@ static uint8_t UART1_DebugCmd(void){
                 chassis.dist_acc_x = 0.0f; chassis.dist_acc_y = 0.0f;
                 UART1_Printf("odometry cleared (pos=0,0)\r\n"); return 1;
       case 'p': break;                          /* 只打印状态，见下面统一打印 */
-      case 'v':                                 /* 串口1实时发四轮实际值 开/关（实现在 serialplot.c）
-                                                   ★上电默认关（serialplot.h 的 WHEEL_ACT_SEND_EN=0），
-                                                     现场用这个键打开；打开后是纯数字流，接 SerialPlot 看 4 条曲线 */
+      case 'v':                                 /* 串口1实时发四轮实际值 开/关(默认关，见 serialplot.h 的 WHEEL_ACT_SEND_EN)；打开后是纯数字流，接 SerialPlot 看4条曲线 */
         serialplot_wheel_on = !serialplot_wheel_on;
         UART1_Printf("wheel actual log %s (%u ms/line)\r\n",
                      serialplot_wheel_on ? "ON" : "OFF", (unsigned)WHEEL_ACT_SEND_MS);
         return 1;
 
-      /* ---- 传感器单测键（c/g/l/e/y/r = 开关该路日志，再发一次关；m/i 打一次）----
-         实现在文件上方 DBG_ 块：打开时立刻打一行，之后按各自间隔(DBG_xxx_MS)自动打 */
+      /* ---- 传感器单测键(c/g/l/e/y/r 开关，m/i 打一次)，实现在上方 DBG_ 块 ---- */
       case 'c': DBG_ToggleLog(&dbg_on_col,  &dbg_t_col,  DBG_PrintColor, "COL  ", DBG_COL_MS);  return 1;
       case 'g': DBG_ToggleLog(&dbg_on_dis,  &dbg_t_dis,  DBG_PrintDist,  "DIS  ", DBG_DIS_MS);  return 1;
       case 'l': DBG_ToggleLog(&dbg_on_las,  &dbg_t_las,  DBG_PrintLaser, "LAS  ", DBG_LAS_MS);  return 1;
       case 'e': DBG_ToggleLog(&dbg_on_enc,  &dbg_t_enc,  DBG_PrintEnc,   "ENC  ", DBG_ENC_MS);  return 1;
       case 'y': DBG_ToggleLog(&dbg_on_yaw,  &dbg_t_yaw,  DBG_PrintYaw,   "YAW  ", DBG_YAW_MS);  return 1;
       case 'r': DBG_ToggleLog(&dbg_on_gray, &dbg_t_gray, DBG_PrintGray,  "GRAY3", DBG_GRAY_MS); return 1;
-      case 'm': DBG_PrintColorCal();     return 1;   /* 颜色采样一次（打一行 CAL，标定阈值用） */
-      case 'i': DBG_SensorSnapshot();    return 1;   /* 全传感器快照一次（六路各一行） */
+      case 'm': DBG_PrintColorCal();     return 1;   /* 颜色采样一次(打一行 CAL，标定阈值用) */
+      case 'i': DBG_SensorSnapshot();    return 1;   /* 全传感器快照一次(六路各一行) */
 
-      case 'h': case '?':                       /* 帮助：三类指令一张表（2026-09-26 起是完整版） */
+      case 'h': case '?':                       /* 帮助：三类指令一张表 */
         UART1_Printf("== 单键(整帧1个字符) ==========================================\r\n");
         UART1_Printf("动 w/s/a/d=前/后/左/右(持续)  W/S/A/D=只走1秒  x/空格/回车=停\r\n");
         UART1_Printf("+/-=测试速度  o=里程清零  p=状态(yaw/速度/里程)  转角用 5,角度 或 at f 角度\r\n");
@@ -1318,41 +1081,36 @@ static uint8_t UART1_DebugCmd(void){
     return 1;
   }
 
-  /* ==================== ② 调参指令：有空格、没有逗号（"名字 类型 数值"）====================
-     交给 serialplot.c 的 SERIALPLOT_ChangeParam，一套入口全包括：
-       vx/vy=手动速度   mx/my=走固定距离cm   at=转到角度   mv/mvacc=规划速度/加速度
-       target=目标角    ang=航向环开关       pq=查询参数   go/gb=长距直行
-       skp/ski/skd=四轮统一   kp1/kp4 等=单轮   ykp1~3/yki/ykd/ybias=航向环三档
-       pkp1~4/pki1~4/pkd1~4=位置式单轮   pomax/pomin/pimax/psep/pidz/pkip=位置式限制/积分条件
-       pmode i 1/0=位置式/增量式切换（★上电默认位置式）   ptgt f 40 / pauto i 0=四轮定速/退出定速
-     ★这是 2026-09-26 修掉"单键截胡"问题之后才真正能用的：
-       以前帧里没有逗号就进单键分支、只看第一个字符，"vx f 30" 只会切换四轮日志。
-     ★只在主循环/菜单循环里解析 —— 车正在跑阻塞动作（ROBOT_Move 等）时发的调参指令，
-       要等那段动作跑完回到主循环才生效。 */
+  /* ==================== ② 调参指令：有空格、没有逗号（“名字 类型 数值”）====================
+       交给 serialplot.c 的 SERIALPLOT_ChangeParam（发 “pq” 可列出全部参数）：
+         vx/vy 手动速度 · mx/my 走距 · at 转角 · mv/mvacc 规划速度/加速度 · target 目标角 · ang 航向环
+         skp/ski/skd 四轮统一 · kp1~4 单轮 · yk* 航向环 · go/gb 长距直行 · pkp/pki/pkd1~4 位置式单轮
+         pomax/pomin/pimax/psep/pidz/pkip 位置式限制 · pmode i 1/0 切位置式(★上电默认) · ptgt/pauto 定速
+       ★2026-09-26 修掉“单键截胡”后才真正能用（以前 “vx f 30” 只会被单键分支当成四轮日志开关）；
+         ★只在主循环/菜单循环里解析：车在跑阻塞动作时发的调参要等那段跑完才生效。 */
   if(strchr(line, ',') == NULL){
-    for(char *q = line; *q != '\0'; q++){            /* 去掉尾部回车/换行（只为回显好读；ChangeParam 不受影响） */
+    for(char *q = line; *q != '\0'; q++){            /* 去掉尾部回车/换行(只为回显好读) */
       if(*q == '\r' || *q == '\n'){ *q = '\0'; break; }
     }
-    UART1_Printf("PARAM %s\r\n", line);              /* 回显：能看到这行 = 指令收到了（排查"没反应"先看它） */
+    UART1_Printf("PARAM %s\r\n", line);              /* 回显：能看到这行=指令收到了 */
     SERIALPLOT_ChangeParam(line);
     return 1;
   }
 
   uint8_t i = 0;
-  char *p = strtok(line, ",");                      // 按逗号切段
-  while(p && i < UART1_DATA_NUM){                   // 逐段转成32位整数，支持负数
+  char *p = strtok(line, ",");
+  while(p && i < UART1_DATA_NUM){                   // 转成32位整数(支持负数)
     UART1_Data[i++] = (int32_t)strtol(p, NULL, 10);
     p = strtok(NULL, ",");
   }
-  /* 回显：串口上能看到这条，就说明指令收到了、也解析出来了（排查"没反应"先看有没有它） */
+  /* 回显：能看到这条=指令收到并解析出来了 */
   UART1_Printf("S=%d A=%d B=%d C=%d D=%d E=%d F=%d G=%d\r\n",
                UART1_Data[0], UART1_Data[1], UART1_Data[2], UART1_Data[3],
                UART1_Data[4], UART1_Data[5], UART1_Data[6], UART1_Data[7]);
 
   /* ==================== ③ 数值指令：S = UART1_Data[0] ====================
-     ★2026-09-26 整理：3/5/9 全部收进本函数 —— 以前 3 只在主循环里判，车停在菜单发它毫无反应；
-       现在不管停在菜单还是流程里，这几条都立即生效（解析点就是本函数，主循环/菜单各调一次）。
-       7 保持原样（下面那个 if，调的是本函数上方的 LiZhu_Circle_Run），注释见那里。 */
+       ★3/5/9 全部收进本函数（以前 3 只在主循环里判，车停在菜单发它毫无反应）；
+         7 保持原样，调的是本函数上方的 LiZhu_Circle_Run。 */
   if(UART1_Data[0] == 3 || UART1_Data[0] == 5 || UART1_Data[0] == 9){
     int32_t cmd = UART1_Data[0];
     UART1_Data[0] = 0;                      /* 立即清指令，防止上层重复触发 */
@@ -1361,7 +1119,7 @@ static uint8_t UART1_DebugCmd(void){
       UART1_Printf("MOVE dx=%d dy=%d -> then ANG %d\r\n",
                    (int)UART1_Data[1], (int)UART1_Data[2], (int)UART1_Data[7]);
       ROBOT_Move(UART1_Data[1], UART1_Data[2], UART1_Data[3], UART1_Data[4], UART1_Data[5], UART1_Data[6]);
-      /* ★角度先挡住越界：ROBOT_Angle 形参是 uint32_t，发 -90 会变成 42.9 亿 → 车永远转不停（把流程卡死） */
+      /* ★角度先挡越界：ROBOT_Angle 形参是 uint32_t，发 -90 会变成 42.9 亿 → 车永远转不停 */
       if(UART1_Data[7] < 0 || UART1_Data[7] > 360){
         UART1_Printf("ANG skip (range 0~360, got %d)\r\n", (int)UART1_Data[7]);
       }else{
@@ -1383,7 +1141,7 @@ static uint8_t UART1_DebugCmd(void){
         stopActionGroup();
         UART1_Printf("ACT stop\r\n");
       }else{
-        if(times <= 0) times = 1;           /* 协议里 0=无限循环，这里强制按 1 次，防现场"卡住出不来" */
+        if(times <= 0) times = 1;           /* 协议里 0=无限循环，这里强制 1 次，防卡住出不来 */
         runActionGroup((uint8_t)grp, (uint16_t)times);
         UART1_Printf("ACT run group %d x%d\r\n", (int)grp, (int)times);
       }
@@ -1391,48 +1149,35 @@ static uint8_t UART1_DebugCmd(void){
     return 1;
   }
 
-  if(UART1_Data[0]==7){                             // 立柱绕圈（2026-09-26 重写：开环三旋钮 + 测距/激光两路可选反馈，见上方 LiZhu_Circle_Run）
-    UART1_Data[0] = 0;                              // 立即清指令，防止循环重复触发
+  if(UART1_Data[0]==7){                             // 立柱绕圈(见上方 LiZhu_Circle_Run)
+    UART1_Data[0] = 0;
     UART1_Printf("lizhu circle start\r\n");
-    /* 直接调立柱阶段用的那个函数（两边同一套代码，方便先单独测）：
-       车头先对着柱子 → 三个旋钮 V_TAN/W_TURN/V_RAD 跑开环圆，FB_DIST / FB_LASER 两个开关再单独叠加
-       测距反馈（V_RAD 调径向速度）+ 双激光反馈（LAS_YAW 调摆速 / LAS_TAN 调切向速度），
-       陀螺仪累计转角满 355° 停；测距连续 20 次无效 → 保护停车（只在测距反馈开着时生效）
-       ★立柱视觉通信也在这个函数里（菜单里发 7 会一起跑）：开圈发 0xA4 → 边绕边收包(A3 也算)，
-         解析到"要拍"就停车跑动作组 107 → 接着绕 → 绕完发 0xA9；单测时记得把视觉接上。 */
+    /* 直接调立柱阶段那个函数(和立柱阶段同一套代码，方便先单独测)：
+           开圈发 0xA4 → 边绕边收包(A3 也算) → “要拍”就停车跑动作组 107 → 绕完发 0xA9；
+           ★菜单里发 7 会连立柱视觉通信一起跑，单测时记得把视觉接上。 */
     LiZhu_Circle_Run();
     UART1_Printf("lizhu circle done\r\n");
     return 1;
   }
-  return 0;                                         // 其它命令号：只回显，不执行（6 的旧版流程末尾副本已删除）
+  return 0;                                         // 其它命令号：只回显，不执行
 }
 
 /* ==================== 传感器触发后的停车（2026-09-20 新底盘） ====================
-   原来的 SENSOR_BRAKE()（给一小段反向速度 + 临时改 chassis.start_margin 造"柔性反向力矩"）
-   是给老底盘打的反冲补丁，已整段删除。新底盘停车只要一句 ROBOT_MoveSpeed(0, 0)：
-   速度环是闭环的，target=0 而四轮还在转时当拍就反向修正（≈主动反接刹车），
-   比"断电自由滑行"刹得快得多（老底盘要滑 6~20cm），也不用再补固定位移；
-   真停稳后由底盘的"静止零漂保护"清零断电。
-   下面 4 处（去仓库 / 回家 各 2 处）原来调它，现在统一换成 SENSOR_STOP()：
-   紧跟着的 ROBOT_Angle 会阻塞到"航向到位且四轮停稳"才返回，所以"延时候补位移"都不需要了。
-   ★现场核实：老的 SBRAKE 日志没有了；若某个停车点位置不对，直接改那一条固定位移即可。 */
-static void SENSOR_STOP(void)
-{
-  ROBOT_MoveSpeed(0, 0);      /* 停车：速度环 target=0 → 主动反接刹车；停稳后底盘自己清零断电 */
-}
+   老底盘的 SENSOR_BRAKE()(反向速度 + 临时改 start_margin 造柔性力矩) 整段删除后，停车就一句
+   ROBOT_MoveSpeed(0, 0)：速度环闭环，target=0 而四轮还在转时当拍就反向修正(≈主动反接刹车)，
+   比断电滑行刹得快，也不用补固定位移；停稳后由底盘的“静止零漂保护”清零断电。
+   ★2026-09-28：原来把这一句包了一层的停车封装已删除（只多一层嵌套、没别的动作），用到的地方
+     直接写 ROBOT_MoveSpeed(0, 0)；紧跟着的 ROBOT_Angle 会阻塞到“航向到位且四轮停稳”。
+   ★停车点位置不对就改那条固定位移。 */
 
 
-/* ==================== ★★ 颜色传感器(TCS34725)校准模式（KEY0 起点选 CAL + KEY3 进入）★★ ====================
-   只做一件事：把 黑/红/蓝/白 四种颜色各采 5 次，原始值+H/S/V 打到串口1；
-   拿回来按实测数据重写 tcs34725.h 的三个判色阈值（★不写 Flash、不改运行时逻辑，
-   阈值永远是头文件里的编译期宏 TCS_BLUE_S_MAX / TCS_BLUE_V_MAX / TCS_BLACK_V_THRESH）。
-
-   按键： K1 = 切换颜色（黑→红→蓝→白→黑…，换颜色时采样计数清零）
-          K2 = 采样一次：串口打一行(C/R/G/B 原始值 + H/S/V + 当前判色结果)，屏幕同步显示
-          K3 = 返回（回"红蓝方选择"菜单）
-   用法： 每种颜色放好 → 按 K2 采 5 次（串口 5 行）→ K1 换下一个颜色 → 四色采完按 K3 退出；
-          串口那 20 行 `CAL[...]` 直接复制发回来即可。
-   ★要求：采的时候和比赛时保持同样的距离/灯光，不然量出来的值没意义。 */
+/* ==================== ★★ 颜色传感器(TCS34725)校准模式（KEY0 选 CAL + KEY3 进入）★★ ====================
+   只做一件事：黑/红/蓝/白 四种颜色各采 5 次，原始值+H/S/V 打到串口1；拿回来按实测数据重写
+   tcs34725.h 的三个判色阈值（★不写 Flash、不改运行时逻辑，阈值永远是头文件里的编译期宏）。
+   按键：K1=切颜色(黑→红→蓝→白，换色时计数清零)  K2=采一次(打一行 C/R/G/B+H/S/V+判色结果，屏幕同步)
+         K3=返回菜单
+   用法：颜色放好 → K2 采 5 次 → K1 换下一色 → 四色采完按 K3；串口那 20 行 CAL[...] 复制发回来即可。
+   ★采的时候要和比赛时保持同样的距离/灯光，否则量出来的值没意义。 */
 static const char * const COLORCAL_NAME[4] = { "BLACK", "RED", "BLUE", "WHITE" };  /* K1 的切换顺序 */
 
 static void COLOR_Calib_Run(void)
@@ -1440,20 +1185,21 @@ static void COLOR_Calib_Run(void)
   TCS34725_RGBC rgbc;
   uint8_t  idx    = 0;               /* 当前在采的颜色：0=黑 1=红 2=蓝 3=白 */
   uint8_t  n      = 0;               /* 当前颜色已经采了几次 */
-  uint8_t  got    = 0;               /* 上一次采样是否有效（无效就不显示旧数据） */
+  uint8_t  got    = 0;               /* 上次采样是否有效(无效就不显示旧数据) */
   uint32_t oled_t = 0;
 
   UART1_Printf("\r\n--- TCS34725 CAL: K1=switch color, K2=sample+print, K3=exit ---\r\n");
   UART1_Printf("order BLACK->RED->BLUE->WHITE, 5 samples each, then paste the CAL lines back\r\n");
-  UART1_Printf("TH in code (tcs34725.h): TCS_BLUE_S_MAX=%.3f TCS_BLUE_V_MAX=%.3f TCS_BLACK_V_THRESH=%.3f\r\n",
-               (double)TCS_BLUE_S_MAX, (double)TCS_BLUE_V_MAX, (double)TCS_BLACK_V_THRESH);
+  UART1_Printf("TH in code (tcs34725.h): TCS_BLUE_S_MAX=%.2f TCS_BLUE_V_MAX=%.2f TCS_WHITE_C_MIN=%.0f TCS_BLACK_V_THRESH=%.2f\r\n",
+               (double)TCS_BLUE_S_MAX, (double)TCS_BLUE_V_MAX,
+               (double)TCS_WHITE_C_MIN, (double)TCS_BLACK_V_THRESH);
   UART1_Printf("now target = %s (press K2)\r\n", COLORCAL_NAME[idx]);
 
   while(1){
     /* ---- K1：切换颜色（黑→红→蓝→白→黑…） ---- */
     if(KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){
       idx = (uint8_t)((idx + 1) & 0x03);
-      n   = 0;                                     /* 换颜色 → 计数清零（每种颜色都从 #1 开始） */
+      n   = 0;                                     /* 换颜色 → 计数清零(每色都从 #1 开始) */
       got = 0;
       UART1_Printf("now target = %s (press K2)\r\n", COLORCAL_NAME[idx]);
     }
@@ -1501,25 +1247,22 @@ static void COLOR_Calib_Run(void)
   }
 }
 
-/* ================= 回家阶段：读一次颜色 + 把"当前判成什么色"显示到 OLED 第3行 =================
-   回家段全靠颜色传感器判断"进没进红/蓝区"，现场盯屏幕就能看出它现在判成什么色。
-   显示格式：第3行(y=32) "COL:BLACK / RED / BLUE / ..."（判色规则见 tcs34725.h 的编译期阈值）。
-   ★只有在"等颜色"的循环里调用：每次采样读一次、顺手刷一行屏，不额外占时间；
-     返回值 = TCS34725_ClassifyColor() 的结果（调用方的判黑/判非黑逻辑一模一样，没变）。 */
+/* ================= 回家阶段：读一次颜色 + 把“当前判成什么色”显示到 OLED 第3行 =================
+   回家段全靠颜色判断“进没进红/蓝区”，盯屏幕就能看出它现在判成什么色；
+   第3行(y=32) 格式 “COL:BLACK/RED/BLUE/...”(判色规则见 tcs34725.h 的编译期阈值)。
+   ★只有在“等颜色”的循环里调用：每次采样读一次、顺手刷一行屏，不额外占时间。 */
 static uint8_t TCS_PollColor(TCS34725_RGBC *rgbc){
-  TCS34725_GetRawData(rgbc);                     //和原来一样：读一次（不看返回值）
-  uint8_t col = TCS34725_ClassifyColor(rgbc);    //按 HSV 判色
+  TCS34725_GetRawData(rgbc);                     //读一次(不看返回值)
+  uint8_t col = TCS34725_ClassifyColor(rgbc);    //按 S/V/C 判色
   OLED_ClearArea(0, 32, 128, 16);                //只清第3行
   OLED_Printf(0, 32, OLED_8X16_HALF, "COL:%s", TCS34725_ColorName(col));
   OLED_Update();
   return col;
 }
 
-/* ★当前"生效那套"速度环的 PWM 输出（2026-09-27 位置式速度环接入后加）：
-   速度环有两套状态（位置式 speed_pid_pos[] / 增量式 speed_pid[]，见 chassis.h 的 speed_pos_mode），
-   同一时刻只有一套在算、在驱动电机，另一套的 out 是残值。调试打印要用本函数取值 ——
-   否则默认走位置式时会一直打出增量式那份恒 0 的 out，看着像"车没输出"。
-   行为：位置式 → speed_pid_pos[wheel].out；增量式 → speed_pid[wheel].out（与接入前完全一致） */
+/* ★当前“生效那套”速度环的 PWM 输出(2026-09-27 位置式接入后加)：
+   两套状态(speed_pid_pos[] 位置式 / speed_pid[] 增量式，见 chassis.h)同一时刻只有一套在算，
+   另一套的 out 是残值 —— 调试打印必须用本函数取，否则默认位置式时会一直打出恒 0，像“车没输出”。 */
 static int CHASSIS_PwmOut(uint8_t wheel){
   return (int)(chassis.speed_pos_mode ? chassis.speed_pid_pos[wheel].out
                                       : chassis.speed_pid[wheel].out);
@@ -1588,17 +1331,16 @@ int main(void)
   HAL_TIM_Encoder_Start(&htim4, TIM_CHANNEL_2);
   HAL_TIM_Encoder_Start(&htim5, TIM_CHANNEL_1);
   HAL_TIM_Encoder_Start(&htim5, TIM_CHANNEL_2);
-  /* 编码器采用清零法：每10ms读CNT后清零，计数器不会溢出，无需开启溢出中断（之前开中断但缺处理函数会导致卡死） */
+  /* 编码器清零法：每10ms读CNT后清零，不用溢出中断(以前开中断缺处理函数会卡死) */
   HAL_GPIO_WritePin(TB6612_STBY_GPIO_Port, TB6612_STBY_Pin, GPIO_PIN_SET);//TB6612使能
 
   HAL_UARTEx_ReceiveToIdle_DMA(&huart1, UART1_RxBuf, UART1_RxLength);//调试串口
-  __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);    //使用DMA+UART时，会开启传输过半中断，需手动关闭
+  __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);    //关掉DMA传输过半中断(开DMA+UART时默认打开)
   HAL_UARTEx_ReceiveToIdle_DMA(&huart2, UART2_RxBuf, UART2_RxLength);//主视觉串口
-  __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);    //使用DMA+UART时，会开启传输过半中断，需手动关闭
-  // HAL_UARTEx_ReceiveToIdle_DMA(&huart5, UART5_RxBuf, UART5_RxLength);//步进电机串口
-  // __HAL_DMA_DISABLE_IT(&hdma_uart5_rx, DMA_IT_HT);    //使用DMA+UART5时，会开启传输过半中断，需手动关闭
+  __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
+  // UART5(步进电机串口) 未启用接收，故无对应 DMA 初始化
 
-  UART4_RxInit();//串口4(副视觉)接收初始化（DMA1_Stream2+空闲中断收帧，实现见 Mycode/uart.c）
+  UART4_RxInit();//串口4(副视觉)接收初始化(DMA+空闲中断，见 Mycode/uart.c)
 
 
 
@@ -1607,133 +1349,32 @@ int main(void)
 
   HWT101CT_Init();//陀螺仪初始化
   HAL_UARTEx_ReceiveToIdle_DMA(&huart3, UART3_RxBuf, UART3_RxLength);//陀螺仪串口
-  __HAL_DMA_DISABLE_IT(&hdma_usart3_rx, DMA_IT_HT);    //使用DMA+UART时，会开启传输过半中断，需手动关闭
+  __HAL_DMA_DISABLE_IT(&hdma_usart3_rx, DMA_IT_HT);
   flag.hwt101ct = 1;
 
-  CHASSIS_Init();//底盘初始化：配置4轮速度环PID参数 + 航向环(角度环)参数
+  CHASSIS_Init();//底盘初始化：4轮速度环 + 航向环(角度环)参数
   flag.chassis = 1;
-  flag.angle   = 1;   // 航向环（角度环）默认开启：上电锁定当前朝向，串口 tyaw 可遥控转向
+  flag.angle   = 1;   // 航向环默认开启：上电锁定当前朝向，串口可遥控转向
 
 
 /******************************上电测试位置******************************/
 /*
-for(uint8_t i = 0; i < 5; i++)
-{
-ROBOT_MoveSpeed(0, 20);
-HAL_Delay(20);
-ROBOT_MoveSpeed(0, 0);
-}
+for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(0,20); HAL_Delay(20); ROBOT_MoveSpeed(0,0); }
 */
 
-//JieTi_Adjust_X();   //★这里原来写的 JieTi_Adjust() 没有这个函数(会链接不过)：要上电单独测校准就改调 X/Y 这两个
+//JieTi_Adjust_X();   //★要上电单独测校准就调 X/Y 这两个(旧名 JieTi_Adjust() 不存在，会链接不过)
 
 
 
 
-  // /*接收副视觉目标字母*/
-  // while(1){
-  //   VISION_ReceiveLetter();
-  //   UART4_Printf("%X %X\r\n", vision_target_letter[0], vision_target_letter[1]);//打印副视觉发过来的两个目标字母
-  // }
-  // /*主视觉测试（临时注释：先验证灰度，测完恢复）*/
-  // while(1){
-  //   if(VISION1_RxFlag){
-  //     VISION1_RxFlag = 0;
-  //     VISION_ReceiveData(VISION1_RxBuf, VISION1_RxRealLength);
-  //     OLED_Printf(0, 0, OLED_8X16_HALF, "suc:%1d peri:%1d", VISION_Data.success, VISION_Data.period);
-  //     OLED_Printf(0, 16, OLED_8X16_HALF, "tar:%1d", VISION_Data.target);
-  //     OLED_Printf(0, 32, OLED_8X16_HALF, "x:%3d y:%3d", VISION_Data.x, VISION_Data.y);
-  //     OLED_Printf(0, 48, OLED_8X16_HALF, "dis%4d", VISION_Data.distance);
-  //     OLED_Update();
-  //   }
-  // }
-//
-//
-  //// while(1){
-  //   if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)){
-  //     ROBOT_Move(-50, 390, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
-//
-//
-  ////     ROBOT_Angle(270);
-  //   }
-//
-  ////   /* 串口打印角度环数据（目标/实际/输出w + 里程计位置x/y），SerialPlot 观察走直线纠偏/转向收敛
-  //      并解析串口调参指令：kp/ki/kd/target 角度环、vx/vy 手动、mx/my 走距、mv/mvacc 规划速度 */
-  //   UART1_Printf("%f %f %f %f %f\r\n",
-  //                chassis.target_yaw,
-  //                HWT101CT_Data.yaw,
-  //                chassis.yaw_pid.out,
-  //                chassis.pos_x,
-  //                chassis.pos_y);
-  //   if(UART1_RxFlag){
-  //     UART1_RxFlag = 0;
-  //     SERIALPLOT_ChangeParam((char *)UART1_RxBuf);
-  //   }
-  //   HAL_Delay(10);
-  // }
-//
-//
-  /*//速度环调参测试（临时注释：先跑下方编码器裸测标定 ACCURACY，测完恢复）*/
-  //// ★2026-09-27 位置式速度环接入后：若要重新打开这段，上面的 kp/ki/kd/target 请改读
-  ////   chassis.speed_pid_pos[1].*，PWM 请用 CHASSIS_PwmOut(1)（直接打 chassis.speed_pid[1].out
-  ////   在默认的位置式下是残值 0）；errorint 在位置式里是累加量 Σerror，不在 speed_pid[1] 上。
-  //// while(1){
-  //   OLED_Printf(0, 0, OLED_8X16_HALF, "kp:%06.2f", chassis.speed_pid[1].kp);
-  //   OLED_Printf(0, 16, OLED_8X16_HALF, "ki:%06.2f", chassis.speed_pid[1].ki);
-  //   OLED_Printf(0, 32, OLED_8X16_HALF, "kd:%06.2f", chassis.speed_pid[1].kd);
-  //   OLED_Printf(0, 48, OLED_8X16_HALF, "tar:%06.2f", chassis.speed_pid[1].target);
-  //   OLED_Update();
-  //   UART1_Printf("%f %f %f %f\r\n", chassis.speed_pid[1].target, chassis.speed_pid[1].actual, chassis.speed_pid[1].out, chassis.speed_pid[1].errorint);
-  //   if(UART1_RxFlag){
-  //     UART1_RxFlag = 0;
-  //     SERIALPLOT_ChangeParam((char *)UART1_RxBuf);
-  //   }
-  // }
-  // /*激光传感器测试--通过*/
-  // while(1){
-  //   OLED_Printf(0, 0, OLED_8X16, "barrier:%1d", LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin));
-  //   OLED_Update();
-  // }
-  // /*测距传感器--通过*/
-  // while(1){
-  //   OLED_Printf(0, 0, OLED_8X16, "distance:%4d", GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin));
-  //   OLED_Update();
-  // }
-  // /*灰度传感器--通过*/
-  /*// 灰度传感器读取：GRAY1/GRAY3 都走串行 IO 接口（GPIO 模拟时钟），读 8 路数字量（0=深、1=浅）
-    // 引脚（CubeMX 配置）：GRAY1=PB4(DAT)/PB9(CLK)、GRAY3=PB6(DAT)/PB7(CLK)
-    // OLED 第一行(y=0)显示 GRAY1 八通道，第三行(y=32)显示 GRAY3 八通道 */
-  //
-  //// /*陀螺仪测试--通过*/
-  // HWT101CT_Init();
-  // HAL_UARTEx_ReceiveToIdle_DMA(&huart3, UART3_RxBuf, UART3_RxLength);//陀螺仪串口
-  // __HAL_DMA_DISABLE_IT(&hdma_usart3_rx, DMA_IT_HT);    //使用DMA+UART时，会开启传输过半中断，需手动关闭
-  // flag.hwt101ct = 1;
-  // while(1){
-  //   OLED_Printf(0, 0, OLED_8X16_HALF, "yaw:%6.2f", HWT101CT_Data.yaw);
-  //   OLED_Update();
-  // }
-  // /*电机PWM、encoder测试--通过*/
-  // int i = 0;
-  // while(1){
-  //   if(KEY_ONE(KEY3_GPIO_Port, KEY3_Pin)){
-  //     i++;
-  //     if(i > 10) i = -10;
-  //     TB6612_Control(MOTOR_Left_Front, i*100);
-  //     TB6612_Control(MOTOR_Left_Back, i*100);
-  //     TB6612_Control(MOTOR_Right_Back, i*100);
-  //     TB6612_Control(MOTOR_Right_Front, i*100);
-  //     OLED_Printf(0, 0, OLED_8X16_HALF, "PWM: %+4d", i * 100);
-  //     OLED_Update();
-  //   }
-  //   OLED_Printf(0, 16, OLED_8X16_HALF, "L_F:%+3d L_B:%+3d", ENCODER_GetPulse(ENCODER_LeftFront), ENCODER_GetPulse(ENCODER_LeftBack));
-  //   OLED_Update();
-  //   HAL_Delay(10);
-  // }
-  // /* 临时调参：SerialPlot 串口画图 + 在线改PID（调好即删，改回正常逻辑） */
-  // SERIALPLOT_PIDAdjustParam();
-//
-//
+  // （原“上电各传感器单测 / 调参打印”的注释代码已删，对应功能现在的入口：）
+  //   副视觉字母 → VISION_ReceiveLetter() 或看串口1日志；主视觉 → 正面识别阶段的日志
+  //   走距+转角 → 串口发 3,dx,dy,vx,vy,ax,ay,ang 或 5,ang,0,...
+  //   角度环调参打印 → serialplot.c 的 SERIALPLOT_PIDAdjustParam()（临时调参+画图，见其函数头）
+  // （速度环/激光/测距/灰度/陀螺仪/电机PWM+编码器 等上电单测的注释代码已删）
+  //   入口：串口1单键 e/y/l/g/r 看数值、p 看状态、o 清里程；临时调参用上面那句 SERIALPLOT_PIDAdjustParam()。
+  //   ★2026-09-27 位置式速度环接入后：要重开速度环调参，kp/ki/kd/target 读 chassis.speed_pid_pos[1]，
+  //     PWM 用 CHASSIS_PwmOut(1)（默认位置式下 speed_pid[1].out 是残值 0）。
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -1760,22 +1401,15 @@ ROBOT_MoveSpeed(0, 0);
   //UART1_Printf("TCS34725 %s, ID=0x%02X\r\n",
     //           tcs_online ? "ONLINE" : "OFFLINE", TCS34725_GetID());
 
-  /* ==================== TCS34725 颜色传感器上电初始化（★必须有，别跟着调试代码一起注释掉） ====================
-     ★2026-09-14 修复："颜色传感器又坏了"的根因就在这里 ——
-       cf20b8f(8.31 圆盘机视觉通信) 那次整理调试代码时，把上面那两行
-       (//uint8_t tcs_online = TCS34725_Init(); / //UART1_Printf(...)) 连同整个调试循环
-       一起注释掉了，驱动里 tcs_i2c_gpio_init() 从此从没跑过：
-         · PB9(SCL) 还是 CubeMX 配的推挽输出 —— 能翻转，看着"像在工作"；
-         · PB4(SDA) 还是 CubeMX 配的"输入上拉"(见 gpio.c) —— 主机根本拉不低 SDA，
-       起始条件发不出去、从机地址收不到 ACK → GetRawData() 里 I2C 全失败 → C/R/G/B 全 0
-       → S=0、V=0 → ClassifyColor() 恒判 BLUE（不是黑），回家阶段
-       "读到红/蓝才停""等到黑才停"全部判错 → 看起来就是传感器坏了。
-     这里调用 TCS34725_Init() 会一次性做完：PB9/PB4 配成开漏+内部上拉、
-     设 50ms 积分时间 + 1x 增益、PON+AEN 上电并使能 ADC。
-     上电后串口1(115200) 会打一行 "TCS34725 ONLINE, ID=0x44"；
-     若打成 OFFLINE，先查模块供电/接线（VCC=3.3V、GND、SCL=PB9、SDA=PB4），再看这里有没有被注释。
-     另：GRAY1 的串行驱动 GRAY1_Serial_Update() 也不能恢复使用 —— 它会拿串口时序去驱动 PB9/PB4，
-        一样会把 I2C 打坏（gw_grayscale.c 的 GRAY_Update() 里已不再调它，别加回去）。 */
+  /* ==================== TCS34725 颜色传感器上电初始化（★必须有，别跟着调试代码一起注释掉）====================
+       ★2026-09-14 修复：“颜色传感器又坏了”的根因就在这里 —— cf20b8f 那次整理调试代码时把上面的
+         TCS34725_Init()/打印两行连同整个调试循环一起注释掉了，驱动里 tcs_i2c_gpio_init() 从没跑过：
+         PB9(SCL) 还是推挽输出(能翻转，看着像在工作)、PB4(SDA) 还是输入上拉 ⇒ 主机拉不低 SDA、起始
+         条件发不出去 ⇒ GetRawData() 全失败 ⇒ C/R/G/B 全 0 ⇒ S=0、V=0 ⇒ 恒判 BLUE(不是黑)，回家
+         阶段“读到红/蓝才停”“等到黑才停”全部判错，看起来就是传感器坏了。
+       这里调 TCS34725_Init() 一次做完：PB9/PB4 配开漏+内部上拉、50ms 积分+1x 增益、PON+AEN 使能。
+       上电串口1 会打 “TCS34725 ONLINE, ID=0x44”；打成 OFFLINE 先查供电/接线(VCC=3.3V、SCL=PB9、SDA=PB4)。
+       另：GRAY1 的 GRAY1_Serial_Update() 也不能恢复 —— 它拿串口时序驱动 PB9/PB4，会把 I2C 打坏。 */
   {
     uint8_t tcs_online = 0;
     for(uint8_t tcs_retry = 0; tcs_retry < 3 && !tcs_online; tcs_retry++){
@@ -1787,97 +1421,45 @@ ROBOT_MoveSpeed(0, 0);
   }
 
   /* 判色阈值全部来自 tcs34725.h 的编译期宏（不读/不写 Flash）：
-     标定 = 进 KEY0 起点里的 CAL 模式把四色各采 5 次，按实测值重写那三个宏后重新编译烧录。 */
+        标定 = 进 KEY0 起点里的 CAL 模式四色各采 5 次，按实测值重写那 4 个宏后重新编译烧录。 */
 
-  /* ★★ 固件版本标记（开机就打，用来确认"烧进去的到底是不是最新代码"）★★
-     ★2026-09-15 踩过的坑：改了 main.c 但没重新 build+flash（或编辑器把旧内容覆盖回去），
-       串口看到的还是旧行为，白折腾半天。以后看这一行的 build 时间就知道固件新旧。
-     ★2026-09-20 换队友重调的新底盘（每轮独立速度环PID + 4倍频878编码器 + 20ms控制周期 +
-       航向环三档/静摩擦bias + 停车由速度环闭环反接），主流程里的"反冲刹车(SENSOR_BRAKE)、
-       白线反向急刹(LINE_BRAKE)、调 start_margin/brake_decel、move/angle 后的稳定延时"全部删除。
-       看到 "NEW-CHASSIS 09-20" 才是这一版。 */
+  /* ★★ 固件版本标记（开机就打，用来确认“烧进去的到底是不是最新代码”）★★
+       ★2026-09-15 踩坑：改了 main.c 但没重新 build+flash（或被旧内容覆盖回去），串口看到的还是旧行为。
+       ★2026-09-20 换新底盘：每轮独立速度环PID + 4倍频878编码器 + 20ms控制周期 + 航向环三档/静摩擦
+         bias + 停车由速度环闭环反接；主流程里的反冲刹车(SENSOR_BRAKE)、白线反向急刹(LINE_BRAKE)、
+         start_margin/brake_decel、move/angle 后的稳定延时全部删除。看到 “NEW-CHASSIS 09-20” 才是这版。 */
   UART1_Printf("FW: NEW-CHASSIS 09-20 (per-wheel PID, 878enc, 20ms, no brake-patch) built %s %s\r\n", __DATE__, __TIME__);
 
   while (1)
   {
     /* ===== 串口1实时发四轮实际值（2026-09-25 加，实现在 serialplot.c）=====
-       每 WHEEL_ACT_SEND_MS(默认20ms) 打一行 4 个数字：左前/左后/右后/右前 实际速度 cm/s，
-       直接接 SerialPlot 看四条曲线；串口1发单键 'v' 可随时开关（见 UART1_DebugCmd）。
-       ★本函数非阻塞、自己按时间节流，放循环里不占时间；车在跑时的那几个阻塞等待
-         循环里也各调了一次（见 robot.c），所以整趟动作都有数据。 */
+           每 WHEEL_ACT_SEND_MS(默认20ms) 打一行 4 个数：左前/左后/右后/右前 实际速度 cm/s，接 SerialPlot
+           看四条曲线；串口1发单键 “v” 可随时开关。★非阻塞、自己按时间节流，车在跑时的那几个阻塞等待
+           循环里也各调了一次(见 robot.c)，所以整趟动作都有数据。 */
     SERIALPLOT_WheelActualPump();
 
-    ///* GRAY3 仍走串行更新（循线数据 GRAY_Data[GRAY3] 保持有效） */
-    //GRAY3_Serial_Update();
-
-    ///* TCS34725 读颜色：OLED 显示颜色名 + R/G/B + 亮度（串口不自动刷新，只在按键采样时打印） */
+    // （原上电测试的注释代码已删：GRAY3 循线更新、TCS 颜色 OLED 显示、KEY1/2/3 颜色采样、
     static TCS34725_RGBC tcs_rgbc = {0};
-    //if(TCS34725_GetRawData(&tcs_rgbc)){
-    //  uint8_t tcs_col = TCS34725_ClassifyColor(&tcs_rgbc);
-    //  OLED_Printf(0, 0,  OLED_8X16_HALF, "col:%s", TCS34725_ColorName(tcs_col));
-    //  OLED_Printf(0, 16, OLED_8X16_HALF, "R:%3d G:%3d B:%3d", tcs_rgbc.r, tcs_rgbc.g, tcs_rgbc.b);
-    //  OLED_Printf(0, 48, OLED_8X16_HALF, "C:%4d V:%3d%%", tcs_rgbc.c, (uint8_t)(tcs_rgbc.v * 100));
-    //  delay_ms(200);
-    //} else {
-    //  OLED_Printf(0, 0, OLED_8X16_HALF, "TCS OFFLINE");
-    //}
-//
-    ///* ==================== 颜色采样：按一次按钮 = 串口发一条当前值 ====================
-    //   把黑/红/蓝物体放到传感器下，按对应按钮一次，串口立即打一条 H/S/V：
-    //     按钮2(KEY1)=黑 -> BLK H=.. S=.. V=..
-    //     按钮3(KEY2)=红 -> RED H=.. S=.. V=..
-    //     按钮4(KEY3)=蓝 -> BLU H=.. S=.. V=..
-    //   每色按 8 次共 24 条，直接复制发回来定阈值。 */
-    //if(KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){                 /* 按钮2：黑 */
-    //  TCS34725_GetRawData(&tcs_rgbc);                     /* 按下瞬间重新采一次 */
-    //  UART1_Printf("BLK H=%5.1f S=%0.2f V=%0.2f\r\n", tcs_rgbc.h, tcs_rgbc.s, tcs_rgbc.v);
-    //}
-    //if(KEY_ONE(KEY2_GPIO_Port, KEY2_Pin)){                 /* 按钮3：红 */
-    //  TCS34725_GetRawData(&tcs_rgbc);
-    //  UART1_Printf("RED H=%5.1f S=%0.2f V=%0.2f\r\n", tcs_rgbc.h, tcs_rgbc.s, tcs_rgbc.v);
-    //}
-    //if(KEY_ONE(KEY3_GPIO_Port, KEY3_Pin)){                 /* 按钮4：蓝 */
-    //  TCS34725_GetRawData(&tcs_rgbc);
-    //  UART1_Printf("BLU H=%5.1f S=%0.2f V=%0.2f\r\n", tcs_rgbc.h, tcs_rgbc.s, tcs_rgbc.v);
-    //}
-//
-    //HAL_Delay(50);
+    //   测距/激光 OLED 显示。入口：串口1单键 r=灰度GRAY3、c=颜色、g=测距、l=激光；颜色标定用 KEY0 的 CAL 或单键 m）
     //测距，2是前面的，1是后面的
     //OLED_Printf(0,16 , OLED_8X16_HALF, "dis_1:%4d", GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin));
     OLED_Printf(0,32 , OLED_8X16_HALF, "dis_2:%4d", GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin));
-    //激光
-    //OLED_Printf(0, 48 ,OLED_8X16_HALF, "ba_3:%1d", LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin));
-    //OLED_Printf(64, 48, OLED_8X16_HALF, "ba_2:%1d", LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin));
-    // OLED_Printf(32, 32, OLED_8X16_HALF, "bar_3:%1d", LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin));
+    // （原激光 OLED 显示已删：用串口1单键 l 看 L3/L2 状态）
     OLED_Update();
 
 
-    /* ===== UART1 指令：解析 + 回显 + 就地执行（实现在文件上方 UART1_DebugCmd）=====
-       3/5/7/9 数值指令、单键指令、SerialPlot 调参指令都在那个函数里就地跑完；菜单循环里也调了一次，
-       所以这里不用再写任何 if —— 2026-09-26 整理：原先放在这里那段 3 的块已搬进函数（菜单界面也能发了）。 */
+    /* ===== UART1 指令：解析/回显/就地执行都在文件上方 UART1_DebugCmd 里（菜单循环也调了一次），这里不用再写 if；
+           2026-09-26 整理：原先放在这里那段 3 的块已搬进函数，所以菜单界面也能发了。 */
     UART1_DebugCmd();
     DBG_SensorLogPump();       /* 串口1单键传感器日志（c/g/l/e/y/r，非阻塞节流，见文件上方 DBG_ 块） */
 
-    /* 例：3,-50,390,100,100,100,100,270 → 左移50cm 前进390cm 再原地转到 270° */
+    /* 例：3,-50,390,100,100,100,100,270 → 左移50cm+前进390cm+原地转到270° */
     
 
-    /* ---------- 正面识别通信的屏幕显示(实现在文件上方的 ZM_ShowComm()，这里只说"屏幕上该看到什么") ----------
-       一屏四行、位置固定，状态一变就整屏重画一次(不会花屏、不会留旧字)：
-         y=  0  8x16  "ZM 0/3 TO POS"        进度0：还没发0xA2(正在收倒球槽+移动到识别位)
-                      "ZM 1/3 SEND OK"      进度1：0xA2已发给主视觉+副视觉
-                      "ZM 2/3 LETTER OK"    第2步：副视觉字母已收到、已转发主视觉、已回执副视觉
-                      "ZM DONE 0xA7 OK"     第3步：主视觉的0xA7已收到，正面识别结束
-         y= 16  8x16  "V4 A,B 0xAB OK"      副视觉(备用串口UART4)：字母(A~D)+原始字节，成功一次就锁死不被覆盖
-                      "V4 WAIT letter"      还没收到
-                      "V4 0x12 BAD"         收到了别的单字节          "V4 len3 BAD" 帧长不是1
-         y= 32  8x16  "V2 0xA7 OK"          主视觉(串口2)：确认成功
-                      "V2 WAIT 0xA7"        还没收到                  "V2 0x12 BAD" 收到别的字节
-         y= 48  6x8   "r4:1 r2:2 U4:RX 12s" 收帧数 + 串口4在听(RX正常/ERR停过，程序会自动重启它) + 进入本阶段秒数
-                      ★秒数一直在涨=程序在跑；不动=死等在某一步(配合电脑串口1的日志看是哪一步)
-       对应流程：0走到识别位 → 1发0xA2 → 2收副视觉字母(6种之一) → 3转发主视觉+回执副视觉 → 4等主视觉0xA7 → 5结束
-       ★排查用(电脑串口1，115200)：完整收发时序都会打印
-         "TX 0xA2 -> V1(UART2) + V4(UART4)" / "RX4 len=1: 0xAB" / "RX2 len=1 got=0xA7"
-         "TX relay 0xAB -> V1(UART2), TX 0xA7 -> V4(UART4)"                              */
+    /* ---------- 正面识别通信的屏幕显示(实现在文件上方的 ZM_ShowComm()，这里只说“屏幕上该看到什么”) ----------
+           y=0/16/32/48 四行的文字与含义见上方 ZM_ShowComm() 的函数头注释（状态一变就整屏重画，不花屏）。
+           流程：0 走到识别位 → 1 发 0xA2 → 2 收副视觉字母(6种之一) → 3 转发主视觉+回执副视觉 →
+           4 等主视觉 0xA7 → 5 结束。★排查用电脑串口1(115200)：完整收发时序都会打印(“TX 0xA2 …/RX4 …/RX2 …”)。 */
     int comm_rx4 = 0, comm_rx2 = 0;                //副视觉(串口4)收帧数 / 主视觉(串口2)收帧数
     uint32_t comm_t_oled = 0;                      //OLED刷新节流用时刻(ms)
 
@@ -1888,17 +1470,16 @@ ROBOT_MoveSpeed(0, 0);
     uint8_t LiZhu_Flag = 0;
     uint8_t HuiJia_Flag = 0; 
 
-    uint8_t dbg_start = DBG_START_ALL;   //★按键0选好的"调试起始阶段"(0=完整流程；取值见文件上方 DBG_START_xxx)
+    uint8_t dbg_start = DBG_START_ALL;   //★KEY0 选好的调试起始阶段(取值见上方 DBG_START_xxx)
     //完整走
-    //if(UART1_Data[0]==4)
 
     //红蓝方选择
     while(1){
       /* 菜单界面就能用全部串口指令（不用先按 KEY3 进流程）：解析/回显/执行都在 UART1_DebugCmd 里，
-         单键 w/s/a/d、传感器日志 c/g/l/e/y/r、数值 3/5/7/9、SerialPlot 调参指令都在这里生效（见文件上方） */
+               单键 w/s/a/d、日志 c/g/l/e/y/r、数值 3/5/7/9、SerialPlot 调参都在这里生效。 */
       UART1_DebugCmd();
       DBG_SensorLogPump();            /* 串口1单键传感器日志（非阻塞节流，见文件上方 DBG_ 块） */
-      SERIALPLOT_WheelActualPump();   // 串口1实时发四轮实际值（菜单里也发：单键 w/s/a/d 手动测车时就能看曲线）
+      SERIALPLOT_WheelActualPump();   // 串口1实时发四轮实际值(菜单里也发)
       OLED_Printf(0, 0, OLED_8X16_HALF, "mode:%s", mode_red?"red ":"blue");
       OLED_Printf(0, 16, OLED_8X16_HALF, "k2:mode k0:sel");  //按键2=切红/蓝方，按键0=选起始阶段
       OLED_Printf(0, 32, OLED_8X16_HALF, "k3:GO %s", DBG_START_NAME[dbg_start]);   //按键3=从选好的起点开始跑
@@ -1911,120 +1492,81 @@ ROBOT_MoveSpeed(0, 0);
         break;
       }
 
-      /* ============== ★★ 按键0：选择"调试起始阶段"（想单独调哪一段，就让车从哪一段开始跑）★★ ==============
-         每按一次 KEY0 往后切一个：0=ALL → 1=ZM → 2=HOME → 回到 0=ALL
-           0=ALL  完整流程：圆盘机→仓库倒球→正面识别→阶梯→回家（默认，主流程一字不变）
-           1=ZM   从"正面识别前"开始：跳过圆盘机+仓库倒球，车自己先走到阶梯识别位再开始正面识别；
-                  车放在圆盘机/仓库方向随便一点的位置即可（会先补发红/蓝方给视觉）
-           2=HOME 从"回家"开始：跳过前面全部阶段，直接跑回家那段；
-                  车放在"回家"的起始位置附近（红蓝区旁边）即可
-         ★当前选择显示在第3/4行("k3:GO ZM" + "front recog")；选好后按 KEY3 才开始跑。
-           真正的跳转代码在菜单while外面（见下面"调试起点跳转"），所以起始阶段=ALL 时它什么都不做。 */
+      /* ============== ★★ 按键0：选择“调试起始阶段”（想单独调哪一段，就让车从哪一段开始跑）★★ ==============
+               每按一次 KEY0 往后切一个：0=ALL → 1=ZM → 2=HOME → 回到 0=ALL
+                 0=ALL  完整流程：圆盘机→仓库倒球→正面识别→阶梯→回家（默认，主流程一字不变）
+                 1=ZM   从“正面识别前”开始：跳过圆盘机+倒球，车走到识别位再开始正面识别（车放哪都行）
+                 2=HOME 从“回家”开始：跳过前面全部，直接跑回家那段（车放红蓝区旁边即可）
+               ★当前选择显示在第3/4行；选好后按 KEY3 才开始跑；真正的跳转代码在菜单 while 外面。 */
       if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)){
         dbg_start++;
         if(dbg_start > DBG_START_MAX) dbg_start = DBG_START_ALL;    //切到最后一个再按 → 回到"完整流程"
         UART1_Printf("DEBUG: KEY0 start stage = %u (%s) %s\r\n",
                      (unsigned)dbg_start, DBG_START_NAME[dbg_start], DBG_START_DESC[dbg_start]);
       }
-      //按键0/按键1专用于调试（按键0=选起始阶段；按键1=显示左后激光，见下面那段）
+      //按键0/1专用于调试(按键0=选起始阶段；按键1=显示左后激光)
 
         /* ---- 原来的按键0调试(手动把车开到阶梯对准位)已由上面跳转代替，保留备用 ----
-        //右+前，移动到阶梯附近,要往右速度快点，不然撞到了
-        ROBOT_Move(100, 160, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
-
-        //向左慢走，直到前面的两个光电都感应到障碍物
-        ROBOT_MoveSpeed(-SPD_AVG_V, 0);
-        //while(LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin)==0);
-        while(LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin)==0);//左后是1，右边为2，左前是3
-
-
-        //往左走一定距离，视觉中能完整看到两个字母（可以省去测距前后校准）
-        ROBOT_Move(-50, 0, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
-        //停车准备识别
-        ROBOT_MoveSpeed(0,0);
-        HAL_Delay(100);//延时一下提高稳定性
-        -------------------------------------------------------------------------- */
+                ROBOT_Move(100,160,长距档) → 左移 SPD_AVG_V 等 LASER3(左后) 触发 → ROBOT_Move(-50,0,长距档) → 停车
+                （注释里那句是老写法：左后是 1、右边为 2、左前是 3） ---- */
 
       if(KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){
 
         OLED_Printf(0, 0, OLED_8X16_HALF, "barrier:%1d", LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin));
         OLED_Update();
 
-        /* ================= 旧代码开始（原来的按键1"倒球调试"，先整段注释保留）=================
-           要恢复原来的倒球调试：把本行与下面"旧代码结束"那一行的注释符去掉，并把上面的等待接收测试删掉即可。
-
-        //往后慢退，直到测距测得合适距离（适合倒球的距离）
-        UART1_Printf("3");
-        ROBOT_MoveSpeed(0, -SPD_AVG_V);
-        while(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>90);//100有点远，距离小于90就推出此循环
-        ROBOT_MoveSpeed(0,0);
-        
-        //定位操作：向左慢平移到左后光电感应到无障碍物
-        UART1_Printf("4");
-        ROBOT_MoveSpeed(-SPD_AVG_V, 0);
-        while (LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1);
-        ROBOT_MoveSpeed(0,0);
-
-        //往右走固定距离（刚到对上仓库的距离）
-        ROBOT_Move(10, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);//20太大，速度100会飘
-
-        runActionGroup(16, 1); 	//这里是倒球动作组
-	      delay_ms(2000);
-        ================= 旧代码结束 ================= */
+        /* ================= 旧代码（原来的按键1“倒球调试”，整段注释保留）=================
+                要恢复原来的倒球调试：把本行与“旧代码结束”那一行的注释符去掉，并把上面的等待接收测试删掉。
+                流程：打串口“3” → 后退到前测距 ≤90 → 打“4” → 左移到 LASER1(左后) 无遮挡 →
+                      ROBOT_Move(10,0,短距档) → runActionGroup(16,1) 倒球 → delay_ms(2000)
+                ================= 旧代码结束 ================= */
 
       }
     }
-    /* ============== ★★ 调试起点跳转（在"红蓝方选择"界面按 KEY0 选、再按 KEY3 开始后才会走到这里）★★ ==============
-       dbg_start==DBG_START_ALL(0)：一个字都不执行，原样往下跑完整流程（圆盘机→仓库倒球→正面识别→阶梯→回家）
-                                     → 和"没有这套调试入口"时完全一致；
-       ★跳转代码放在菜单while外面，就是为了让"完整流程"连一条语句都不变。 */
-    /* ★每次运行开始先把"角度基准换算"复位：它是静态变量，跑过一次跳转起点后若不清，
-       切回完整流程(dbg_start=ALL)时还会带着上一段的换算 → 所有绝对角都被换算，那就错了。 */
+    /* ============== ★★ 调试起点跳转（在“红蓝方选择”界面按 KEY0 选、再按 KEY3 开始后才会走到这里）★★ ==============
+           dbg_start==DBG_START_ALL(0)：一个字都不执行，原样往下跑完整流程 → 和“没有这套调试入口”时完全一致；
+           ★跳转代码放在菜单 while 外面，就是为了让“完整流程”连一条语句都不变。 */
+    /* ★每次运行开始先把“角度基准换算”复位：它是静态变量，跑过一次跳转起点后若不清，切回完整流程
+           (dbg_start=ALL)时还会带着上一段的换算 → 所有绝对角都被换算，那就错了。 */
     yaw_shift_deg = 0;
     if(dbg_start == DBG_START_ZHENGMIAN){
-      /* 从"正面识别前"开始：跳过圆盘机+仓库倒球，直接跳到 ZHENGMIAN_START 标签往下执行
-         （往下依次是：收倒球槽 → 走到阶梯识别位 → 左前光电对准 → 清串口残留 → 发0xA2通信流程 → 阶梯 → 回家）
-         ★车会先自己走到阶梯识别位，所以先把车放在圆盘机/仓库方向随便一点的位置即可 */
+      /* 从“正面识别前”开始：跳过圆盘机+仓库倒球，直接跳到 ZHENGMIAN_START 往下执行
+               （往下依次是：收倒球槽 → 走到阶梯识别位 → 左前光电对准 → 清串口残留 → 发0xA2 → 阶梯 → 回家）
+               ★车会先自己走到阶梯识别位，所以放在圆盘机/仓库方向随便一点的位置即可 */
       UART1_Printf("DEBUG: start from ZHENGMIAN (before front recognize)\r\n");
-      /* ★★ 角度基准：本次车是"按倒完球那一步的姿态"摆好再上电的
-         （红方车头朝右=基准90°，蓝方自动 +180°=270°即车头朝左，两边差 180°）
-         → SetYawShift() 会按红蓝自动设好 yaw_shift_deg，之后每一处 ROBOT_Angle 都走 Yaw_Abs()。 */
+      /* ★★ 角度基准：本次车按“倒完球那一步的姿态”摆好再上电（红方车头朝右=基准90°，蓝方自动+180°=270°）
+               → SetYawShift() 按红蓝自动设好 yaw_shift_deg，之后每一处 ROBOT_Angle 都走 Yaw_Abs()。 */
       SetYawShift(90);
-      //跳过了圆盘机，就没走"告诉视觉红(0xAA)蓝(0xBB)方"那一步，这里补上（视觉也得知道红/蓝方）
+      //跳过了圆盘机，没走“告诉视觉红(0xAA)蓝(0xBB)方”那一步，这里补上
       UART2_Printf("%c", mode_red ? 0xAA : 0xBB);//告诉视觉红(0xAA)蓝(0xBB)方
       goto ZHENGMIAN_START;
     }
     else if(dbg_start == DBG_START_LIZHU){
-      /* 从"立柱"开始：直接跳到 LIZHU_START 标签往下执行
-         （立柱前校准：往左 5cm/s 直到两个激光都有障碍物 → 向前 5cm/s 到前测距 200mm
-           → LiZhu_Circle_Run() 绕柱转圈 → 走到仓库中间倒方块 → 回家）
-         ★角度基准：立柱起点的车头是"朝右"(红方基准 90°) → 蓝方自动 +180° = 270°(车头朝左)，
-           两边差 180°；换算后 Yaw_Abs(90)=0，即"按这个姿态摆好就不转"。
-         ★★2026-09-26 改 270 → 90（修"单独测立柱时绕完一圈车直接转身 180°"）：
-           9.26 那次把 LIZHU_START 前面那句"先转到 270(车头朝左)"注释掉了（见 LIZHU_START 标签上方），
-           所以正式流程走到立柱起点时，朝向就是"阶梯跑完那个朝向"= 红方车头朝右(90) / 蓝方朝左(270)。
-           本入口的摆车姿态必须和它一致：写成 270 时 ROBOT_Angle(Yaw_Abs(90)) 会算成 180°(正后方)，
-           于是绕完 355° 后车还要再转半圈 —— 现象就是"绕完一圈直接转向后方"。
-           改成 90 后 Yaw_Abs(90)=0，那句就只剩"把绕圈攒下的几度掰回来"(正对柱子/朝右)。 */
+      /* 从“立柱”开始：直接跳到 LIZHU_START 往下执行
+               （立柱前校准：左移 5cm/s 直到两激光都有障碍 → 前进 5cm/s 到前测距 200mm → LiZhu_Circle_Run()
+                 绕柱 → 走到仓库中间倒方块 → 回家）
+               ★★2026-09-26 改 270 → 90（修“单独测立柱时绕完一圈车直接转身180°”）：9.26 起 LIZHU_START
+                 前那句“先转到270”已注释掉，正式流程走到立柱起点的朝向＝阶梯跑完那个朝向＝红90/蓝270；
+                 本入口的摆车姿态必须与之一致 —— 写 270 会让 Yaw_Abs(90)=180°(正后方)，绕完 355° 还要再转
+                 半圈；改成 90 后 Yaw_Abs(90)=0，那句只剩“把绕圈攒下的几度掰回来”(正对柱子/朝右)。 */
       UART1_Printf("DEBUG: start from LIZHU (pillar)\r\n");
       SetYawShift(90);
       LiZhu_Flag = 1;     //"立柱"段的进入条件
       goto LIZHU_START;
     }
     else if(dbg_start == DBG_START_HUIJIA){
-      /* 从"回家"开始：跳过前面全部阶段，直接跳到 HUIJIA_START 标签往下执行（红蓝区找色→停进红蓝区）
-         ★角度基准和"单独测阶梯(ZM)"完全一样：红方按"倒完球姿态"(车头朝右)摆、蓝方自动 +180°(朝左)，
-           本段所有绝对角都走 Yaw_Abs() 换算。 */
+      /* 从“回家”开始：跳过前面全部阶段，直接跳到 HUIJIA_START（红蓝区找色→停进红蓝区）
+               ★角度基准和“单独测阶梯(ZM)”完全一样：红方按“倒完球姿态”(车头朝右)摆、蓝方自动+180°(朝左)，
+                 本段所有绝对角都走 Yaw_Abs() 换算。 */
       UART1_Printf("DEBUG: start from HUIJIA (go home)\r\n");
       SetYawShift(90);   //和 ZM 起点同一套（红90 / 蓝270）
-      HuiJia_Flag = 1;   //"回家"那段的进入条件是 HuiJia_Flag==1：正常流程由前面阶段置位，这里跳转就先自己立好
-                         //(其余阶段标志 YuanPanJi_Flag/JieTi_Flag/LiZhu_Flag 出菜单时本来就都是0，不用管)
+      HuiJia_Flag = 1;   //“回家”段的进入条件是 HuiJia_Flag==1：正常流程由前面阶段置位，跳转时先自己立好
+                         //(其余阶段标志出菜单时本来就都是0，不用管)
       goto HUIJIA_START;
     }
     else if(dbg_start == DBG_START_COLORCAL){
-      /* 从"颜色校准"开始：跟比赛流程完全无关（只读颜色传感器 + 按键 + 打串口），
-         跑完 continue 回"红蓝方选择"菜单，不会往下走圆盘机/仓库等任何比赛阶段。
-         用法：KEY0 切到 CAL → KEY3 进入 → K1 切颜色、K2 采一次并打串口、K3 返回。 */
+      /* 从“颜色校准”开始：跟比赛流程完全无关（只读颜色传感器 + 按键 + 打串口），跑完 continue 回菜单；
+                用法：KEY0 切到 CAL → KEY3 进入 → K1 切颜色、K2 采一次并打串口、K3 返回。 */
       UART1_Printf("DEBUG: start COLOR CALIBRATION\r\n");
       COLOR_Calib_Run();
       continue;                 /* 回菜单：想继续跑比赛流程，把起点切回 ALL 再按 KEY3 */
@@ -2035,48 +1577,34 @@ ROBOT_MoveSpeed(0, 0);
       
     /**************圆盘机****************/
   
-//while(1){
-   // ROBOT_Move(15,0,SPD_SHORT_V,0,SPD_SHORT_A,0);   //★短距档：15cm 往返（峰值 √(50×15)=27cm/s）
-    //HAL_Delay(1000);
-   // ROBOT_Move(-15,0,SPD_SHORT_V,0,SPD_SHORT_A,0);
-//}
     YuanPanJi_Flag = 1;//圆盘机开始
     UART2_Printf("%c", mode_red ? 0xAA : 0xBB);//告诉视觉红(0xAA)蓝(0xBB)方
 
     //路上就先把机械臂举起来
     runActionGroup(1, 1);//不需要延时，因为和出发一起
     
-    //先盲走到圆盘机中心+面向（★长距 418cm：两档标准里的 120/120）
+    //先盲走到圆盘机中心+面向(★长距档 120/120)
     ROBOT_Move(mode_red?-88:88,420,SPD_LONG_V,SPD_LONG_V,SPD_LONG_A,SPD_LONG_A);//58太靠右
     /* ★2026-09-20 新底盘：ROBOT_Move / ROBOT_Angle 都是阻塞式，且 ROBOT_Angle 会等到
-       "航向到位 且 四轮真正停稳"才返回 —— 后面不用再补 HAL_Delay(100)"提高稳定性"了 */
+           “航向到位 且 四轮真正停稳”才返回 —— 后面不用再补 HAL_Delay(100) 提高稳定性了 */
     mode_red ? ROBOT_Angle(270) : ROBOT_Angle(90);
 
     
     /* ==================== 向前慢走，直到灰度(探头1)感应到白线 ====================
-       ★★★ 2026-09-15 修复"停不下来"的根因：运算符优先级 ★★★
-         上一版写成了 while(GRAY_Data[GRAY3][0] | GRAY_Data[GRAY3][1] == 0)，而 C 里
-         == 的优先级 高于 |，它其实等价于：
-             GRAY_Data[GRAY3][0] | (GRAY_Data[GRAY3][1] == 0)
-         于是"退出循环＝停车"的充要条件被悄悄改成【探头1是黑 且 探头2是白】：
-           · 探头1变白（探头2任意）→ 1 | …  = 1 → 继续走，不停；
-           · 两个探头都变白        → 1 | 0  = 1 → 还是继续走，不停！（＝你看到的现象）
-         更坑的是：只要探头1这一位恒为 1（探头没压到线/通道坏/DAT线松或模块没电——串行
-         DAT 上拉到 3.3V，脱线时全读 1），这行表达式恒为真 → 车永远不停、一直往前冲。
-         编译日志里本来就有这条警告，说的就是它：
-             warning: suggest parentheses around comparison in operand of '|' [-Wparentheses]
-         现在按你的要求只用一个探头（序号0＝探头1）：读到黑(0)继续走，读到白(1)立刻停。 */
+           ★★★ 2026-09-15 修复“停不下来”的根因：运算符优先级 ★★★
+             上一版写成 while(GRAY_Data[GRAY3][0] | GRAY_Data[GRAY3][1] == 0)，而 == 优先级高于 |，
+             实际等价于 GRAY_Data[GRAY3][0] | (GRAY_Data[GRAY3][1] == 0)：只要探头1那一位恒为 1
+             (探头没压到线/通道坏/DAT 线松或模块没电，输入上拉全读1)，表达式恒真 → 车永不停、一直前冲。
+             编译日志本来就有这条警告：suggest parentheses around comparison in operand of '|'。
+             现在只用探头1(序号0)：读到黑(0)继续走，读到白(1)立刻停。 */
     /* ==================== 恒速逼近白线 + 检测到白线就停车 ====================
-       ★2026-09-20 换成队友重调的新底盘（4倍频编码器878 + 20ms控制周期 + 每轮独立速度环PID +
-         航向环三档/静摩擦bias + 停车由速度环闭环"反接"完成）后，本节原来的"反冲急刹"补丁已整段删除：
-         · 逼近速度回到命令值本身（命令 10cm/s 就是 10cm/s）：老底盘的"破静摩擦整形"会把低速命令
-           顶到 ≈16~29cm/s，那才需要"给反向速度冲一下"来抵消动能；新底盘不需要。
-         · 停车直接用 ROBOT_MoveSpeed(0, 0)：速度环 target=0 而四轮还在转 → 当拍就反向修正
-           （≈主动反接刹车），比"断电自由滑行"刹得快、落点重复；真停稳后底盘自己清零断电。
-       ★现场核对：老注释里"滑 6~20cm 才停住"的现象应该消失；若落点整体偏前/偏后，
-         直接改下面几条 ROBOT_Move 的固定位移量即可（不要再加反向冲/改裕量那类补丁）。 */
+           ★2026-09-20 新底盘(4倍频878编码器 + 20ms控制周期 + 每轮独立速度环PID + 航向环三档/静摩擦bias)
+             后，本节原来的“反冲急刹”补丁已整段删除：· 逼近速度回到命令值本身(命令 10cm/s 就是 10cm/s，
+             老底盘的破静摩擦整形会把低速命令顶到 16~29cm/s)；· 停车直接用 ROBOT_MoveSpeed(0,0)：速度环
+             target=0 而四轮还在转 → 当拍反向修正(≈主动反接刹车)，比断电滑行刹得快、落点重复。
+           ★现场核对：若落点整体偏前/偏后，直接改下面几条 ROBOT_Move 的固定位移量(别再加反向冲补丁)。 */
     const uint8_t  LINE_DBG_LOG  = 1;    /* ★诊断日志：1=开 0=关（把停车调好后改0） */
-    /* 逼近速度直接用 SPD_AVG_V（见文件上方速度档）；原来这里有个 LINE_CRUISE_V，已被取代、删掉 */
+    /* 逼近速度直接用 SPD_AVG_V（见文件上方速度档）；原来的 LINE_CRUISE_V 已被取代、删掉 */
     const uint32_t LINE_MAX_MS   = 6000; /* ★兜底：逼近最多 6s（正常 ≤2s），到点还没白线就停下报错 */
     uint8_t  line_g3_last = 0xFF;        /* 上一次打印过的 GRAY3 八位数字量 */
     uint32_t line_dbg_t   = 0;           /* 速度日志节流（每150ms一行） */
@@ -2102,10 +1630,9 @@ ROBOT_MoveSpeed(0, 0);
         uint32_t now = HAL_GetTick();
         uint8_t  g3  = 0;
         for(uint8_t i = 0; i < 8; i++) g3 |= (uint8_t)((GRAY_Data[GRAY3][i] & 0x01) << i);
-        /* ① 每150ms一行：逼近时的实测速度 + 4轮PWM。正常应看到 tgt=10、实测 v≈10（新底盘下命令多少就是多少），
-              PWM 稳定在能维持 10cm/s 的小值区间；若 tgt=0/pwm 全 0 → 车没动，先查底盘。
-              ★若一开始 0.3s 左右不动：那是速度环积分在爬升（10cm/s 的第一拍输出只有 kp×10≈55，低于起转PWM），
-                想让它立刻就走就把 LINE_CRUISE_V 提到 20（队友给的短距参考 20/30）。 */
+        /* ① 每150ms一行：逼近时的实测速度 + 4轮PWM。正常应看到 tgt=10、实测 v≈10、PWM 稳定在能维持
+                      10cm/s 的小值区间；若 tgt=0/pwm 全 0 → 车没动，先查底盘。
+                      ★若开始 0.3s 左右不动：那是速度环积分在爬升，想让它立刻就走就把逼近速度(SPD_AVG_V)提到 20。 */
         if((now - line_dbg_t) >= 150){
           line_dbg_t = now;
           float v_now = sqrtf(chassis.now_v_x*chassis.now_v_x + chassis.now_v_y*chassis.now_v_y);
@@ -2118,9 +1645,9 @@ ROBOT_MoveSpeed(0, 0);
                        (unsigned)g3);
         }
         /* ② 灰度 8 位数字量变化（压过白线时该看到某一位变1；p1/bit0 就是 while 里用的探头1）：
-             · 一路不打变化行 / g3 恒 0x00 → 模块没识别出白线（竖着装后高度/角度、阈值、环境光）
-             · g3 恒 0xFF → DAT 线松/模块没供电（输入上拉全读1）
-             · g3 有 1 但不落在 p1 → 探头编号与竖装后的朝向不符，换 while 里的下标即可 */
+                      · 一路不打变化行 / g3 恒 0x00 → 模块没识别出白线（高度/角度、阈值、环境光）
+                      · g3 恒 0xFF → DAT 线松/模块没供电（输入上拉全读1）
+                      · g3 有 1 但不落在 p1 → 探头编号与竖装后的朝向不符，换 while 里的下标即可 */
         if(g3 != line_g3_last){
           line_g3_last = g3;
           UART1_Printf("LINE g3=0x%02X p1=%u\r\n", (unsigned)g3, (unsigned)GRAY_Data[GRAY3][0]);
@@ -2129,17 +1656,14 @@ ROBOT_MoveSpeed(0, 0);
     }
 
 
-    /* ★★ 停车 = ROBOT_MoveSpeed(0, 0)（2026-09-20 新底盘；原"柔性反向刹车"补丁已删）★★
-       为什么可以这么简单：新底盘的速度环是闭环的 —— target=0 而四轮还在转时，增量式速度环
-       当拍就把 PWM 反向修正（≈主动反接刹车），比"断电自由滑行"刹得快、且每次条件一致 → 落点重复；
-       真停稳后由底盘的"静止零漂保护"(target==0 且本周期没脉冲) 清零断电，不会残留通电发热。
-       所以原来那套"LINE_BRAKE_V/LINE_BRAKE_MARGIN/LINE_BRAKE_MS ＋ 临时改 chassis.start_margin
-       ＋ LINE_TRIM_CM 落点微调 ＋ 临时改 chassis.brake_decel"的补丁全部删除（它们是给老底盘
-       "低速必须靠破静摩擦整形才动 + 停车=断电自由滑行"准备的）。 */
+    /* ★★ 停车 = ROBOT_MoveSpeed(0, 0)（2026-09-20 新底盘；原“柔性反向刹车”补丁已删）★★
+            新底盘速度环是闭环的：target=0 而四轮还在转时当拍就把 PWM 反向修正(≈主动反接刹车)，比断电
+            滑行刹得快、落点重复；真停稳后由底盘的“静止零漂保护”清零断电。所以原来的 LINE_BRAKE_V/MARGIN/MS
+            ＋ 临时改 chassis.start_margin ＋ LINE_TRIM_CM ＋ 临时改 chassis.brake_decel 全部删除。 */
     {
-      /* 本段车头朝向固定(锁向保持)，把"全局速度/位移"投影到车头前方才是真正的前向量：
-         body_forward = -global_x*sin(θ) + global_y*cos(θ)，θ = chassis.now_the
-         （直接打全局 pos_y 是错的：本段车头朝 270/90°，前进方向对应全局 x） */
+      /* 本段车头朝向固定(锁向保持)，把“全局速度/位移”投影到车头前方才是真正的前向量：
+               body_forward = -global_x*sin(θ) + global_y*cos(θ)，θ = chassis.now_the
+               （直接打全局 pos_y 是错的：本段车头朝 270/90°，前进方向对应全局 x） */
       line_c_th  = cosf(chassis.now_the);
       line_s_th  = sinf(chassis.now_the);
       line_v_hit = -chassis.now_v_x*line_s_th + chassis.now_v_y*line_c_th;  /* 触发瞬间前向速度 */
@@ -2148,12 +1672,12 @@ ROBOT_MoveSpeed(0, 0);
       ROBOT_MoveSpeed(0, 0);                     /* ★停车：速度环 target=0 → 主动反接刹车 */
     }
 
-    //再次校准（★ROBOT_Angle 现在阻塞到"航向到位 且 四轮停稳"才返回，后面不用再补延时）
+    //再次校准(★ROBOT_Angle 现在阻塞到“航向到位且四轮停稳”才返回，不用再补延时)
     mode_red ? ROBOT_Angle(270) : ROBOT_Angle(90);
 
-    /* ★落点测量（STOP）：把"触发 → 停车 → 原地转正校准"整段的车头前向位移打出来，
-       用来核对拍球落点（原地转正那一下麦轮会蹭掉一点位移，属正常）。
-       ★落点若整体偏前/偏后：直接改下面几条 ROBOT_Move 的固定位移量补回来（别再加反向冲补丁）。 */
+    /* ★落点测量(STOP)：把“触发 → 停车 → 原地转正校准”整段的车头前向位移打出来，用来核对拍球落点
+            (原地转正那一下麦轮会蹭掉一点位移，属正常)。
+            ★落点若整体偏前/偏后：直接改下面几条 ROBOT_Move 的固定位移量补回来（别再加反向冲补丁）。 */
     if(LINE_DBG_LOG)
       UART1_Printf("STOP v_hit=%.1f dfwd=%+.2fcm dxy=%+.2f/%+.2f total=%lums\r\n",
                    (double)line_v_hit,
@@ -2161,12 +1685,10 @@ ROBOT_MoveSpeed(0, 0);
                    (double)(chassis.pos_x - line_x0), (double)(chassis.pos_y - line_y0),
                    (unsigned long)(HAL_GetTick() - line_t0));
 
-    //往后走一点点（好像不用往后退）（往前会拍不到球）（★短距 2cm：20/30）
+    //往后走一点点(★短距 2cm；往前会拍不到球)
     ROBOT_Move(0, mode_red ? -6 : -6, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
-    //HAL_Delay(100);
 
-    //往后退到可以拍球，要快（不需要后退了，直接灰度校准更准确）
-    //ROBOT_Move(0, mode_red ? -11 : -14, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);//20太多，12擦球
+    //(不需要后退了，直接灰度校准更准确)
 
     //走到位后，放到识别状态
     runActionGroup(4, 1);
@@ -2174,56 +1696,37 @@ ROBOT_MoveSpeed(0, 0);
     UART2_Printf("%c", 0xA1);//发0xA1告诉主视觉进入圆盘机识别
 
     /******************** 圆盘机视觉处理代码 ********************/
-    /* 与视觉约定的数据包格式：包头0xA1 | 第一个数据(0x00/0x01/0x02) | 第二个数据x坐标(2字节) | 第三个数据y坐标(2字节) | 包尾0x0B
-        触发条件：第二个字节==0x01或0x02，且第三个数(x,2字节)==100~200，且第四个数(y,2字节)==80~160 → 触发动作组1
-        结束条件：收到单字节指令0xA6，则退出本while循环 
-        ★新增：本机自己给"拍球"计数，每真拍一个球 +1，累计到 YPJ_HIT_MAX(10) 个后，
-          不论视觉是否发来"需要夹"的信息(0xA6)，都强制退出本while循环（见循环末尾强制退出段）
-        ★★再新增：连续 YPJ_NO_HIT_TIMEOUT_MS(9s) 一次都没触发过拍球（视觉不发/球流断了/没对位），
-          也走同一段强制退出，防止一台球都拍不到时一直卡在圆盘机（细节见该常量处的注释）
-        视觉屏幕320*240*/
+    /* 与视觉约定的数据包：包头0xA1 | 第1个数据(0x00/0x01/0x02) | x坐标(2字节) | y坐标(2字节) | 包尾0x0B
+            触发：第1个数据==0x01或0x02，且 x==100~200、y==80~160 → 动作组1
+            结束：收到单字节 0xA6 退出本 while；★本机自己给“拍球”计数，累计到 YPJ_HIT_MAX(10) 个后不论
+            视觉有没有发 0xA6 都强制退出；★★连续 YPJ_NO_HIT_TIMEOUT_MS(9s) 一次都没触发过拍球也强制退出。
+            视觉屏幕 320*240 */
     /* ==================== 圆盘机拍球防连拍（重点！） ====================
-       ★现象解释（先看这里再调参）：
-       1) "一个球拍两次" = 视觉按 0.02s 连续上报，同一个球在画面里占好几帧，
-          旧代码每帧都 runActionGroup，所以一球被重复拍；
-       2) "上一球要拍拍了下一个" = runActionGroup 只是给舵机控制板发一条启动指令
-          就立刻返回(约7ms)，动作组本身要在控制板上跑几百ms；上一拍没跑完，
-          下一帧(已是下一个球)又触发一次，动作就落到了下一个球上。
-       所以别再去纠结视觉发帧间隔是0.02还是0.03：核心是在MCU侧
-       "同一球只认第一帧 + 一次动作没执行完不再触发"。下面用冷却时间实现。
-       ★YPJ_HIT_COOLDOWN_MS 调法：设成 ≥ 动作组7/10从开始到复位可再拍的实测耗时。
-         调大→更不易连拍，但若相邻两球间隔比它还短，后一个球会漏拍；
-         调小→能跟上连着的球，但小于动作实际耗时又会连拍。
-         用串口1日志里相邻两次"HIT"行的时间戳就能标定真实动作耗时。
-       ★YPJ_HIT_LOG：1=串口1打印 HIT/SKIP 时序（先在电脑上分析帧间隔和连拍），调好后改0。 
+           ★先看现象再调参：① “一个球拍两次” = 视觉按 0.02s 连续上报、同一个球在画面里占好几帧，
+             旧代码每帧都 runActionGroup；② “上一球要拍拍了下一个” = runActionGroup 只是给舵机控制板发一条
+             启动指令就返回(约7ms)，动作组本身要在控制板上跑几百ms，上一拍没跑完下一帧(已是下一个球)又触发。
+             核心是在 MCU 侧“同一球只认第一帧 + 一次动作没执行完不再触发”，下面用冷却时间实现。
+           ★YPJ_HIT_COOLDOWN_MS 调法：≥ 动作组7/10 从开始到复位可再拍的实测耗时。调大→更不易连拍，但若
+             相邻两球间隔比它还短，后一个球会漏拍；调小→能跟上连着的球，但小于动作实际耗时又会连拍。
+             用串口1日志里相邻两次 “HIT” 行的时间戳就能标定真实动作耗时。
+           ★YPJ_HIT_LOG=1 时串口1打印 HIT/SKIP 时序(先在电脑上分析帧间隔和连拍)，调好后改0。
+           ★实测：圆盘 8s 一圈、12个球，两球间隔 2/3 秒(≈667ms)；动作组7/10 都是 400ms。
+           ★★拍够10个强制退出（防视觉一直不发/漏发0xA6导致卡在圆盘机）：ypj_hit_cnt 每次真拍 7/10 后 +1，
+             累计到 YPJ_HIT_MAX(10) 就不再等视觉“需要夹”，直接抬臂(151)+延时+收臂(0)并 break 出本 while
+             （与收到0xA6时收尾完全一致）。· 想改拍几个球只改 YPJ_HIT_MAX；
+             · ★冷却值决定“计数准不准”：冷却 < 一个球在画面里的停留时长 → 同一个球被拍2次 → 数到10时其实
+               只过了5个球（比赛实测踩过），所以必须 动作耗时400ms < 冷却 < 球间隔667ms，当前取650。
+             · 验证(YPJ_HIT_LOG=1)：HIT 行 c= 是两次“拍”的间隔，应≈667ms（≈650 说明只是节拍在拍、球还没换）；
+               RUN 行 pres=球在画面停留多久、gap=两球之间空多久；EXIT 行 t=总耗时，10个球应≈6.7s
+               （只有3.4s说明又是同一球拍两次）。
+             · 若希望第一拍就计数：把下面 ypj_first_skipped“第一个球只跳过不拍”那段去掉即可。 */
 
-       ★8秒一圈，12个球，两个球之间间隔2/3秒，7和10动作组都是400ms
-
-       ★★新增"拍够10个强制退出"（防视觉一直不发/漏发0xA6导致卡在圆盘机）：
-         ypj_hit_cnt 在每次真正 runActionGroup(7/10) 之后 +1，累计到 YPJ_HIT_MAX(10) 时，
-         不再等视觉"需要夹"的信息，直接抬臂(151)+延时+收臂(0)并 break 出本while
-         （见while末尾"强制退出"段，收尾动作与收到0xA6时完全一致）。
-         · 想改拍几个球，只改 YPJ_HIT_MAX 一个常量即可；
-         · ★冷却值决定"计数准不准"：计数是按"拍"来的，而"拍"的节拍由 YPJ_HIT_COOLDOWN_MS 决定。
-           冷却 < 一个球在画面里的停留时长 → 同一个球被拍2次 → 数到10时其实只过了5个球
-           （比赛实测踩过这个坑），所以必须 动作耗时400ms < 冷却 < 球间隔667ms，当前取650。
-         · 验证方法（串口1日志，YPJ_HIT_LOG=1）：
-           HIT 行的 c= 是两次"拍"的间隔，应≈667ms（若≈650说明只是节拍在拍、球还没换）；
-           RUN 行的 pres= 是一个球在画面里停留多久、gap= 两球之间空多久，可用来反推冷却该怎么取；
-           EXIT 行的 t= 是从开始拍球到退出的总耗时，10个球应≈6.7s（若只有3.4s说明又是同一球拍两次）。
-         · 若希望第一拍就计数：把下面 ypj_first_skipped"第一个球只跳过不拍"那段去掉即可
-           （当前第一个球不拍也不计数，所以 ypj_hit_cnt=10 就是机械臂实打实拍了10次）。
-       */
-
-    /* 实测：圆盘8s/圈、12球 → 相邻两球间隔≈667ms；动作组7/10执行400ms。
-       冷却窗口须满足 400ms < 冷却 < 球间隔667ms（>动作耗时保证上一拍跑完不连拍，
-       <球间隔保证不漏下一个球）。
-       ★★ 冷却窗口＝一次"拍"到下一次"拍"的最短间隔，同时也是本机"拍球计数"的节拍 ★★
-       ★为什么从 300 改成 650（比赛实测：记够10个却只拍了5个球就走了）：
-         300ms 比"一个球在画面里停留的时间"还短 → 同一个球被拍了2次，
-         10次计数其实只过了约5个球（667/300≈2.2拍/球）。
-         650≈球间隔667：同一个球不会被拍两次，球流不断时基本"一球一拍"，
-         于是"拍球计数10"≈"拍了10个球"。 */
+    /* 实测：圆盘 8s/圈、12球 → 相邻两球间隔≈667ms；动作组7/10 执行 400ms。冷却窗口须满足
+            400ms < 冷却 < 球间隔667ms（>动作耗时保证上一拍跑完不连拍，<球间隔保证不漏下一个球）。
+            ★★ 冷却窗口＝一次“拍”到下一次“拍”的最短间隔，同时也是本机“拍球计数”的节拍 ★★
+            ★为什么从 300 改成 650（比赛实测：记够10个却只拍了5个球就走了）：300ms 比“一个球在画面里停
+              留的时间”还短 → 同一个球被拍了2次，10次计数其实只过了约5个球（667/300≈2.2拍/球）；
+              650≈667 时同一个球不会被拍两次，球流不断时基本“一球一拍”。 */
     const uint32_t YPJ_HIT_COOLDOWN_MS = 650;   /* 冷却窗口：400 < 值 < 球间隔667 */
     const uint16_t YPJ_RUN_GAP_MS = 100;       /* ★标定用：相邻两帧"有球"的间隔≥100ms 就认为上一个球已离开画面 */
     const uint8_t  YPJ_HIT_LOG = 1;            /* 1=开日志 0=关 */
@@ -2246,7 +1749,7 @@ ROBOT_MoveSpeed(0, 0);
     uint32_t ypj_run_end_t    = 0;             /* ★本轮"有球"帧的最后一个帧时刻 */
     uint32_t ypj_no_hit_ref_t = ypj_t_start;   /* ★9s无触发超时的基准时刻：进入阶段时=ypj_t_start，之后每触发一拍就刷新 */
     uint8_t  ypj_first_skipped = 0;            /* 0=还没跳过第一个球；1=第一个球已跳过，之后正常拍 */
-    uint8_t  ypj_hit_cnt    = 0;               /* ★实拍计数：每执行一次动作组7/10就+1（冷却期忽略的帧、被跳过的第一个球都不计） */
+    uint8_t  ypj_hit_cnt    = 0;               /* ★实拍计数：每执行一次动作组7/10就+1(冷却期忽略的帧、跳过的第一个球都不计) */
 
 
     while(YuanPanJi_Flag == 1){
@@ -2254,7 +1757,7 @@ ROBOT_MoveSpeed(0, 0);
         VISION1_RxFlag = 0;                            // 必须立即清零
 
         /* 退出条件1：收到单字节指令0xA6（视觉确认），则退出本while循环
-           退出条件2：★本机拍球计数 ypj_hit_cnt 达到 YPJ_HIT_MAX(10) 个，见while末尾"强制退出"段 */
+                    退出条件2：★本机拍球计数 ypj_hit_cnt 达到 YPJ_HIT_MAX(10)，见while末尾“强制退出”段 */
         if(VISION1_RxRealLength == 1 && VISION1_RxBuf[0] == 0xA6){
           YuanPanJi_Flag = 0;//只是圆盘机结束，不代表阶梯开始，还要倒球
           //单独的机械臂抬起
@@ -2263,7 +1766,6 @@ ROBOT_MoveSpeed(0, 0);
       
           runActionGroup(0, 1);  // 收起机械臂
           //不需要延时，和跑图一起
-          //HAL_Delay(3000);
           break;
         }
 
@@ -2274,15 +1776,15 @@ ROBOT_MoveSpeed(0, 0);
         if(CAM_Data[0] == 0xA1                                              // 包头
             && (CAM_Data[1] == 0x01 || CAM_Data[1] == 0x02)                  // 有球：0x01本色 / 0x02黄
             && CAM_Data[6] == 0x0B){                                         // 包尾
-          uint16_t cam_x = (uint16_t)CAM_Data[2] | ((uint16_t)CAM_Data[3] << 8); // x坐标（第三个数，2字节）
-          uint16_t cam_y = (uint16_t)CAM_Data[4] | ((uint16_t)CAM_Data[5] << 8); // y坐标（第四个数，2字节）
-          uint32_t now    = HAL_GetTick();          // 当前时刻(ms)
-          uint32_t d_last = now - ypj_last_frame_t; // 距上一帧"有球"帧的间隔(ms)，日志用于看视觉真实发帧间隔
-          /* ★标定日志（用来确认 YPJ_HIT_COOLDOWN_MS 取值是否合适）：
-             d_last ≥ 100ms → 上一个球已离开画面，这时打印上一轮球的"停留时长(pres)"和"空窗(gap)"。
-             · 若日志里 pres 明显大于冷却值 → 就是本次"10次只拍5个球"的原因，需要把冷却调大（现在已取650）；
-             · 若日志里几乎没有 RUN 行 → 说明视觉一直连着报"有球"（画面里同时有2个以上球），
-               那就只能按球间隔(667ms)的节拍来计球，此时日志里的 c=（两次拍之间的间隔）应≈667ms。 */
+          uint16_t cam_x = (uint16_t)CAM_Data[2] | ((uint16_t)CAM_Data[3] << 8); // x坐标(2字节)
+          uint16_t cam_y = (uint16_t)CAM_Data[4] | ((uint16_t)CAM_Data[5] << 8); // y坐标(2字节)
+          uint32_t now    = HAL_GetTick();
+          uint32_t d_last = now - ypj_last_frame_t; // 距上一帧“有球”帧的间隔(ms)，日志用于看视觉真实发帧间隔
+          /* ★标定日志（确认 YPJ_HIT_COOLDOWN_MS 取值是否合适）：
+                       d_last ≥ 100ms → 上一个球已离开画面，这时打印上一轮球的“停留时长(pres)”和“空窗(gap)”。
+                       · pres 明显大于冷却值 → 就是本次“10次只拍5个球”的原因，需要把冷却调大（现已取650）；
+                       · 几乎没有 RUN 行 → 视觉一直连着报“有球”(画面里同时有 2 个以上球)，只能按 667ms 的
+                         节拍计球，此时日志里的 c=（两次拍之间的间隔）应≈667ms。 */
           if(d_last >= YPJ_RUN_GAP_MS){
             if(YPJ_HIT_LOG && ypj_run_end_t != 0)
               UART1_Printf("RUN  gap=%lu pres=%lu\r\n",
@@ -2295,7 +1797,7 @@ ROBOT_MoveSpeed(0, 0);
 
           //右半边的球才拍，如果在左边那边触发拍球容易拍到下一个
           if((cam_x >= 100 && cam_x <= 320)      // x为10~300，直接不限制，只要在屏幕内就拍
-              && (cam_y >= 0 && cam_y <= 240)){  // y为10~240
+              && (cam_y >= 0 && cam_y <= 240)){
             if((now - ypj_last_hit_t) < YPJ_HIT_COOLDOWN_MS){
               /* ===== 冷却期：还是同一个球 / 上一拍动作还没执行完 → 忽略（防连拍关键）===== */
               if(YPJ_HIT_LOG)
@@ -2304,11 +1806,11 @@ ROBOT_MoveSpeed(0, 0);
                              (unsigned long)d_last);
             }else{
               /* ===== 冷却已过：这一帧当作"新球"，真正拍一次 ===== */
-              uint32_t c_last = now - ypj_last_hit_t;   // ★距上一次"拍"的间隔：正常应≈球间隔667ms；若≈冷却值说明只是节拍在拍、不是新球
+              uint32_t c_last = now - ypj_last_hit_t;   // ★距上一次“拍”的间隔：正常应≈球间隔667ms；若≈冷却值说明只是节拍在拍、不是新球
               ypj_last_hit_t = now;
               /* ★9s无触发超时的基准时刻在这里刷新：
-                 不管是下面"第一个球只跳过不拍"还是真发了动作组，都算"触发过拍球"，
-                 所以只要球流不断就永远不会走到9s强制退出；球流一断，9s后自动收摊。 */
+                                不管是下面“第一个球只跳过不拍”还是真发了动作组，都算“触发过拍球”，
+                                所以球流不断就永远不会走到 9s 强制退出；球流一断，9s 后自动收摊。 */
               ypj_no_hit_ref_t = now;
               if(ypj_first_skipped == 0){      /* 识别到的第一个球：只跳过、不拍，从第二个球开始正常拍 */
                 ypj_first_skipped = 1;
@@ -2322,8 +1824,8 @@ ROBOT_MoveSpeed(0, 0);
                 runActionGroup(10, 1);   // 拍黄球，包括分流板
               }
               /* ★★ 每拍一次球就记1 ★★
-                 计数放在 runActionGroup 之后：只有真正把这拍发给舵机控制板才 +1，
-                 冷却期被忽略的帧、以及第一个只跳过不拍的球都不会记进来 */
+                                计数放在 runActionGroup 之后：只有真正把这拍发给舵机控制板才 +1，
+                                冷却期被忽略的帧、以及第一个只跳过不拍的球都不会记进来 */
               ypj_hit_cnt++;
               if(YPJ_HIT_LOG)
                 UART1_Printf("HIT  b=%u x=%u y=%u d=%lu c=%lu n=%u/%u\r\n",
@@ -2337,12 +1839,11 @@ ROBOT_MoveSpeed(0, 0);
       }
 
       /* ★★ 强制退出圆盘机（两个条件，收尾动作完全一致）★★
-         视觉那边可能一直不发（或晚发、漏发）"需要夹"的0xA6，这里由本机自己兜底：
-         条件1：拍够 YPJ_HIT_MAX(10) 个球 —— ypj_hit_cnt 每真拍一球 +1，数到10就不再等0xA6；
-         条件2：★连续 YPJ_NO_HIT_TIMEOUT_MS(9s) 一次都没触发过拍球（视觉掉线/球流断了/
-                车没对上，一台球都没得拍）—— 由 ypj_no_hit_ref_t 计时，见上面常量说明。
-         两个条件走同一套收尾：等最后一拍动作组跑完 → 抬臂(151) → 延时 → 收臂(0) → break 出 while。
-         退出后 YuanPanJi_Flag=0，下面"去仓库倒球"那一段照常执行，流程不断。 */
+                视觉那边可能一直不发（或晚发、漏发）“需要夹”的 0xA6，这里由本机自己兜底：
+                条件1：拍够 YPJ_HIT_MAX(10) 个球 —— ypj_hit_cnt 每真拍一球 +1，数到10就不再等 0xA6；
+                条件2：★连续 YPJ_NO_HIT_TIMEOUT_MS(9s) 一次都没触发过拍球（视觉掉线/球流断了/车没对上），
+                       由 ypj_no_hit_ref_t 计时。两个条件走同一套收尾：等最后一拍动作组跑完 → 抬臂(151) →
+                       延时 → 收臂(0) → break 出 while。退出后 YuanPanJi_Flag=0，下面“去仓库倒球”照常执行。 */
       uint8_t ypj_force_exit = 0;        // 1=本次循环要强制退出圆盘机
       if(ypj_hit_cnt >= YPJ_HIT_MAX){
         if(YPJ_HIT_LOG)
@@ -2354,7 +1855,7 @@ ROBOT_MoveSpeed(0, 0);
         ypj_force_exit = 1;
       }else if((HAL_GetTick() - ypj_no_hit_ref_t) >= YPJ_NO_HIT_TIMEOUT_MS){
         /* ★连续9s没触发过拍球 → 强行结束圆盘机
-           （这里没有拍球动作组在跑，不用等 YPJ_HIT_EXIT_WAIT_MS，直接收摊） */
+                   （这里没有拍球动作组在跑，不用等 YPJ_HIT_EXIT_WAIT_MS，直接收摊） */
         if(YPJ_HIT_LOG)
           UART1_Printf("EXIT by no-hit timeout %lums n=%u/%u t=%lu\r\n",
                        (unsigned long)(HAL_GetTick() - ypj_no_hit_ref_t),
@@ -2379,28 +1880,29 @@ ROBOT_MoveSpeed(0, 0);
     if(YuanPanJi_Flag == 0)//圆盘机结束时
     {
 
-      //退后固定距离（★短距 25cm：20/30）
+      //退后固定距离(★短距 25cm：20/30)
       ROBOT_Move(0,-20,SPD_SHORT_V,SPD_SHORT_V,SPD_SHORT_A,SPD_SHORT_A);
       //收起机械臂
       //重复了runActionGroup(0, 1);
-      //向左平行到仓库（★长距 185/195cm：120/120）
+      //向左平行到仓库(★长距档 120/120)
       ROBOT_Move(mode_red ? -190 : 195,0,SPD_SHORT_V,SPD_SHORT_V,SPD_SHORT_A,SPD_SHORT_A);//蓝要多走一点
-      //转身（ROBOT_Move 已阻塞到车停稳，不用再补 HAL_Delay(100)）
+      //转身(ROBOT_Move 已阻塞到车停稳，不用再补 HAL_Delay(100))
       mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
       
-      //往后慢退，直到测距测得合适距离（适合倒球的距离）
+      //往后慢退，直到测距到适合倒球的距离
       ROBOT_MoveSpeed(0, -SPD_AVG_V);   //慢匀速
-      WAIT_WHILE(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>76,
-                 "YuanPanJi back-to-wall(mm<=76)");//100有点远，距离小于90就退此循环，90也远
-      SENSOR_STOP();      /* ★停车：速度环 target=0 → 主动反接刹车（不再自由滑行 6~20cm，
-                             也不再需要"反向冲一下"或补固定位移那套补丁）
-                             ★倒球距离若不对：把上面的 85 调大（如 95），或在这里补一条固定位移 */
+      WAIT_WHILE(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>45,
+                 "YuanPanJi back-to-wall(mm<=45)");//实测45
+      
+      //直接接激光，不然距离会很远
+                 //ROBOT_MoveSpeed(0, 0);   /* ★停车：速度环 target=0 → 主动反接刹车（★这处现在注释掉：直接接激光，不然距离会很远）
+                 //                            ★倒球距离若不对：把上面的 45 改大(停远)/改小(停近)，或在这里补一条固定位移 */
 
-      //加一次角度校准（这些地方的角度很重要；ROBOT_Angle 已阻塞到停稳，不必再补延时）
-      mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
+      //加一次角度校准(此处角度很重要；ROBOT_Angle 已阻塞到停稳，不必再补延时)
+      //mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
 
-      //定位操作：向左慢平移到左后光电感应到无障碍物
-      //新：更改激光位置，让它在没对到障碍物时直接就已经是合适的位置，不需要调整
+      //向左慢平移到左后光电感应到无障碍物
+      //(激光移位后：没对到障碍物时就已经是合适位置，不需要再调整)
       ROBOT_MoveSpeed(-5, 0);   //★匀速靠近：SPD_AVG_V
       
       {
@@ -2408,20 +1910,16 @@ ROBOT_MoveSpeed(0, 0);
             while(lz_hit < 3){//从有到无
               lz_hit = !LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin) ? (uint8_t)(lz_hit + 1) : 0;  //断一次就重新数
               if(lz_hit >= 3) break;
-              //if(HAL_GetTick() - lz_t0 > WAIT_TIMEOUT_MS){ UART1_Printf("TIMEOUT: LiZhu laser4 x3\r\n"); break; }
               HAL_Delay(50);                                       //每次检测间隔 50ms
             }
           }
       
-      //while(LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin));
-      // WAIT_WHILE(LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1, "YuanPanJi laser1 no-obstacle");
 
-      SENSOR_STOP();      /* ★停车：速度环 target=0 主动反接刹车（不再自由滑行/不再反向冲）
-                             ★若左边还差一点：在这里补一条固定左移
-                               ROBOT_Move(-X, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A); */
+      ROBOT_MoveSpeed(0, 0);   /* ★停车：速度环 target=0 主动反接刹车（不再自由滑行/不再反向冲）
+                                  ★若左边还差一点：在这里补一条固定左移
+                                    ROBOT_Move(-X, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A); */
 
-      //加一次角度校准（ROBOT_Angle 已阻塞到停稳，不必再补延时）
-      // mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
+      //加一次角度校准(ROBOT_Angle 已阻塞到停稳，不必再补延时)
       //往右走固定距离（刚到对上仓库的距离）
       if(mode_red) ROBOT_Move(5, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);//20太大，速度100会飘，12太远
 
@@ -2438,17 +1936,17 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
       if(ZhengMian_Flag == 1){
         
         /*正面识别的通信流程：
-          1. MCU分别发0xA2给主视觉和副视觉，告诉它们进入正面识别
-          2. 副视觉(串口4)发来的单字节为0xAB/0xAC/0xAD/0xBC/0xBD/0xCD这6种之一时，
-             就存下来并原样转发给主视觉(串口2)；不是这6种就不存；
-          3. 存下来后，MCU发0xA7给副视觉，告诉它我收到了，副视觉可以结束识别了
-          4. 主视觉收到MCU发送的，副视觉传来的原样信息后，发0xA7给MCU，告诉它正面识别结束了
-          5. MCU收到主视觉发来的单字节0xA7，则退出本while循环，正面识别结束
-        */
+                  1. MCU分别发0xA2给主视觉和副视觉，告诉它们进入正面识别
+                  2. 副视觉(串口4)发来的单字节为0xAB/0xAC/0xAD/0xBC/0xBD/0xCD这6种之一时，就存下来并原样
+                     转发给主视觉(串口2)；不是这6种就不存；
+                  3. 存下来后，MCU发0xA7给副视觉，告诉它我收到了，副视觉可以结束识别了
+                  4. 主视觉收到MCU转发的副视觉信息后，发0xA7给MCU，告诉它正面识别结束了
+                  5. MCU收到主视觉发来的单字节0xA7，则退出本while循环，正面识别结束
+                */
 
-        /* ===== 正面识别 第1段：先复位显示，再"收倒球槽 + 走到阶梯对准位"；到位后才发0xA2 =====
-           ★为什么到位才发0xA2：0xA2是两个视觉的"开始识别"标志。早发的话副视觉可能在车还没到位时
-             就把结果发出来，甚至被后面的"清残留"清掉；到位后再发，这段时序就完全不用纠结。 */
+        /* ===== 正面识别 第1段：先复位显示，再“收倒球槽 + 走到阶梯对准位”；到位后才发0xA2 =====
+                   ★为什么到位才发0xA2：0xA2是两个视觉的“开始识别”标志。早发的话副视觉可能在车还没到位时
+                     就把结果发出来，甚至被后面的“清残留”清掉；到位后再发，这段时序就完全不用纠结。 */
         comm_rx4 = 0; comm_rx2 = 0; comm_t_oled = 0;               //本阶段收发计数清零
         zm_step = ZM_ST_PREP;                       //进度0：还没发0xA2(正在移动到识别位)
         zm_v4_res = ZM_RES_WAIT; zm_v4_byte = 0; zm_v4_len = 0;
@@ -2460,35 +1958,32 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
         runActionGroup(19, 1); 	//这里是收倒球槽
         delay_ms(2000);
 
-        //右+前，移动到阶梯附近,要往右多走点，不然撞到了，y160太远了，不利于视觉识别（★长距(100,150)：120/120）
-        //要拆开两段走了，否则会撞到，先走x后走y
-        ROBOT_Move(70, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+        //右+前移动到阶梯附近:要往右多走点不然会撞；y160太远不利于视觉识别(★长距档 120/120)
+        //要拆开两段走，否则会撞到：先走x后走y
+        ROBOT_Move(80, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
         ROBOT_Move(0, 128, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
 
-        //向左慢走，直到前面的两个光电都感应到障碍物（右边坏了，左边拆了，复用立柱的）4左2右
+        //向左慢走，直到前面的两个光电都感应到障碍物(右2坏了/左4拆了，复用立柱的)，4左2右
         ROBOT_MoveSpeed(-SPD_AVG_V, 0);   //★匀速靠近：SPD_AVG_V
-        //while(LASER_Barrier(LASER2_GPIO_Port, LASER2_Pin)==0);
-        //while(LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin)==0);//左后是1，右边为2，左前是3
         
         {
             uint32_t lz_t0 = HAL_GetTick();  uint8_t lz_hit = 0;   //连续"看到"计数
             while(lz_hit < 3){//从无到有
               lz_hit = LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin) ? (uint8_t)(lz_hit + 1) : 0;  //断一次就重新数
               if(lz_hit >= 3) break;
-              //if(HAL_GetTick() - lz_t0 > WAIT_TIMEOUT_MS){ UART1_Printf("TIMEOUT: LiZhu laser4 x3\r\n"); break; }
               HAL_Delay(50);                                       //每次检测间隔 50ms
             }
           }
         
         ROBOT_MoveSpeed(0, 0);      //★停车（激光触发后立即给 0 速，速度环反接刹车）
 
-        //往左走一定距离，视觉中能完整看到两个字母（可以省去测距前后校准）（★短距 40cm：20/30）
-        //短距离太快速，走的斜斜的，不要100速度，50还算可以
-        ROBOT_Move(-40, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+        //往左走一定距离，视觉里能完整看到两个字母(可省去测距前后校准)(★短距 40cm：20/30)
+        //短距档太快速会走斜，不要100速度，50还算可以
+        ROBOT_Move(-45, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
         //停车准备识别
         ROBOT_MoveSpeed(0,0);
 
-        //清掉主/副视觉串口的残留接收数据，避免把旧数据误当成有效信息
+        //清掉主/副视觉串口的残留数据，避免把旧数据误当成有效信息
         UART2_RxFlag = 0;
         UART2_RxRealLength = 0;
         memset(UART2_RxBuf, 0, UART2_RxLength);
@@ -2497,7 +1992,7 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
         memset(UART4_RxBuf, 0, UART4_RxLength);   //UART4_RxBuf是extern数组，不能用sizeof
 
         /* ★把两个视觉串口的 DMA 接收强制重启一遍：万一之前因为出错(ORE/FE)停了接收，
-           这里复位+重启，保证进循环时两个口都是真的"在听"状态 */
+                    这里复位+重启，保证进循环时两个口都是真的“在听”状态 */
         HAL_UART_AbortReceive(&huart2);
         HAL_UARTEx_ReceiveToIdle_DMA(&huart2, UART2_RxBuf, UART2_RxLength);
         __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
@@ -2532,7 +2027,7 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
               /* 流程2：副视觉发来的6种有效结果字节 0xAB/0xAC/0xAD/0xBC/0xBD/0xCD 之一 */
               if(vision4_byte == 0xAB || vision4_byte == 0xAC || vision4_byte == 0xAD ||
                  vision4_byte == 0xBC || vision4_byte == 0xBD || vision4_byte == 0xCD){
-                //存下来：高4位=第一个字母，低4位=第二个字母（存到 ZhengMian_Letter，供后面阶梯阶段使用）
+                //存下来：高4位=第一个字母，低4位=第二个字母(供后面阶梯阶段使用)
                 ZhengMian_Letter[0] = (vision4_byte & 0xF0) >> 4;
                 ZhengMian_Letter[1] = (vision4_byte & 0x0F);
                 //原样发送给主视觉（串口2）
@@ -2542,7 +2037,7 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
                 UART1_Printf("TX relay 0x%02X -> V1(UART2), TX 0xA7 -> V4(UART4)\r\n", vision4_byte);
 
                 /* ===== 收到6种之一 → 第2行显示字母(A~D)+原始字节；拿到一次就锁死(之后无效字节不再覆盖) =====
-                   ★字母已由上面两行的 ZhengMian_Letter[0]/[1] 存好(高4位/低4位)，显示函数直接取用 */
+                                   ★字母已由上面两行的 ZhengMian_Letter[0]/[1] 存好(高4位/低4位)，显示函数直接取用 */
                 zm_v4_res  = ZM_RES_OK;
                 zm_v4_len  = 1;
                 zm_v4_byte = vision4_byte;
@@ -2550,7 +2045,7 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
                 ZM_ShowComm(comm_rx4, comm_rx2);
               }else{
                 /* 不是这6种的其他单字节：不存、忽略
-                   ★只在"还没拿到有效结果"时才显示在第2行(带 BAD 标记)，拿到结果后不再改它 */
+                                   ★只在“还没拿到有效结果”时才显示在第2行(带 BAD 标记)，拿到结果后不再改它 */
                 if(zm_v4_res != ZM_RES_OK){
                   zm_v4_res = ZM_RES_BAD; zm_v4_len = 1; zm_v4_byte = vision4_byte;
                   ZM_ShowComm(comm_rx4, comm_rx2);
@@ -2573,7 +2068,7 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
             UART1_Printf("RX2 len=%d got=0x%02X\r\n", UART2_RxRealLength, UART2_RxBuf[0]);
             if(UART2_RxRealLength == 1 && UART2_RxBuf[0] == 0xA7){
               /* ===== 收到主视觉0xA7 → 第3行显示 OK，正面识别结束，进入阶梯 =====
-                 ★阶梯阶段屏幕上会保留"正面识别拿到的两个字母"，方便对照 */
+                               ★阶梯阶段屏幕上会保留“正面识别拿到的两个字母”，方便对照 */
               zm_v2_res  = ZM_RES_OK;
               zm_v2_byte = 0xA7;
               zm_step    = ZM_ST_RECV;                    //进度：3步全部完成
@@ -2593,7 +2088,7 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
           }
 
           /* ===== 每100ms：自愈两个视觉串口的接收(出错/DMA停了就重启) + 定时刷屏(计数/串口状态/秒数) =====
-             ★屏幕上四行的内容统一由 ZM_ShowComm() 负责，这里只做"定时刷新"，不再直接写屏幕 */
+                       ★屏幕上四行的内容统一由 ZM_ShowComm() 负责，这里只做“定时刷新”，不再直接写屏幕 */
           if(HAL_GetTick() - comm_t_oled >= 100U){
             comm_t_oled = HAL_GetTick();
 
@@ -2619,107 +2114,125 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
 
       if(JieTi_Flag == 1){//阶梯开始
         /* ==================== 阶梯阶段（模块化，序号与下面注释一一对应）====================
-           M1 视觉通信 : 收帧/解析(JieTi_VisionPoll) + 清帧 + 发 0xA3 + 读每坑的 cmd
-           M3 走位/计数: 每坑走固定距离(JIETI_STEP_CM / JIETI_STEP_CROSS_CM) + 计第几个坑
-           M5 动作组   : 识别位(54) / 夹取(57·60·63) / 回识别位(66) / 收尾抬臂(151)
-           M6 显示/收尾: OLED + 停车 + 按 JIETI_GO_LIZHU 交棒给"立柱"或"回家"
-           M2 逐坑校准 : 每坑走完固定距离后 先左右(JieTi_Adjust_X 视觉x±30px) → 再前后(JieTi_Adjust_Y 前测距±20mm)
-           ============================================================================== */
+                   M1 视觉通信 : 收帧/解析(JieTi_VisionPoll) + 清帧 + 发 0xA3 + 读每坑的 cmd
+                   M3 走位/计数: 第2~8坑每坑走固定距离(JIETI_STEP_CM / JIETI_STEP_CROSS_CM) + 计第几个坑
+                                (第1坑守着“进阶梯到位”点，不走位，但照样校准/读数)
+                   M5 动作组   : 识别位(54) / 夹取(57·60·63) / 回识别位(66) / 收尾抬臂(151)
+                   M6 显示/收尾: OLED + 停车 + 按 JIETI_GO_LIZHU 交棒给“立柱”或“回家”
+                   M2 逐坑校准 : **第1~8坑都做**：先左右(JieTi_Adjust_X 视觉x±30px) → 再前后(JieTi_Adjust_Y 前测距±20mm)
+                                ★与夹不夹无关(不夹的坑也先校准)；左右等不到帧/坐标填0 → 内部跳过不动
+                   ============================================================================== */
 
         /* ---- M6.1 屏幕初始化：字母留着，第2行标"step only"，第4行先显示 BLK -/8 ---- */
-        OLED_Clear();                                 //4行一起清掉（顺带清掉正面识别留在第3行的状态字）
+        OLED_Clear();                                 //4行一起清掉(顺带清掉正面识别留在第3行的状态字)
         OLED_Printf(0,  0, OLED_8X16_HALF, "JIETI letter %c %c",
                     ZM_Nibble2Char(ZhengMian_Letter[0]), ZM_Nibble2Char(ZhengMian_Letter[1]));
-        OLED_Printf(0, 16, OLED_8X16_HALF, "step only");   //本阶段只走固定距离，不做逐坑校准
+        OLED_Printf(0, 16, OLED_8X16_HALF, "step only");   //本阶段=固定位移走位 + 第1~8坑逐坑校准（屏上字样沿用旧文本，未改）
         OLED_Update();
         JieTi_ShowBlockNo(0, 8, 0);   //第4行先显示"BLK -/8"，处理到第1个坑后就变成 1/8
 
         /* ---- 到位①：左移找激光4（激光一离开障碍物就停）---- */
         ROBOT_MoveSpeed(-SPD_AVG_V, 0);
-        /* ★超时保护：激光4一直报"有障碍物"时原来会无限往左走(顶住左边不动=卡死)，
-           现在最多等 WAIT_TIMEOUT_MS，超时打 TIMEOUT 后照常停车继续走流程 */
-        //WAIT_WHILE(LASER_Barrier(LASER4_GPIO_Port,LASER4_Pin)==1, "JIETI laser4 no-obstacle");
+        /* ★超时保护：激光4一直报“有障碍物”时原来会无限往左走(顶住左边不动=卡死)，
+                    现在最多等 WAIT_TIMEOUT_MS，超时打 TIMEOUT 后照常停车继续走流程 */
 
           {
             uint32_t lz_t0 = HAL_GetTick();  uint8_t lz_hit = 0;   //连续"看到"计数
             while(lz_hit < 3){
               lz_hit = !LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin) ? (uint8_t)(lz_hit + 1) : 0;  //断一次就重新数
               if(lz_hit >= 3) break;
-              //if(HAL_GetTick() - lz_t0 > WAIT_TIMEOUT_MS){ UART1_Printf("TIMEOUT: LiZhu laser4 x3\r\n"); break; }
               HAL_Delay(50);                                       //每次检测间隔 50ms
             }
           }
 
         ROBOT_MoveSpeed(0, 0);
 
-        /* ---- M3.1 朝向基准：转到"正对阶梯"的绝对角，并记住它当整段阶梯的锁向目标 ----
-           正常流程：红90/蓝270（两边差180°）；跳转测阶梯：红方 shift=90 / 蓝方 shift=270，
-           Yaw_Abs() 换算后都是"按摆车姿态不转"（摆车时 0° 已经就是该段的车头方向）；
-           后面每次设速都用 JieTi_MoveSpeed() 把 target_yaw 恢复成这个值，角度环才会一直按它纠偏。 */
+        /* ---- M3.1 朝向基准：转到“正对阶梯”的绝对角 ----
+                    正常流程：红90/蓝270（两边差180°）；跳转测阶梯：红方 shift=90 / 蓝方 shift=270，
+                    Yaw_Abs() 换算后都是“按摆车姿态不转”（摆车时 0° 已经就是该段的车头方向）。
+                    ★2026-09-28：这里原来还把该角记下来当整段阶梯的锁向目标、后面每次设速都恢复它；
+                      那套封装已删除（速度环/角度环已调稳）→ 后面按常规直接用 ROBOT_MoveSpeed 锁当前朝向。 */
         mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));
-        jieti_keep_yaw = chassis.target_yaw;
 
         /*激光校准，往右 5cm（激光刚离开时位置偏左,不往右测距出去了）*/
         ROBOT_Move(7, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
 
         /* ---- 到位②：走近阶梯，前测距到 90mm 就停 ---- */
-        JieTi_MoveSpeed(0, SPD_AVG_V);
-        /* ★提前 20mm 停（不是读到 90 才停）：GY-53 一次读数 ≈200ms，10cm/s 逼近时"读到 ≤90mm"
-           那一刻车还会再往前冲 ≈2cm；提前量补上，停稳后就正好落在 90mm 附近。
-           （后面不再做任何测距校准，就按这个位置走） */
+        ROBOT_MoveSpeed(0, SPD_AVG_V);
+        /* ★提前 20mm 停（不是读到 90 才停）：GY-53 一次读数 ≈200ms，10cm/s 逼近时“读到 ≤90mm”
+                    那一刻车还会再往前冲 ≈2cm；提前量补上，停稳后就正好落在 90mm 附近。
+                    （这里只是“从远处走到车能看清单个坑”的粗到位；后面第1~8坑都按
+                      JIETI_FWD_TARGET_MM 再做一次前后校准(M2)，第1坑也不例外） */
         WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > (JIETI_FWD_TARGET_MM + 20),
                    "JIETI walk-to-ladder(stop at 110mm=90+lead20)");
-        JieTi_MoveSpeed(0, 0);
+        ROBOT_MoveSpeed(0, 0);
 
         /* ---- M5.1 机械臂到识别位 ---- */
         runActionGroup(54, 1);
         HAL_Delay(2000);
 
-        /* ---- M1.4 视觉通信：清残留帧 → 发 0xA3 告诉主视觉"进阶梯阶段"（之后它会按 A3 包上报每个物块的 cmd）---- */
+        /* ---- M1.4 视觉通信：清残留帧 → 发 0xA3 告诉主视觉"进阶梯阶段"（之后它会按 A3 包上报每个物块的 cmd）----
+             ★发完先等 300ms：视觉切到“阶梯上报节奏”要一点时间，而第1坑紧接着就读 cmd(M1.5)，
+               没有第2~8坑那种“走位+校准”的余量，等一下才不会把第1坑读成“不夹”。 */
         JieTi_FlushVision();
         UART2_Printf("%c", 0xA3);
+        HAL_Delay(300);
 
         /* ==================== 8 个坑循环 ====================
-           每坑：走固定距离(M3) → 逐坑校准(M2，先左右后前后) → 读这一坑"夹不夹"(M1.5) → 计数/显示(M3.3) → 按需夹取(M5.2)
-           · 位置：每个坑走完固定距离后校准一次（左右看视觉x，前后看前测距）。
-           · 朝向：底盘一直锁向(target_yaw = 进阶梯时校好的那个)，走位 20cm/s 期间角度环也在纠偏。
-           · cmd：站定后等一帧（视觉"有目标"才会发帧）；等不到 = 视野里没目标 = 这一坑不夹。
-           夹取动作组：第1~2个→57(中阶梯) / 第3~6个→60(高阶梯) / 第7~8个→63(矮阶梯)，夹完一律 66 回识别位。
-           数据包(7字节)：A3 | cmd | x低 | x高 | y低 | y高 | 0x0B；cmd 含义看全局 JieTi_Grab_Mode。 */
+                    每坑：走固定距离(M3，第1坑不走位) → 逐坑校准(M2，先左右后前后，★第1~8坑都做) → 读这一坑“夹不夹”(M1.5)
+                          → 计数/显示(M3.3) → 按需夹取(M5.2)
+                    · 位置：第1坑守着“进阶梯到位”点先校准再读数；第2~8坑每坑走完固定距离后校准(左右看视觉x、前后看前测距)。
+                    · 朝向：M3.1 转到“正对阶梯”的绝对角一次；之后一律直接 ROBOT_MoveSpeed(底盘原生锁当前朝向)，平移期间角度环照常纠偏。
+                    · cmd：校准完再等一帧(★第1坑等到 JIETI_CMD_WAIT_MS，其余坑等一轮 JIETI_VIS_MS)；
+                           帧里坐标可能填0(没目标也发帧) → 等不到/坐标0 按不夹处理，★但这不影响校准：校准已经先做完了。
+                    夹取动作组：第1~2个→57 / 第3~6个→60 / 第7~8个→63（对应哪种阶梯见动作组那行注释），夹完一律 66 回识别位。
+                    数据包(7字节)：A3 | cmd | x低 | x高 | y低 | y高 | 0x0B；cmd 含义看全局 JieTi_Grab_Mode。 */
         for(uint8_t idx = 1; idx <= 8; idx++){                  //第1~8个坑
-          /* ---- M3.2 到下一个坑：走固定距离 ---- */
+          /* ---- M3.2 到下一个坑：走固定距离（★第1坑守着“进阶梯到位”点，不走位）---- */
           if(idx > 1){
-            JieTi_MoveSpeed(0, 0);
-            /* 换阶梯那一步(第2→3个、第6→7个，就是动作组 57/60/63 切换处)隔得远，走 JIETI_STEP_CROSS_CM(10cm)；
-               同一个阶梯里相邻坑走 JIETI_STEP_CM(8cm) */
+            ROBOT_MoveSpeed(0, 0);
+            /* 换阶梯那一步(第2→3个、第6→7个，就是动作组 57/60/63 切换处)隔得远，走 JIETI_STEP_CROSS_CM；
+                            同一个阶梯里相邻坑走 JIETI_STEP_CM */
             int32_t step_cm = (idx == 3 || idx == 7) ? JIETI_STEP_CROSS_CM : JIETI_STEP_CM;
             ROBOT_Move(step_cm, 0, JIETI_STEP_SPEED, 0, JIETI_STEP_ACC, 0);
-            HAL_Delay(750);
-            JieTi_FlushVision();                  //先清走位途中的旧帧：校准只看停下来之后的新帧
-            JieTi_Adjust_X();                     //先校准左右：视觉x，容差30
-            HAL_Delay(750);
-            JieTi_Adjust_Y(JIETI_FWD_TARGET_MM);  //再校准前后：前测距，容差20
-            HAL_Delay(750);
-
+            HAL_Delay(750);                       //停稳再校准
           }
 
-          /* ---- M1.5 读这一坑"夹不夹"：先按"不夹"，清掉走位途中的旧帧，再等一帧 cmd ----
-             （视觉协议：视野里没目标就一个字节都不发 → 等不到 = 这一坑没东西/不用夹） */
+          /* ---- M2 逐坑校准：★第1~8坑都做（先左右后前后），跟“这一坑要不要夹”无关 ---- */
+          JieTi_FlushVision();                  //先清掉走位途中的旧帧：校准只看停下来之后的新帧
+          JieTi_Adjust_X();                     //先校准左右：视觉x，容差30（等不到帧/坐标填0 → 内部跳过，不动）
+          HAL_Delay(750);
+          JieTi_Adjust_Y(JIETI_FWD_TARGET_MM);  //再校准前后：前测距，容差20
+          HAL_Delay(750);
+
+          /* ---- M1.5 读这一坑"夹不夹"：先按"不夹"，清掉校准期间的旧帧，再等一帧 cmd ----
+             （视觉协议：帧里坐标可能填0(没目标也会发帧，见文件头)→“等不到/坐标0”一律按不夹处理）
+             ★第1坑：等帧前没有“走位+校准”那段余量，按 JIETI_VIS_MS 反复等到总时限 JIETI_CMD_WAIT_MS；
+               第2~8坑照旧只等一轮 JIETI_VIS_MS。 */
           jieti_cmd = 0;
           JieTi_FlushVision();
-          JieTi_GetVision(JIETI_VIS_MS);
+          if(idx == 1){
+            uint32_t vis_t0 = HAL_GetTick();
+            do{
+              if(JieTi_GetVision(JIETI_VIS_MS)) break;      //拿到带 A3 包的一帧就走
+            }while(HAL_GetTick() - vis_t0 < JIETI_CMD_WAIT_MS);
+          }else{
+            JieTi_GetVision(JIETI_VIS_MS);
+          }
 
           /* ---- M3.3 计数 + 屏幕：处理到第 idx 个坑 ---- */
           jieti_blk_now = idx;
           JieTi_ShowBlockNo(idx, 8, jieti_cam_x);
 
           /* ---- M1.5 要不要夹：Mode1 cmd==0x01；Mode2 cmd低4位非0 ----
-             ★进来前已把 jieti_cmd 清 0（上面那 3 行），所以这一坑一帧都没收到 → 这里就是 0 → 不夹 */
+             ★读 cmd 前已把 jieti_cmd 清 0（上面那段），所以“这一坑一帧都没收到”时这里就是 0 → 不夹；
+               ★不夹不等于不校准：校准已经在上面 M2 做完了(第1坑也一样) */
           uint8_t need = (JieTi_Grab_Mode == 1) ? (jieti_cmd == 0x01)
                                                 : ((jieti_cmd & 0x0F) != 0);
-          if(JIETI_VIS_LOG)                          //日志：这一坑视觉给的是啥 + 最终判定(对着上面几行RX2看)
-            UART1_Printf("BLK %u/8 cmd=0x%02X need=%u\r\n",
-                         (unsigned)idx, (unsigned)jieti_cmd, (unsigned)need);
+          if(JIETI_VIS_LOG)                          //日志：这一坑视觉给的是啥(含原始x) + 最终判定(对着上面几行RX2看)
+            UART1_Printf("BLK %u/8 cmd=0x%02X px=%u need=%u\r\n",
+                         (unsigned)idx, (unsigned)jieti_cmd,
+                         (unsigned)jieti_cam_px, (unsigned)need);   //px=0 → 这一帧视觉没检测到目标(填充值)
 
           /* ---- M5.2 夹取：按坑号选动作组 ---- */
           if(need){
@@ -2733,7 +2246,7 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
         }
 
         /* ---- M6.2 收尾：停车 + 抬臂（M6.3 接着按 JIETI_GO_LIZHU 交棒给"立柱"或"回家"）---- */
-        JieTi_MoveSpeed(0, 0);
+        ROBOT_MoveSpeed(0, 0);
        
         //单独的机械臂抬起
         runActionGroup(151, 1);
@@ -2741,8 +2254,8 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
         
         JieTi_Flag = 0;                     //M6.3 阶梯结束
         /* ★阶梯跑完去哪儿：就按上面那个开关 JIETI_GO_LIZHU 走（改一个数就能切回来）
-           1 → 先进"立柱"段（绕柱 → 仓库倒方块 → 回家；★正常流程）   0 → 跳过立柱、直接进"回家"段
-           ★这里必须用"赋值"，别写成 ==（历史上写成 == 导致阶段标志全是 0、车停在阶梯不动） */
+                    1 → 先进“立柱”段（绕柱 → 仓库倒方块 → 回家；★正常流程）   0 → 跳过立柱、直接进“回家”段
+                    ★这里必须用“赋值”，别写成 ==（历史上写成 == 导致阶段标志全是 0、车停在阶梯不动） */
         if(JIETI_GO_LIZHU) LiZhu_Flag = 1;  //去立柱（立柱段末尾自己会置 HuiJia_Flag=1 接回家）
         else               HuiJia_Flag = 1; //直接回家
 
@@ -2753,45 +2266,40 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
           ROBOT_Move(20, -150, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
 
           //更换新跑图逻辑
-          //ROBOT_Move(-45, -35, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
-          //好像前面把角度清0了，此时正对阶梯为0（不对，依然是正对阶梯为90呢）
-          //ROBOT_Angle(Yaw_Abs(270));   //正对阶梯/立柱(跳转测试时自动换算)
-          //ROBOT_Angle(180);
+          // （原“阶梯→立柱”的走位/转向测试行已删：-45,-35 走位 + ROBOT_Angle(Yaw_Abs(270)) / 180）
 
-    /* ★调试入口(KEY0选成 LZ + KEY3开始)：goto 跳到这一行往下执行"立柱"段。
-       上面那条"走到立柱附近(-45,-35) + 转向"是给"阶梯→立柱"用的；单独测立柱时车已经按
-       "立柱起点姿态"(红方车头朝右=正对柱子、就在立柱右边一点)摆好了，所以跳过它们，直接进下面的校准。
-       ★摆车姿态就是红方车头朝右(90) / 蓝方车头朝左(270)，与 DBG_START_LIZHU 里的 SetYawShift(90) 对应；
-         所以绕完一圈后那句 ROBOT_Angle(Yaw_Abs(90)) 只把绕圈攒下的几度掰回来(正对柱子/朝右)，
-         不会再出现"绕完 355° 后又多转 180°、车头朝反方向"的情况。 */
+    /* ★调试入口(KEY0选成 LZ + KEY3开始)：goto 跳到这一行往下执行“立柱”段。
+            上面那条“走到立柱附近(-45,-35) + 转向”是给“阶梯→立柱”用的；单独测立柱时车已经按
+            “立柱起点姿态”(红方车头朝右=正对柱子、就在立柱右边一点)摆好了，所以跳过它们，直接进下面的校准。
+            ★摆车姿态就是红方车头朝右(90) / 蓝方车头朝左(270)，与 DBG_START_LIZHU 里的 SetYawShift(90) 对应；
+              所以绕完一圈后那句 ROBOT_Angle(Yaw_Abs(90)) 只把绕圈攒下的几度掰回来(正对柱子/朝右)，
+              不会再出现“绕完 355° 后又多转 180°、车头朝反方向”的情况。 */
 LIZHU_START:
 
           runActionGroup(101, 1);//机械臂抬起
 
           /* ====== 立柱前校准（2026-09-21 简化：只有两步）======
-             前提(现场保证)：车在立柱右边一点。
-             ① 往左慢走(5cm/s)，直到"左激光(LASER4)连续 3 次(每次间隔30ms)看到障碍物" → 已经左右正对柱面
-               左4右2（LASER4=左、LASER2=右；这一步只判左4，右2不参与——右2是绕圈那套 l4/r2 反馈用的）
-             ② 再以 5cm/s 向前逼近，直到前测距 ≤200mm → 前后到位
-             然后直接 LiZhu_Circle_Run() 开始绕圈（它拿这时读到的距离当参考半径）。
-             ★两处都用 5cm/s：GY-53 是阻塞读(≈200ms)、激光也要车慢慢靠过去才不会冲过头
-               （10cm/s 会冲过头，和阶梯那套"走多"是同一个原因）。
-             ★两处等待都带 6s 超时兜底(WAIT_TIMEOUT_MS)：超时打一行 TIMEOUT 后继续走，不会卡死。 */
+                       前提(现场保证)：车在立柱右边一点。
+                       ① 往左慢走(5cm/s)，直到“左激光(LASER4)连续 3 次(每次间隔30ms)看到障碍物” → 已经左右正对柱面
+                         左4右2（LASER4=左、LASER2=右；这一步只判左4，右2不参与——右2是绕圈那套 l4/r2 反馈用的）
+                       ② 再以 5cm/s 向前逼近，直到前测距 ≤200mm → 前后到位
+                       然后直接 LiZhu_Circle_Run() 开始绕圈（它拿这时读到的距离当参考半径）。
+                       ★两处都用 5cm/s：GY-53 是阻塞读(≈200ms)、激光也要车慢慢靠过去才不会冲过头
+                         （10cm/s 会冲过头，和阶梯那套“走多”是同一个原因）。
+                       ★两处等待都带 6s 超时兜底(WAIT_TIMEOUT_MS)：超时打一行 TIMEOUT 后继续走，不会卡死。 */
           ROBOT_MoveSpeed(-5.0f, 0.0f);                     //① 往左慢走
-          /* ★左激光(LASER4)连续 3 次都"看到障碍物"才停车（只判左4，右2不参与）：
-             单次可能被反光/噪声误触，所以连看到 3 次才算数、每次间隔 30ms（≈90ms 去抖，
-             判定期间车 5cm/s 只多走 4.5mm）。仍带 WAIT_TIMEOUT_MS 兜底：激光没接/坏了不会永久卡死 */
+          /* ★左激光(LASER4)连续 3 次都“看到障碍物”才停车（只判左4，右2不参与）：
+                       单次可能被反光/噪声误触，所以连看到 3 次才算数、每次间隔 30ms（≈90ms 去抖，
+                       判定期间车 5cm/s 只多走 4.5mm）。仍带 WAIT_TIMEOUT_MS 兜底：激光没接/坏了不会永久卡死 */
           {
             uint32_t lz_t0 = HAL_GetTick();  uint8_t lz_hit = 0;   //连续"看到"计数
             while(lz_hit < 3){
               lz_hit = LASER_Barrier(LASER4_GPIO_Port, LASER4_Pin) ? (uint8_t)(lz_hit + 1) : 0;  //断一次就重新数
               if(lz_hit >= 3) break;
-              //if(HAL_GetTick() - lz_t0 > WAIT_TIMEOUT_MS){ UART1_Printf("TIMEOUT: LiZhu laser4 x3\r\n"); break; }
               HAL_Delay(50);                                       //每次检测间隔 50ms
             }
           }
           ROBOT_MoveSpeed(0.0f, 0.0f);                      //停车
-          //ROBOT_Move(-4, 0, SPD_SHORT_V, 0, SPD_SHORT_A, 0);
 
           ROBOT_MoveSpeed(0.0f, 5.0f);                      //② 向前慢逼近到 200mm，180也太远
           WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > 170U,
@@ -2806,19 +2314,16 @@ LIZHU_START:
           LiZhu_Circle_Run();
 
           /*
-          识别钩子已搬进 LiZhu_Circle_Run() 的绕圈 while 里：
-          遇到可以夹的就在那里 break，车停下、收尾照常执行
+                    识别钩子已搬进 LiZhu_Circle_Run() 的绕圈 while 里：
+                    遇到可以夹的就在那里 break，车停下、收尾照常执行
 
-          ★立柱视觉通信(2026-09-27 加入)同样在 LiZhu_Circle_Run() 里，本段不用再管：
-            开圈前发 0xA4 → 边绕边收视觉包(A3 也算) → cmd≠0 就停车跑动作组 107 → 接着绕
-            → 绕完一整圈发 0xA9。协议/开关/日志见该函数上方"立柱阶段：视觉通信"那一段。
-          */
+                    ★立柱视觉通信(2026-09-27 加入)同样在 LiZhu_Circle_Run() 里，本段不用再管：
+                      开圈前发 0xA4 → 边绕边收视觉包(A3 也算) → cmd≠0 就停车跑动作组 107 → 接着绕
+                      → 绕完一整圈发 0xA9。协议/开关/日志见该函数上方“立柱阶段：视觉通信”那一段。
+                    */
 
           //转完一圈，收起机械臂，然后往左转身走到仓库中间倒方块（更换新逻辑）
-          //ROBOT_Move(-60, 0, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
-          //ROBOT_Angle(Yaw_Abs(90));//车子前面朝右
-          //ROBOT_Move(0, -138, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
-          //ROBOT_Move(-45, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+          // （原立柱→仓库的几条走位测试行已删：-60 左移 / ROBOT_Angle(Yaw_Abs(90)) / -138 后退 / -45 左移）
 
           HAL_Delay(1000);
 
@@ -2826,14 +2331,14 @@ LIZHU_START:
           ROBOT_Angle(Yaw_Abs(90));//车子前面朝右
 
           //先后退到合适距离
-          /* ★9.25 修方向：原来是 +SPD_AVG_V(v_y>0=前进)，但注释写"后退"、判据又是"后测距(GY53_1)
-             ≤85mm(贴后墙)" —— 前进只会让后测距变大、永远不满足，只能靠 6s 超时兜底往前冲 60cm。
-             改成 -SPD_AVG_V：真后退，后测距一路变小，到 85mm 自然停。 */
+          /* ★9.25 修方向：原来是 +SPD_AVG_V(v_y>0=前进)，但注释写“后退”、判据又是“后测距(GY53_1)
+                       ≤85mm(贴后墙)” —— 前进只会让后测距变大、永远不满足，只能靠 6s 超时兜底往前冲 60cm。
+                       改成 -SPD_AVG_V：真后退，后测距一路变小，到 85mm 自然停。 */
           ROBOT_MoveSpeed(0.0f, -SPD_AVG_V);
-          WAIT_WHILE(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>76,
-                 "LiZhu back-to-wall(mm<=76)");
+          WAIT_WHILE(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>45,
+                 "LiZhu back-to-wall(mm<=45)");
 
-          //定位操作：向左慢平移到左后光电感应到无障碍物，之后再往右走固定距离（刚到仓库中间的距离）
+          //向左慢平移到左后光电感应到无障碍物，之后再往右走固定距离(刚到仓库中间的距离)
           ROBOT_MoveSpeed(-5, 0);   //★匀速靠近：SPD_AVG_V
           
           {
@@ -2841,14 +2346,12 @@ LIZHU_START:
             while(lz_hit < 3){
               lz_hit = !LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin) ? (uint8_t)(lz_hit + 1) : 0;  //断一次就重新数
               if(lz_hit >= 3) break;
-              //if(HAL_GetTick() - lz_t0 > WAIT_TIMEOUT_MS){ UART1_Printf("TIMEOUT: LiZhu laser4 x3\r\n"); break; }
               HAL_Delay(50);                                       //每次检测间隔 50ms
             }
           }
           
-          //WAIT_WHILE(LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin)==1, "LiZhu laser1 no-obstacle");
           ROBOT_MoveSpeed(0,0);
-          ROBOT_Move(29, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+          ROBOT_Move(30, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
 
           ROBOT_Angle(Yaw_Abs(90));//校准一下
           
@@ -2858,10 +2361,8 @@ LIZHU_START:
 
           for(uint8_t i = 0; i < 3; i++)
           {
-            // ROBOT_Move(0, 4, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
             ROBOT_MoveSpeed(0, 30);
             HAL_Delay(90);
-            // ROBOT_Move(0, -4, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
             ROBOT_MoveSpeed(0, -30);
             //往后速度稍微大点，抵消掉往前的一小点位移
             HAL_Delay(90);
@@ -2871,10 +2372,8 @@ LIZHU_START:
 
           for(uint8_t i = 0; i < 3; i++)
           {
-            // ROBOT_Move(0, 4, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
             ROBOT_MoveSpeed(0, 30);
             HAL_Delay(90);
-            // ROBOT_Move(0, -4, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
             ROBOT_MoveSpeed(0, -30);
             //往后速度稍微大点，抵消掉往前的一小点位移
             HAL_Delay(90);
@@ -2890,8 +2389,8 @@ LIZHU_START:
 
 
 
-    /* ★调试入口(KEY0选成HOME+KEY3开始)：goto 跳到下面 HUIJIA_START 标签往下执行"回家"
-       （HuiJia_Flag 已在跳转前立好；正常流程走到这里时一字不变） */
+    /* ★调试入口(KEY0选成HOME+KEY3开始)：goto 跳到下面 HUIJIA_START 标签往下执行“回家”
+           （HuiJia_Flag 已在跳转前立好；正常流程走到这里时一字不变） */
 HUIJIA_START:
     if(HuiJia_Flag == 1)//回家开始
     {
@@ -2901,13 +2400,13 @@ HUIJIA_START:
 
           //倒完方块转正再回家
           ROBOT_Angle(Yaw_Abs(0));
-          //往后多走一点，必须保证，前后在左右移动后能进入红色区域（★长距 230cm：120/120）
+          //往后多走一点(★长距档 120/120)，必须保证前后在左右移动后能进入红/蓝区域
           ROBOT_Move(mode_red ? 28 : -28, -228, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);//60，-240能进
 
       /*先校准左右再校准前后，左右走可能会抖，而且前后比左右的反馈更准
-    注意！！！必须先让颜色传感器在左右移动之后一定能进入红/蓝区域，
-    即前后距离必须能确保在红/蓝区域内（在哪里无所谓，后面再校准）
-    */
+          注意！！！必须先让颜色传感器在左右移动之后一定能进入红/蓝区域，
+          即前后距离必须能确保在红/蓝区域内（在哪里无所谓，后面再校准）
+          */
     //如果为黑色，匀速往右走，直到传感器进入红/蓝区域
     //去抖：连续3次(约150ms)都读到红/蓝才确认，交界处"红黑红黑"抖动不会误停
     ROBOT_MoveSpeed(5, 0);   //★匀速靠近：SPD_AVG_V,10太大了
@@ -2927,7 +2426,7 @@ HUIJIA_START:
 
     //进入红/蓝后，继续向右/左多走 7cm，确保停在红/蓝区域内部（避免停在边缘抖动；距离按区域宽度调整），而且确保车身左右都在红/蓝区域内
     //★短距档 40/50（2026-09-27 统一改用宏；7cm 三角波峰值 √(50×7)=19cm/s，若现场发现走不到位，把这里的第5/6个参数(a)单独加大到 100~200）
-    ROBOT_Move(mode_red ? 7 : -7, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+    ROBOT_Move(mode_red ? 9 : -9, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
     
     //往前走，走到颜色传感器一定在黑色区域内（同样连续3次确认）
     ROBOT_MoveSpeed(0, SPD_AVG_V);   //★匀速靠近：SPD_AVG_V
@@ -2967,7 +2466,7 @@ HUIJIA_START:
 
     }
     /* 原来这里有一句无条件的 UART1_Data[0]=0;，它把刚解析出来的指令提前清成 0，
-       所以"发指令没反应"。已删除：每条指令在处理时自己会清零。 */
+           所以“发指令没反应”。已删除：每条指令在处理时自己会清零。 */
 
     //立柱转圈 / 走距 / 转角 这些调试指令现在全部在 UART1_DebugCmd() 里解析执行（发 7,0,0,0,0,0,0,0 就地绕圈），
     //  所以本处不需要任何 if；另外原来紧跟这里的那段"6 号指令"（回家找红蓝区的旧版副本，与回家阶段代码重复）已删除。
@@ -2980,23 +2479,10 @@ HUIJIA_START:
     //       两个开关都置 0 = 纯开环（只有三个旋钮）
     //  串口(200ms/条)：d=测距mm e=径向误差mm l4/r2=左/右激光 vx=切向速度 vy=径向速度(0.1cm/s) w=角速度×100 yaw=已绕角度(°)
 
-    // /* 串口打印角度环数据（目标/实际/输出w + 里程计位置x/y），SerialPlot 观察走直线纠偏/转向收敛
-    //    并解析串口调参指令：kp/ki/kd/target 角度环、vx/vy 手动、mx/my 走距、mv/mvacc 规划速度 */
-    // UART1_Printf("%f %f %f %f %f\r\n",
-    //              chassis.target_yaw,
-    //              HWT101CT_Data.yaw,
-    //              chassis.yaw_pid.out,
-    //              chassis.pos_x,
-    //              chassis.pos_y);
-    // if(UART1_RxFlag){
-    //   UART1_RxFlag = 0;
-    //   SERIALPLOT_ChangeParam((char *)UART1_RxBuf);
-    // }
+    // /* 原“每100ms打印角度环数据(目标/实际/输出w + 里程计x/y) 并解析串口调参指令”的调试代码已删：
+    //      角度环 kp/ki/kd/target、vx/vy、mx/my、mv/mvacc 等调参现在走 UART1_DebugCmd / SerialPlot */
    
-    // UART1_Printf("GY1:%d  GY2:%d\r\n",GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin),GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin));
-    // OLED_Printf(0, 0, OLED_8X16_HALF, "ni%d %d",GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin),GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin));
-    // OLED_Update();
-    // HAL_Delay(10);
+    // （原“串口1打两个测距 + OLED 打印测距 + OLED_Update + HAL_Delay(10)”的调试行已删）
 
 
     /* USER CODE END WHILE */

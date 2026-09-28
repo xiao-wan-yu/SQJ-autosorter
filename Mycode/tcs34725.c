@@ -299,14 +299,13 @@ uint8_t TCS34725_ClassifyColor(const TCS34725_RGBC *rgbc)
 {
   if(!rgbc) return TCS_COLOR_UNKNOWN;
 
-  /* ===== 三色：黑/红/蓝（阈值在 tcs34725.h，★2026-09-15 按板上 CAL 模式实测重定：LED亮/增益1x/50ms）=====
-     用 S、V 分类（不用 H —— 实测蓝的 H 不在蓝相区）：
-       低饱和 s<TCS_BLUE_S_MAX -> V<TCS_BLUE_V_MAX 判蓝；否则判黑（白/灰不参与比赛）
-       其余有彩色          -> V<TCS_BLACK_V_THRESH 判黑；否则判红
-     2026-09-15 实测均值：黑 S0.349 / V0.604、红 S0.479 / V0.779、蓝 S0.130 / V0.588、白 S0.225 / V0.436 */
+  /* 黑/红/蓝（阈值在 tcs34725.h，2026-09-28 实地重采）：
+     低饱和 s<0.34 →（又暗 c<50 且又低亮 v<0.50）蓝，否则黑（亮=白/灰，不参与比赛）；
+     其余 → v<0.58 黑，否则红。加 c 这一路是因为蓝白在 S 上重叠（0.333/0.270），C 却差 3 倍（≤30/≥84）。 */
 
   if(rgbc->s < TCS_BLUE_S_MAX){
-    return (rgbc->v < TCS_BLUE_V_MAX) ? TCS_COLOR_BLUE : TCS_COLOR_BLACK;
+    if(rgbc->v < TCS_BLUE_V_MAX && rgbc->c < TCS_WHITE_C_MIN) return TCS_COLOR_BLUE;
+    return TCS_COLOR_BLACK;
   }
   if(rgbc->v < TCS_BLACK_V_THRESH) return TCS_COLOR_BLACK;
   return TCS_COLOR_RED;
