@@ -489,6 +489,20 @@ static void JieTi_Adjust_X(void){
 #define LIZHU_PIC_COOLDOWN_MS  1000U    //两次"停拍"的最短间隔(ms)：防同一目标连拍；0=不防
 #define LIZHU_VIS_HEAL_MS      100U     //串口2自愈+屏幕刷新的节拍(ms)
 
+/* ==================== ★★ 2026-09-29 新增：绕完一圈后的“原地夹取”任务 ★★ ====================
+   流程（就在绕完一圈的那个位置，先不走位、不转向；实现在 LiZhu_Circle_Run() 收尾调用的
+   LiZhu_PostCircleTask() 里 ⇒ “正式流程的立柱段”和“菜单里单独发指令7 / 单键测试绕圈”两边都会跑）：
+     ① 动作组110 → 等 LIZHU_POST_ACT_MS；② 视觉识别（要不要夹）→ 需要就 动作组113 + 等 LIZHU_GRAB_ACT_MS；
+     ③ 无论夹不夹都 动作组160 复位 + 等 LIZHU_RESET_ACT_MS → 发 0xA9 收尾本阶段。
+   下面的等待时间常量就是按现场标定的动作时长填的，动作组本身在舵机板上跑，这里只是等它跑完。 */
+#define LIZHU_POST_VIS        1         //1=绕完后再发一次 0xA4 让主视觉继续识别“要不要夹”
+                                        //  (绕圈末尾 LiZhu_Circle_Run 已发 0xA9 结束上一轮，不重发视觉可能不再发包)
+                                        //  0=不重发握手(仍会等一帧实时包，收不到就按“不夹”处理)
+#define LIZHU_GRAB_VIS_MS    1000U      //绕完后等“要不要夹”这一帧包的总时限(ms)：超时/没帧=不夹
+#define LIZHU_POST_ACT_MS    2500U      //绕完后：动作组110(摆到识别位)的等待时间(ms)
+#define LIZHU_GRAB_ACT_MS    6500U      //绕完后：动作组113(夹取)的等待时间(ms)
+#define LIZHU_RESET_ACT_MS   4000U      //绕完后：动作组160(复位)的等待时间(ms)★夹不夹都要复位
+
 static uint32_t lizhu_vis_cnt = 0;      //本阶段累计收帧数
 static uint32_t lizhu_pic_cnt = 0;      //本阶段停下来拍了几次
 static uint8_t  lizhu_pic_cmd = 0;      //最近一个包的 cmd(0=不用拍 / ≠0=要拍)
@@ -575,12 +589,17 @@ static uint8_t LiZhu_VisionPoll(void){
   return hit;
 }
 
-/* 立柱阶段开始：清残留 → 重启串口2接收 → 发 0xA4 → 计数复位 */
-static void LiZhu_VisionStart(void){
-  LiZhu_FlushVision();                                 //清掉阶梯阶段留下的旧帧
+/* 清残留帧 + 重启串口2接收（两个入口共用：进立柱 LiZhu_VisionStart / 绕完后重新识别 LiZhu_VisionReopen） */
+static void LiZhu_RxReopen(void){
+  LiZhu_FlushVision();                                 //清掉上一阶段/上一轮留下的旧帧
   HAL_UART_AbortReceive(&huart2);                      //★强制复位重启，保证串口2真的在听
   HAL_UARTEx_ReceiveToIdle_DMA(&huart2, UART2_RxBuf, UART2_RxLength);
   __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
+}
+
+/* 立柱阶段开始：清残留 → 重启串口2接收 → 发 0xA4 → 计数复位 */
+static void LiZhu_VisionStart(void){
+  LiZhu_RxReopen();
 
   lizhu_vis_cnt   = 0;
   lizhu_nopkt_cnt = 0;
@@ -594,6 +613,68 @@ static void LiZhu_VisionStart(void){
   UART2_Printf("%c", LIZHU_VIS_HEAD);                  //发 0xA4：告诉主视觉进入立柱阶段、开始识别
   UART1_Printf("LZ TX 0xA4 -> V1(UART2)\r\n");
   LiZhu_ShowComm();
+}
+
+/* ★2026-09-29：绕完一圈后的“再识别”握手。绕圈末尾 LiZhu_VisionStop 已发过 0xA9 结束上一轮，
+   这里再发一次 0xA4 请主视觉继续认“柱子这边要不要夹”；★各计数不清零，日志/屏幕仍是本阶段累计值。
+   ★只在 LIZHU_POST_VIS=1 时编译（关掉握手就不需要这个函数，免得 -Wall 报“定义了没用”） */
+#if LIZHU_POST_VIS
+static void LiZhu_VisionReopen(void){
+  LiZhu_RxReopen();
+  lizhu_pic_cmd = 0;                                       //丢掉旧包的 cmd，别拿绕圈时的结论当这一轮的
+  lizhu_pic_t   = HAL_GetTick() - LIZHU_PIC_COOLDOWN_MS;
+
+  UART2_Printf("%c", LIZHU_VIS_HEAD);                      //再发 0xA4
+  UART1_Printf("LZ TX 0xA4 -> V1(UART2) again (post-circle)\r\n");
+  LiZhu_ShowComm();
+}
+#endif  /* LIZHU_POST_VIS */
+
+/* ★2026-09-29：绕完一圈后判“要不要夹”：清残留 → 在 wait_ms 内等一帧包 → cmd≠0 才算要夹。
+   判据与绕圈钩子里那一行完全一致(见 LiZhu_Circle_Run)；★等不到帧/超时/包都是 cmd=0 → 返回 0(不夹，照样复位)。
+   等待期间顺带做串口2自愈(与绕圈里同一套)，视觉掉线也不会把这里卡死。 */
+static uint8_t LiZhu_NeedGrab(uint32_t wait_ms){
+  lizhu_pic_cmd = 0;
+  LiZhu_FlushVision();                                     //只认“发完 0xA4 之后”的新帧
+
+  uint32_t t0 = HAL_GetTick();
+  while((HAL_GetTick() - t0) < wait_ms){
+    if(LiZhu_VisionPoll()){                                //收到一帧合法包(已更新 lizhu_pic_cmd)
+      if(lizhu_pic_cmd != 0U) return 1;                    //cmd≠0 → 需要夹
+      /* cmd==0：这一帧说的是“不用夹”，继续在剩余时限里等下一帧 */
+    }
+    LiZhu_VisionHeal();                                    //串口2出错停了就重新拉起来
+  }
+  return 0;
+}
+
+/* ★2026-09-29：绕完一圈后的“原地夹取”任务（★正式流程的立柱段 与 菜单里单独发指令7 都走这里）
+   就在绕完停下来的那个位置原地做，不插任何走位/转向：
+     ① 动作组110 摆到识别位 → 等 LIZHU_POST_ACT_MS(2500ms)；
+     ② 视觉识别“要不要夹”：再发一次 0xA4(LIZHU_POST_VIS=1 时；绕圈结束后主视觉已收到 0xA9，
+        不重新握手可能不再发包) → 在 LIZHU_GRAB_VIS_MS(1000ms) 内等一帧包，
+        cmd≠0 = 需要夹(判据与绕圈钩子里那个 107 完全相同)；等不到/超时/包是 cmd=0 → 按不夹处理；
+     ③ 需要夹 → 动作组113 夹取 → 等 LIZHU_GRAB_ACT_MS(6500ms)；不需要夹 → 直接跳过；
+     ④ ★无论夹不夹都跑动作组160 复位 → 等 LIZHU_RESET_ACT_MS(4s)。
+   串口1 每次打一行 “LZ post-circle need=0/1”。要改时长/时限就改上面那几个 LIZHU_* 常量。 */
+static void LiZhu_PostCircleTask(void){
+  runActionGroup(110, 1);                                 //① 摆到识别位
+  HAL_Delay(LIZHU_POST_ACT_MS);
+
+#if LIZHU_POST_VIS
+  LiZhu_VisionReopen();                                   //② 再发 0xA4：请主视觉继续识别
+#endif
+  {
+    uint8_t lz_need = LiZhu_NeedGrab(LIZHU_GRAB_VIS_MS);  //   等一帧包判“要夹/不夹”
+    UART1_Printf("LZ post-circle need=%u\r\n", (unsigned)lz_need);
+    if(lz_need){
+      runActionGroup(113, 1);                             //③ 夹取
+      HAL_Delay(LIZHU_GRAB_ACT_MS);
+    }
+  }
+
+  runActionGroup(160, 1);                                 //④ 复位(夹不夹都做)
+  HAL_Delay(LIZHU_RESET_ACT_MS);
 }
 
 /* 立柱结束：发 0xA9(绕完一圈发；丢测距提前退出也发) */
@@ -822,9 +903,16 @@ static void LiZhu_Circle_Run(void)
   chassis.y_set_speed_flag = 0;
   flag.angle = 1;
   chassis.target_yaw = YAW_TARGET_NONE;
-  LiZhu_VisionStop();                        //★发 0xA9 通知主视觉(绕完/提前退出都发)
   if(lost_stop) UART1_Printf("LOST! stop\r\n");
   else          UART1_Printf("circle done (yaw=%d)\r\n", (int)fabsf(yaw_acc));
+
+  /* ★2026-09-29：绕完一圈后的“原地夹取”任务(110 → 视觉识别 → 需要就113 → 160复位)就挂在这里：
+     所以【正式流程的立柱段】和【菜单里单独发指令 7 / 单键测试】调的都是同一段代码，两边都有这一段。
+     它必须在 LiZhu_VisionStop()(发 0xA9) 之前跑，因为那里面要视觉继续认“要不要夹”。
+     要单测夹取动作本身，就把 LIZHU_POST_VIS 设 0(不重发 0xA4，仍会等一帧实时包)或临时注释这一行。 */
+  LiZhu_PostCircleTask();
+
+  LiZhu_VisionStop();                        //★发 0xA9 通知主视觉(本轮识别结束；丢测距提前退出也发)
 }
 
 
@@ -1764,7 +1852,7 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(0,20); HAL_Delay(20); ROBOT_MoveSpeed(
           runActionGroup(151, 1);
           HAL_Delay(1000);
       
-          runActionGroup(0, 1);  // 收起机械臂
+          runActionGroup(160, 1);  // 收起机械臂
           //不需要延时，和跑图一起
           break;
         }
@@ -1870,7 +1958,7 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(0,20); HAL_Delay(20); ROBOT_MoveSpeed(
         runActionGroup(151, 1);
         HAL_Delay(1000);
 
-        runActionGroup(0, 1);  // 收起机械臂
+        runActionGroup(160, 1);  // 收起机械臂
         break;                 // 跳出 while(YuanPanJi_Flag == 1)
       }
     }
@@ -1883,7 +1971,7 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(0,20); HAL_Delay(20); ROBOT_MoveSpeed(
       //退后固定距离(★短距 25cm：20/30)
       ROBOT_Move(0,-20,SPD_SHORT_V,SPD_SHORT_V,SPD_SHORT_A,SPD_SHORT_A);
       //收起机械臂
-      //重复了runActionGroup(0, 1);
+      //重复了runActionGroup(160, 1);
       //向左平行到仓库(★长距档 120/120)
       ROBOT_Move(mode_red ? -190 : 195,0,SPD_SHORT_V,SPD_SHORT_V,SPD_SHORT_A,SPD_SHORT_A);//蓝要多走一点
       //转身(ROBOT_Move 已阻塞到车停稳，不用再补 HAL_Delay(100))
@@ -2262,7 +2350,7 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
         if(LiZhu_Flag == 1)//立柱开始
         {
           
-          runActionGroup(0, 1);//复位
+          runActionGroup(160, 1);//复位
           ROBOT_Move(20, -150, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
 
           //更换新跑图逻辑
@@ -2312,6 +2400,12 @@ LIZHU_START:
           //立柱转圈（2026-09-26 重写：开环三旋钮 + 测距/激光两路可选反馈，见 LiZhu_Circle_Run 函数头）
           //★前提：车头已经正对着柱子（函数开头就是静止采测距定参考距离）
           LiZhu_Circle_Run();
+
+          /* ★★ 2026-09-29：绕完一圈后的“原地夹取”任务(动作组110 → 视觉识别 → 需要就113 → 160复位)
+             ★不写在这里：它已经挂进 LiZhu_Circle_Run() 的收尾(绕圈循环之后、发 0xA9 之前)，这样
+               【正式流程的立柱段】和【菜单里单独发指令 7 / 单键测试绕圈】跑的是同一段代码，两边都会夹。
+               顺序/时长/开关见该函数头 + “立柱阶段：视觉通信”那一段的 LIZHU_POST_* 常量(main.c:492~503)。
+             ★本段下面(原来的 HAL_Delay(1000) + ROBOT_Angle(Yaw_Abs(90)) + 走到仓库倒方块)顺序不变。 */
 
           /*
                     识别钩子已搬进 LiZhu_Circle_Run() 的绕圈 while 里：
