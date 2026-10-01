@@ -258,12 +258,13 @@ static void ZM_ShowComm(int rx4, int rx2){
 #define JIETI_X_BAD_MAX      1000U    //★原始x>它=无效帧(0xFFFF)；x=0 也算没检测到
 #define JIETI_XFIX_MAX_MS    3000U    //★单坑左右校准时限(ms)：坐标一直不满足容差就收手
                                       //  (0=不限时)
-/* ---- 前测距目标：①“走近阶梯”到 50mm 附近停，实测是50；②第1~8坑逐坑前后校准(JieTi_Adjust_Y)的目标 ---- */
-#define JIETI_FWD_TARGET_MM   50      //★目标前后距离(mm)：既是“走近阶梯”的停止距离，也是逐坑前后校准的目标
+/* ---- 前测距目标：①“走近阶梯”到 50mm 附近停，实测是50，55太近了；②第1~8坑逐坑前后校准(JieTi_Adjust_Y)的目标 ---- */
+#define JIETI_FWD_TARGET_MM   55      //★目标前后距离(mm)：既是“走近阶梯”的停止距离，也是逐坑前后校准的目标
 
 /* ---- 8 个坑固定位移：STEP=同阶梯相邻坑间距；CROSS=换阶梯那一步(第2→3、第6→7个坑) ---- */
-#define JIETI_STEP_CM         14      //★阶梯内坑间距(cm)：实际8，要给15
-#define JIETI_STEP_CROSS_CM  18      //★换阶梯那一步(cm)：实际10，要给16
+#define JIETI_STEP_CM         15      //★阶梯内坑间距(cm)：实际8
+#define JIETI_STEP_CROSS_CM  19      //★换阶梯那一步(cm)：实际10
+//多走一点，避免视觉判别到左边的来校准
 #define JIETI_STEP_SPEED      (float)SPD_SHORT_V   //走位速度=短距档(要≥20 才压得过起转PWM)
 #define JIETI_STEP_ACC        (float)SPD_SHORT_A   //★加速度=短距档：8cm 峰值 √(50×8)=20cm/s 刚好够起转(想一拍就起转可提到100~150)
 /* ---- 阶梯跑完去哪儿：1=先去立柱(绕柱→倒方块→回家) 0=直接回家；两段的绝对角都过 Yaw_Abs() ---- */
@@ -393,6 +394,7 @@ static void JieTi_Adjust_Y(int Target_Y_Distance){
                 if(dis > (Target_Y_Distance + 5)){
                   for(uint8_t i = 0; i < 5; i++)
                   {
+                    //速度不能太小，否则蠕动就乱动，30合适
                     ROBOT_MoveSpeed(0, 20);
                     HAL_Delay(15);
                     ROBOT_MoveSpeed(0, 0);
@@ -403,6 +405,7 @@ static void JieTi_Adjust_Y(int Target_Y_Distance){
                 else if(dis  < (Target_Y_Distance - 5)){
                   for(uint8_t i = 0; i < 5; i++)
                   {
+                    //速度不能太小，否则蠕动就乱动，y20合适
                     ROBOT_MoveSpeed(0, -20);
                     HAL_Delay(15);
                     ROBOT_MoveSpeed(0, 0);
@@ -430,22 +433,24 @@ static void JieTi_Adjust_X(void){
                 }
                 int16_t cx = jieti_cam_x;
                 if(cx > 15){
-                  for(uint8_t i = 0; i < 5; i++)
+                  //for(uint8_t i = 0; i < 5; i++)
                   {
+                    //速度不能太小，否则蠕动就乱动，x30合适
                     ROBOT_MoveSpeed(30, 0);
-                    HAL_Delay(15);
+                    HAL_Delay(20);
                     ROBOT_MoveSpeed(0, 0);
-                    HAL_Delay(25);
+                    HAL_Delay(20);
 
                   }
                 }
-                else if(cx < -15){
-                  for(uint8_t i = 0; i < 5; i++)
+                else if(cx < -5){
+                  //for(uint8_t i = 0; i < 5; i++)
                   {
+                    //速度不能太小，否则蠕动就乱动，x30合适
                     ROBOT_MoveSpeed(-30, 0);
-                    HAL_Delay(15);
+                    HAL_Delay(20);
                     ROBOT_MoveSpeed(0, 0);
-                    HAL_Delay(25);
+                    HAL_Delay(20);
                   }
                 }
                 else break;                                          //进容差带：对准完成
@@ -489,19 +494,27 @@ static void JieTi_Adjust_X(void){
 #define LIZHU_PIC_COOLDOWN_MS  1000U    //两次"停拍"的最短间隔(ms)：防同一目标连拍；0=不防
 #define LIZHU_VIS_HEAL_MS      100U     //串口2自愈+屏幕刷新的节拍(ms)
 
-/* ==================== ★★ 2026-09-29 新增：绕完一圈后的“原地夹取”任务 ★★ ====================
-   流程（就在绕完一圈的那个位置，先不走位、不转向；实现在 LiZhu_Circle_Run() 收尾调用的
-   LiZhu_PostCircleTask() 里 ⇒ “正式流程的立柱段”和“菜单里单独发指令7 / 单键测试绕圈”两边都会跑）：
-     ① 动作组110 → 等 LIZHU_POST_ACT_MS；② 视觉识别（要不要夹）→ 需要就 动作组113 + 等 LIZHU_GRAB_ACT_MS；
-     ③ 无论夹不夹都 动作组160 复位 + 等 LIZHU_RESET_ACT_MS → 发 0xA9 收尾本阶段。
-   下面的等待时间常量就是按现场标定的动作时长填的，动作组本身在舵机板上跑，这里只是等它跑完。 */
-#define LIZHU_POST_VIS        1         //1=绕完后再发一次 0xA4 让主视觉继续识别“要不要夹”
-                                        //  (绕圈末尾 LiZhu_Circle_Run 已发 0xA9 结束上一轮，不重发视觉可能不再发包)
+/* ==================== ★★ 2026-09-29 立柱段“识别中间 + 夹取中间”（★在绕圈【之前】做）★★ ====================
+   ★2026-09-30 流程调整：这段原来挂在 LiZhu_Circle_Run() 的收尾(绕完一圈之后)，现在按现场流程挪到
+     【转圈之前】——车校准到位、正对柱子之后先做“识别中间+夹取中间”，做完再绕圈。
+   整段实现在 LiZhu_MiddleGrab()（见它的函数头），流程：
+     ① 往前走 6cm 到柱子中间 → 动作组110(识别中间) → 等 LIZHU_MID_ACT_MS(2500ms)；
+     ② 视觉识别“中间要不要夹”（发 0xA4 + 在 LIZHU_MID_VIS_MS 内等一帧包，cmd≠0 = 要夹）→
+        需要就 动作组113(夹取中间) + 等 LIZHU_MID_GRAB_MS(5500ms)；不需要夹就直接跳过；
+     ③ 往后 6cm 退回原位 → 动作组104(切回“识别旁边”) → 等 LIZHU_MID_BACK_MS(2500ms) → 接着绕圈。
+   两个调用点、跑的完全是同一段代码：
+     · 正式流程的“立柱”段：校准完、LiZhu_Circle_Run() 之前；
+     · 菜单里单独发指令 7 测绕圈：LIZHU_MID_IN_CMD7=1 时先跑一遍（单测动作顺序和跑图一模一样）。
+   ★“单键测试立柱”(KEY0 选 LZ + KEY3)走的是 goto LIZHU_START 进立柱段，本来就会跑到这段，不用另加。
+   下面的等待时间就是按现场标定的动作时长填的，动作组本身在舵机板上跑，这里只是等它跑完。 */
+#define LIZHU_MID_VIS        1          //1=识别中间前发一次 0xA4 让主视觉开始识别(与绕圈同一套 UART2 协议)
                                         //  0=不重发握手(仍会等一帧实时包，收不到就按“不夹”处理)
-#define LIZHU_GRAB_VIS_MS    1000U      //绕完后等“要不要夹”这一帧包的总时限(ms)：超时/没帧=不夹
-#define LIZHU_POST_ACT_MS    2500U      //绕完后：动作组110(摆到识别位)的等待时间(ms)
-#define LIZHU_GRAB_ACT_MS    6500U      //绕完后：动作组113(夹取)的等待时间(ms)
-#define LIZHU_RESET_ACT_MS   4000U      //绕完后：动作组160(复位)的等待时间(ms)★夹不夹都要复位
+#define LIZHU_MID_IN_CMD7    1          //1=菜单里单独发指令7(测绕圈)时也先跑一遍“识别中间+夹取”
+                                        //  0=只绕圈(纯调绕圈参数时省掉前面这十几秒)
+#define LIZHU_MID_VIS_MS    1000U       //“中间要不要夹”等一帧包的总时限(ms)：超时/没帧=不夹
+#define LIZHU_MID_ACT_MS    2500U       //动作组110(识别中间)的等待时间(ms)
+#define LIZHU_MID_GRAB_MS   5200U       //动作组113(夹取中间)的等待时间(ms)★夹取动作约5.5秒
+#define LIZHU_MID_BACK_MS   2500U       //动作组104(切回“识别旁边”)的等待时间(ms)
 
 static uint32_t lizhu_vis_cnt = 0;      //本阶段累计收帧数
 static uint32_t lizhu_pic_cnt = 0;      //本阶段停下来拍了几次
@@ -589,7 +602,7 @@ static uint8_t LiZhu_VisionPoll(void){
   return hit;
 }
 
-/* 清残留帧 + 重启串口2接收（两个入口共用：进立柱 LiZhu_VisionStart / 绕完后重新识别 LiZhu_VisionReopen） */
+/* 清残留帧 + 重启串口2接收（两个入口共用：进立柱 LiZhu_VisionStart / 识别中间前重新握手 LiZhu_VisionReopen） */
 static void LiZhu_RxReopen(void){
   LiZhu_FlushVision();                                 //清掉上一阶段/上一轮留下的旧帧
   HAL_UART_AbortReceive(&huart2);                      //★强制复位重启，保证串口2真的在听
@@ -615,23 +628,24 @@ static void LiZhu_VisionStart(void){
   LiZhu_ShowComm();
 }
 
-/* ★2026-09-29：绕完一圈后的“再识别”握手。绕圈末尾 LiZhu_VisionStop 已发过 0xA9 结束上一轮，
-   这里再发一次 0xA4 请主视觉继续认“柱子这边要不要夹”；★各计数不清零，日志/屏幕仍是本阶段累计值。
-   ★只在 LIZHU_POST_VIS=1 时编译（关掉握手就不需要这个函数，免得 -Wall 报“定义了没用”） */
-#if LIZHU_POST_VIS
+/* ★2026-09-29：立柱段“识别中间”之前的握手(★2026-09-30 从“绕完后的再识别”改成转圈前用)。
+   绕圈自己那个 0xA4 在 LiZhu_Circle_Run() 里更晚才发，所以识别中间这一步得先发一次让主视觉开工；
+   ★各计数不清零，日志/屏幕仍是本阶段累计值。
+   ★只在 LIZHU_MID_VIS=1 时编译（关掉握手就不需要这个函数，免得 -Wall 报“定义了没用”） */
+#if LIZHU_MID_VIS
 static void LiZhu_VisionReopen(void){
   LiZhu_RxReopen();
-  lizhu_pic_cmd = 0;                                       //丢掉旧包的 cmd，别拿绕圈时的结论当这一轮的
+  lizhu_pic_cmd = 0;                                       //丢掉旧包的 cmd，别拿上一轮的结论当这一轮的
   lizhu_pic_t   = HAL_GetTick() - LIZHU_PIC_COOLDOWN_MS;
 
   UART2_Printf("%c", LIZHU_VIS_HEAD);                      //再发 0xA4
-  UART1_Printf("LZ TX 0xA4 -> V1(UART2) again (post-circle)\r\n");
+  UART1_Printf("LZ TX 0xA4 -> V1(UART2) again (middle)\r\n");
   LiZhu_ShowComm();
 }
-#endif  /* LIZHU_POST_VIS */
+#endif  /* LIZHU_MID_VIS */
 
-/* ★2026-09-29：绕完一圈后判“要不要夹”：清残留 → 在 wait_ms 内等一帧包 → cmd≠0 才算要夹。
-   判据与绕圈钩子里那一行完全一致(见 LiZhu_Circle_Run)；★等不到帧/超时/包都是 cmd=0 → 返回 0(不夹，照样复位)。
+/* ★2026-09-29：判“这一轮要不要夹”(现在用在立柱段“识别中间”那一步)：清残留 → 在 wait_ms 内等一帧包 → cmd≠0 才算要夹。
+   判据与绕圈钩子里那一行完全一致(见 LiZhu_Circle_Run)；★等不到帧/超时/包都是 cmd=0 → 返回 0(不夹，照常往下走)。
    等待期间顺带做串口2自愈(与绕圈里同一套)，视觉掉线也不会把这里卡死。 */
 static uint8_t LiZhu_NeedGrab(uint32_t wait_ms){
   lizhu_pic_cmd = 0;
@@ -648,33 +662,40 @@ static uint8_t LiZhu_NeedGrab(uint32_t wait_ms){
   return 0;
 }
 
-/* ★2026-09-29：绕完一圈后的“原地夹取”任务（★正式流程的立柱段 与 菜单里单独发指令7 都走这里）
-   就在绕完停下来的那个位置原地做，不插任何走位/转向：
-     ① 动作组110 摆到识别位 → 等 LIZHU_POST_ACT_MS(2500ms)；
-     ② 视觉识别“要不要夹”：再发一次 0xA4(LIZHU_POST_VIS=1 时；绕圈结束后主视觉已收到 0xA9，
-        不重新握手可能不再发包) → 在 LIZHU_GRAB_VIS_MS(1000ms) 内等一帧包，
-        cmd≠0 = 需要夹(判据与绕圈钩子里那个 107 完全相同)；等不到/超时/包是 cmd=0 → 按不夹处理；
-     ③ 需要夹 → 动作组113 夹取 → 等 LIZHU_GRAB_ACT_MS(6500ms)；不需要夹 → 直接跳过；
-     ④ ★无论夹不夹都跑动作组160 复位 → 等 LIZHU_RESET_ACT_MS(4s)。
-   串口1 每次打一行 “LZ post-circle need=0/1”。要改时长/时限就改上面那几个 LIZHU_* 常量。 */
-static void LiZhu_PostCircleTask(void){
-  runActionGroup(110, 1);                                 //① 摆到识别位
-  HAL_Delay(LIZHU_POST_ACT_MS);
+/* ★★ 2026-09-29：立柱段“识别中间 + 夹取中间”（★2026-09-30 从“绕完一圈之后”挪到“转圈【之前】”）
+   调用点两处、跑的是同一段代码：① 正式流程的“立柱”段(校准到位、LiZhu_Circle_Run() 之前)；
+                              ② 菜单里单独发指令7 测绕圈(LIZHU_MID_IN_CMD7=1 时先跑一遍，单测与跑图一致)。
+   就在车停在刚才校准出来的那个位置(正对柱子)上做，动作顺序：
+     ① 往前走 6cm 到柱子中间(对准中间那个方块) → 动作组110 摆到“识别中间”位 → 等 LIZHU_MID_ACT_MS(2500ms)；
+     ② 视觉识别“中间要不要夹”：先发一次 0xA4(LIZHU_MID_VIS=1 时；绕圈自己那个 0xA4 在 LiZhu_Circle_Run
+        里更晚才发，这里得先让主视觉开工) → 在 LIZHU_MID_VIS_MS(1000ms) 内等一帧包，cmd≠0 = 需要夹
+        (判据与绕圈钩子里那个 107 完全一致)；等不到/超时/包是 cmd=0 → 按不夹处理；
+     ③ 需要夹 → 动作组113 夹取中间 → 等 LIZHU_MID_GRAB_MS(5500ms)；不需要夹 → 直接跳过；
+     ④ 往后 6cm 退回原来的位置(绕圈就在这个位置起步) → 动作组104 切回“识别旁边” → 等 LIZHU_MID_BACK_MS(2500ms)。
+   串口1 每次打一行 “LZ middle need=0/1”。要改时长/时限就改上面那几个 LIZHU_MID_* 常量。 */
+static void LiZhu_MiddleGrab(void){
+  /* ① 往前走一小段到柱子中间，动作组110 摆到“识别中间”位 */
+  ROBOT_Move(0, 6, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+  runActionGroup(110, 1);                                 //识别中间动作
+  HAL_Delay(LIZHU_MID_ACT_MS);
 
-#if LIZHU_POST_VIS
-  LiZhu_VisionReopen();                                   //② 再发 0xA4：请主视觉继续识别
+#if LIZHU_MID_VIS
+  LiZhu_VisionReopen();                                   //② 发 0xA4：请主视觉开始识别“中间”
 #endif
   {
-    uint8_t lz_need = LiZhu_NeedGrab(LIZHU_GRAB_VIS_MS);  //   等一帧包判“要夹/不夹”
-    UART1_Printf("LZ post-circle need=%u\r\n", (unsigned)lz_need);
+    uint8_t lz_need = LiZhu_NeedGrab(LIZHU_MID_VIS_MS);    //   等一帧包判“要夹/不夹”
+    UART1_Printf("LZ middle need=%u\r\n", (unsigned)lz_need);
     if(lz_need){
-      runActionGroup(113, 1);                             //③ 夹取
-      HAL_Delay(LIZHU_GRAB_ACT_MS);
+      runActionGroup(113, 1);                             //③ 夹取中间
+      HAL_Delay(LIZHU_MID_GRAB_MS);
     }
   }
 
-  runActionGroup(160, 1);                                 //④ 复位(夹不夹都做)
-  HAL_Delay(LIZHU_RESET_ACT_MS);
+  /* ④ 退回原位 + 切回“识别旁边”(夹不夹都做)；回到原位后就由调用点接着绕圈 */
+  ROBOT_Move(0, -8, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+  
+  runActionGroup(104, 1);                                 //识别旁边(识别状态)
+  HAL_Delay(LIZHU_MID_BACK_MS);
 }
 
 /* 立柱结束：发 0xA9(绕完一圈发；丢测距提前退出也发) */
@@ -702,7 +723,10 @@ static void LiZhu_VisionStop(void){
      激光抖 → LAS_YAW 调小，偏了不回来 → 调大；两路都开互相打架就先关一路。
    ★靠柱那对前轮天生慢(0.18×V_TAN)：绕圈几何决定，不是故障；V_TAN<8 才真推不动。
    串口每200ms一行：d=测距mm e=半径误差mm(正=远) l4/r2=左右激光 vx/vy=切向/径向(0.1cm/s)
-                     w=角速度×100 yaw=已绕角度°(不涨=卡住；355° 该停) */
+                     w=角速度×100 yaw=已绕角度°(不涨=卡住；355° 且起圈满 CIRCLE_MIN_MS(10s) 才停) fb=测距校准是否在用
+   ★测距可信度门(2026-10-01)：读数“很奇怪”(出 80~220mm 窗口 / 窗内一步跳 > RAD_JUMP_CM)连续 RAD_BAD_N 次
+     → 自动关掉测距校准(vy 不修、d_cm 冻结，只靠开环圆+激光纠偏继续绕)，连续 RAD_OK_N 次正常再自动打开；
+     只有“真·丢目标(一直出窗口)”连续 LOST_STOP_MS(5s) 才 LOST! stop 保护停车。开关各打一行 dist fb OFF/ON */
 
 static void LiZhu_Circle_Run(void)
 {
@@ -733,6 +757,21 @@ static void LiZhu_Circle_Run(void)
   const float D_ALPHA     = 0.5f;           // 测距一阶低通系数（压掉 GY-53 的 ±5~10mm 抖动）
   const float GY53_2_OFFSET_CM = 14.0f;     // 前测距(GY53_2)到车心纵向距离 cm(几何常数)
   const float PIPE_RADIUS_CM   = 4.0f;      // 柱子半径 4cm(外径8；几何常数)
+
+  /* ===== ④ 测距可信度门（★2026-10-01 新增，只对 FB_DIST=1 生效）：读数“很奇怪”就自动关掉测距校准 =====
+     “奇怪读数”两种：① 出窗口 80~220mm（丢目标/超量程，GY53 无回波时直接返回 2000）；
+                      ② 在窗口内、但相对低通值一步跳 > RAD_JUMP_CM（这一步直接丢，坏值不进低通）；
+                        ★只有“测距校准已被关掉”时才放宽：与上一拍原始值相同的读数算“真变化”可以采纳，
+                          所以门不会永远锁死（读数稳定下来就会自动开回来）。
+     连续 RAD_BAD_N 次奇怪 → d_use=0：这段时间不做径向修正(vy 不给)、d_cm 冻结，
+                            车头仍按开环圆 + 激光纠偏继续绕（不会因为一个坏值把车推跑）；
+     连续 RAD_OK_N  次正常 → d_use=1 自动恢复测距校准（要连续正常，避免好坏交替时来回抖）。
+     ★开关各打一行串口1(`dist fb OFF/ON`)，现场一眼能看到什么时候关的、什么时候回来的。
+     ★真·丢目标(一直出窗口)的保护停车单独计时：LOST_STOP_MS 秒都没回来才 `LOST! stop`。 */
+  const float    RAD_JUMP_CM  = 4.0f;       // 单步跳变上限 cm：一步(≈100ms)真距离最多变 0.3cm(V_RAD/10)，跳 >4cm 必是杂散
+  const uint8_t  RAD_BAD_N    = 3;          // 连续几次“奇怪读数”就关掉测距校准
+  const uint8_t  RAD_OK_N     = 2;          // 连续几次正常读数就自动恢复
+  const uint32_t LOST_STOP_MS = 5000U;      // 真·丢目标(出窗口)连续多久才保护停车 ms；0 = 不保护(一直开环绕)
 
   /* ★靠柱那对前轮天生很慢(0.18×V_TAN)：绕圈几何决定，不是故障；V_TAN<8 才真推不动 */
   float v_tan  = V_TAN;                                         // 切向速度 cm/s（= 旋钮值，不做任何隐藏修改）
@@ -768,10 +807,15 @@ static void LiZhu_Circle_Run(void)
   uint16_t d_ref    = d_ok[n/2];                // 目标测距 mm（= 开圈那一刻的半径）
   float    d_ref_cm = (float)d_ref / 10.0f;     // 目标测距 cm
   float    d_cm     = d_ref_cm;                 // 当前测距 cm（低通后的；无效读数保持上次值）
+  float    d_prev   = d_ref_cm;                 // 上一拍“窗口内”的原始测距 cm（判“真跳变”用，见下面可信度门）
 
   /* ===== 开圈前把配置打到串口，一眼确认"这次到底开了什么" ===== */
   UART1_Printf("cfg: V_TAN=%d W_TURN=%d -> r~%dcm | V_RAD=%d | fb dist=%d laser=%d\r\n",
                (int)V_TAN, (int)W_TURN, (int)r_knob, (int)V_RAD, FB_DIST, FB_LASER);
+  if(FB_DIST) UART1_Printf("rad gate: bad x%u -> OFF | ok x%u -> ON | jump>%dcm | lost %us -> stop\r\n",
+                           (unsigned)RAD_BAD_N, (unsigned)RAD_OK_N,
+                           (int)RAD_JUMP_CM, (unsigned)(LOST_STOP_MS / 1000U));
+
   /* ★半径对照：车心到柱轴 = 测距+14+4 = 35cm —— 这行直接告诉你本圈 W_TURN 该填多少 */
   if(have_ref){
     float r_tgt = d_ref_cm + GY53_2_OFFSET_CM + PIPE_RADIUS_CM;
@@ -793,23 +837,62 @@ static void LiZhu_Circle_Run(void)
 
   float yaw_last = HWT101CT_Data.yaw;           // 起点朝向（此时车头正对柱子）
   float yaw_acc  = 0.0f;                        // 陀螺仪累积转角°=已绕角度(车头一直跟着柱子转)
-  uint8_t  lost      = 0;                       // 连续无效测距计数
+  uint32_t lost0     = 0;                       // 开始连续“丢目标(读数出窗口)”的时刻；0 = 当前没丢(保护停车计时用)
   uint8_t  lost_stop = 0;                       // 丢目标保护停车标志
+  uint8_t  d_use     = 1;                       // 测距校准使能(可信度门的输出)：1=允许用 d_cm 做径向修正
+  uint8_t  d_bad     = 0;                       // 连续“奇怪读数”计数(攒够 RAD_BAD_N 就关测距校准)
+  uint8_t  d_good    = 0;                       // 连续正常读数计数(攒够 RAD_OK_N 就自动恢复)
   uint32_t t_prt     = HAL_GetTick();           // 打印节拍
+
+  /* ★2026-09-30：绕满一圈的判据改成【角度 + 时间】双条件 —— 陀螺仪在刚起步那几拍可能跳变(基准没稳/上一段
+     残留值)，yaw_acc 会“凭空”攒到 355° → 车还没开始转就以为绕完了。所以记下起圈时刻，角度判据必须
+     等到 (HAL_GetTick()-t_circle) ≥ CIRCLE_MIN_MS 之后才算数；正常整圈约 22s，这堵墙不会误伤。 */
+  const uint32_t CIRCLE_MIN_MS = 10000U;        // 起圈到停车的【最短】时间 ms（不到它，角度到 355° 也不停）
+  uint32_t t_circle = HAL_GetTick();            // 起圈时刻（时间判据的起点）
 
   /* ===== 视觉通信开始：清残留→重启串口2接收→发 0xA4（放这里是因为“静止采测距定参考”要先跑完，同“到位才发0xA2”）===== */
   LiZhu_VisionStart();
 
-  while(fabsf(yaw_acc) < 355.0f){           // 绕满一整圈
-    /* ===== 读一次测距(显示+测距反馈都用)：有效窗口 80~220mm，丢目标/杂散保持上次值；只有 FB_DIST=1 才做连续20次保护停车；杂散靠“固定斜率+V_RAD封顶”消化 ===== */
+  while(!(fabsf(yaw_acc) >= 355.0f && (HAL_GetTick() - t_circle) >= CIRCLE_MIN_MS)){
+                                            //★绕完=双判据：累计转角≥355° 且 起圈已满 CIRCLE_MIN_MS(10s)，缺一不停
+    /* ===== 读一次测距：先过“可信度门”再用(① 留 80~220mm 窗口 ② 窗内单步跳变限幅) =====
+       ★2026-10-01：奇怪读数连续 RAD_BAD_N 次 → 自动关掉测距校准(d_use=0：vy 不修、d_cm 冻结)，
+       连续 RAD_OK_N 次正常 → 自动恢复；只有“真·出窗口”连续 LOST_STOP_MS 才保护停车。 */
     uint16_t dd = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);
-    if(dd >= 80 && dd <= 220){
+    float    d_new    = (float)dd / 10.0f;                                     // 本拍原始测距 cm
+    uint8_t  d_in     = (dd >= 80 && dd <= 220) ? 1 : 0;                       // ① 在有效窗口内？
+    /* ② “跳变”判据：与低通值差 > RAD_JUMP_CM 就算（这一步就完全挡住，坏值不进低通、不污染 d_cm）；
+          ★只有“测距校准已经被关掉”时才放宽成“且与上一拍原始值也差 > RAD_JUMP_CM”——
+            连续两拍同一个值 = 读数真变了(不是杂散)，可以被采纳 ⇒ 门能自动开回来，不会永远锁死。 */
+    float    d_jump   = fabsf(d_new - d_cm);
+    if(!d_use && fabsf(d_new - d_prev) <= RAD_JUMP_CM) d_jump = 0.0f;          // 门关着 + 与上一拍原始值一致 ⇒ 认它是真值
+    uint8_t  d_bad_pt = (uint8_t)(!d_in || d_jump > RAD_JUMP_CM);
+    if(d_in) d_prev = d_new;                                                   // 窗口内的原始值都要记(判下一拍“真变化”)
+    if(!d_bad_pt){
+      if(d_good < 255U) d_good++;
+      if(d_good >= RAD_OK_N){
+        d_bad = 0;
+        if(!d_use){                                                            // 读数恢复正常 → 自动打开测距校准
+          d_use = 1;
+          UART1_Printf("dist fb ON (d=%umm yaw=%d)\r\n", (unsigned)dd, (int)fabsf(yaw_acc));
+        }
+      }
       d_cm = d_cm + D_ALPHA * ((float)dd / 10.0f - d_cm);   // 一阶低通(几十 ms 滞后，可忽略)
-      lost = 0;
-    }else if(FB_DIST && ++lost >= 20){
-      lost_stop = 1; break;
+      lost0 = 0;
+    }else{
+      d_good = 0;
+      if(d_bad < 255U) d_bad++;
+      if(d_bad >= RAD_BAD_N && d_use){                                         // 连续奇怪 → 临时关掉测距校准
+        d_use = 0;
+        UART1_Printf("dist fb OFF (raw=%umm bad=%u yaw=%d)\r\n",
+                     (unsigned)dd, (unsigned)d_bad, (int)fabsf(yaw_acc));
+      }
+      if(!d_in && FB_DIST && LOST_STOP_MS > 0U){                               // 真·丢目标(出窗口)才计时保护；杂散不算
+        if(lost0 == 0) lost0 = HAL_GetTick();
+        else if((HAL_GetTick() - lost0) >= LOST_STOP_MS){ lost_stop = 1; break; }
+      }
     }
-    /* ★读数出窗口时 d_cm 保持上次值不更新：串口看到“d=80 卡住、l4/r2 在闪”是读数被丢了，不是半径稳住了 */
+    /* ★读数被丢时 d_cm 保持上次值不更新：串口看到“d=80/2000 卡住、l4/r2 在闪”是读数被丢了，不是半径稳住了 */
     float e = d_cm - d_ref_cm;                              // 半径误差 cm（正 = 离柱子比目标远）
 
     /* ===== 读两个激光(仅串口显示；纠不纠由 FB_LASER 决定)：正对柱子应一直 1 1 ===== */
@@ -821,8 +904,10 @@ static void LiZhu_Circle_Run(void)
     float vy = 0.0f;                                        // 径向：默认不动
     float w  = w_base;                                      // 车头摆速：开环基准(r=V_TAN/W_TURN 靠它)
 
-    /* ===== ② 测距反馈：偏大→往前靠、偏小→往后退(调 v_y)；±3mm 死区内不动 ===== */
-    if(FB_DIST){
+    /* ===== ② 测距反馈：偏大→往前靠、偏小→往后退(调 v_y)；±3mm 死区内不动 =====
+             ★d_use=0(可信度门判定“读数很奇怪”)时整条跳过：这几拍不加径向速度，先按开环圆走，
+               等读数连续正常 RAD_OK_N 次会自动恢复(见上面的读数处理)。 */
+    if(FB_DIST && d_use){
       float u = e / RAD_FULL_CM;                            // 归一化：±1 封顶 = 满幅
       if(u >  1.0f)      u =  1.0f;
       else if(u < -1.0f) u = -1.0f;
@@ -851,10 +936,10 @@ static void LiZhu_Circle_Run(void)
 
     /* 测距打印(每200ms，LIZHU_DIST_LOG=1 才打)：d=测距mm e=误差mm l4/r2=激光 vx/vy=速度 w yaw° */
     if(LIZHU_DIST_LOG && HAL_GetTick() - t_prt >= 200){
-      UART1_Printf("d=%d e=%d l4=%d r2=%d vx=%d vy=%d w=%d yaw=%d\r\n",
+      UART1_Printf("d=%d e=%d l4=%d r2=%d vx=%d vy=%d w=%d yaw=%d fb=%d\r\n",
                    (int)(d_cm * 10.0f), (int)(e * 10.0f), l4, r2,
                    (int)(vx * 10.0f), (int)(vy * 10.0f),
-                   (int)(w * 100.0f), (int)fabsf(yaw_acc));
+                   (int)(w * 100.0f), (int)fabsf(yaw_acc), (int)d_use);
       t_prt = HAL_GetTick();
     }
 
@@ -903,15 +988,13 @@ static void LiZhu_Circle_Run(void)
   chassis.y_set_speed_flag = 0;
   flag.angle = 1;
   chassis.target_yaw = YAW_TARGET_NONE;
-  if(lost_stop) UART1_Printf("LOST! stop\r\n");
-  else          UART1_Printf("circle done (yaw=%d)\r\n", (int)fabsf(yaw_acc));
+  uint32_t t_used = (HAL_GetTick() - t_circle) / 1000U;   // 本圈实耗时(s)：配合 yaw 一眼看出是不是“早早被判绕完”
+  if(lost_stop) UART1_Printf("LOST! stop (t=%us yaw=%d)\r\n", (unsigned)t_used, (int)fabsf(yaw_acc));
+  else          UART1_Printf("circle done (yaw=%d t=%us)\r\n", (int)fabsf(yaw_acc), (unsigned)t_used);
 
-  /* ★2026-09-29：绕完一圈后的“原地夹取”任务(110 → 视觉识别 → 需要就113 → 160复位)就挂在这里：
-     所以【正式流程的立柱段】和【菜单里单独发指令 7 / 单键测试】调的都是同一段代码，两边都有这一段。
-     它必须在 LiZhu_VisionStop()(发 0xA9) 之前跑，因为那里面要视觉继续认“要不要夹”。
-     要单测夹取动作本身，就把 LIZHU_POST_VIS 设 0(不重发 0xA4，仍会等一帧实时包)或临时注释这一行。 */
-  LiZhu_PostCircleTask();
-
+  /* ★★ 2026-09-29 加过、2026-09-30 又挪走的“识别中间+夹取中间”：原来挂在本函数收尾(绕完一圈之后)，
+     按现场流程挪到转圈【之前】了 —— 见 LiZhu_MiddleGrab()(在立柱段里、本函数之前调用)。
+     所以本函数绕完就发 0xA9 收尾，不再插夹取任务。 */
   LiZhu_VisionStop();                        //★发 0xA9 通知主视觉(本轮识别结束；丢测距提前退出也发)
 }
 
@@ -1243,6 +1326,13 @@ static uint8_t UART1_DebugCmd(void){
     /* 直接调立柱阶段那个函数(和立柱阶段同一套代码，方便先单独测)：
            开圈发 0xA4 → 边绕边收包(A3 也算) → “要拍”就停车跑动作组 107 → 绕完发 0xA9；
            ★菜单里发 7 会连立柱视觉通信一起跑，单测时记得把视觉接上。 */
+#if LIZHU_MID_IN_CMD7
+    /* ★2026-09-30：正式流程里“识别中间+夹取中间”是在转圈【之前】做的(见 LiZhu_MiddleGrab 函数头)，
+       菜单里单独发 7 测绕圈时也先跑一遍，这样单测的动作顺序和跑图一模一样；
+       只想纯调绕圈参数(省掉前面这十几秒)就把 LIZHU_MID_IN_CMD7 设 0。 */
+    UART1_Printf("lizhu middle grab (pre-circle)\r\n");
+    LiZhu_MiddleGrab();
+#endif
     LiZhu_Circle_Run();
     UART1_Printf("lizhu circle done\r\n");
     return 1;
@@ -1447,8 +1537,11 @@ int main(void)
 
 /******************************上电测试位置******************************/
 /*
-for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(0,20); HAL_Delay(20); ROBOT_MoveSpeed(0,0); }
+for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(20,0); HAL_Delay(15); 
+                          ROBOT_MoveSpeed(0,0); HAL_Delay(25);}
 */
+
+
 
 //JieTi_Adjust_X();   //★要上电单独测校准就调 X/Y 这两个(旧名 JieTi_Adjust() 不存在，会链接不过)
 
@@ -1672,7 +1765,7 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(0,20); HAL_Delay(20); ROBOT_MoveSpeed(
     runActionGroup(1, 1);//不需要延时，因为和出发一起
     
     //先盲走到圆盘机中心+面向(★长距档 120/120)
-    ROBOT_Move(mode_red?-88:88,420,SPD_LONG_V,SPD_LONG_V,SPD_LONG_A,SPD_LONG_A);//58太靠右
+    ROBOT_Move(mode_red?-88:88,424,SPD_LONG_V,SPD_LONG_V,SPD_LONG_A,SPD_LONG_A);//58太靠右
     /* ★2026-09-20 新底盘：ROBOT_Move / ROBOT_Angle 都是阻塞式，且 ROBOT_Angle 会等到
            “航向到位 且 四轮真正停稳”才返回 —— 后面不用再补 HAL_Delay(100) 提高稳定性了 */
     mode_red ? ROBOT_Angle(270) : ROBOT_Angle(90);
@@ -1852,9 +1945,7 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(0,20); HAL_Delay(20); ROBOT_MoveSpeed(
           runActionGroup(151, 1);
           HAL_Delay(1000);
       
-          runActionGroup(160, 1);  // 收起机械臂
-          //不需要延时，和跑图一起
-          break;
+          break;//收起机械臂不能放这里，因为会直接break出去了
         }
 
         memset(CAM_Data, 0, sizeof(CAM_Data));         // 清空上一帧数据
@@ -1971,7 +2062,8 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(0,20); HAL_Delay(20); ROBOT_MoveSpeed(
       //退后固定距离(★短距 25cm：20/30)
       ROBOT_Move(0,-20,SPD_SHORT_V,SPD_SHORT_V,SPD_SHORT_A,SPD_SHORT_A);
       //收起机械臂
-      //重复了runActionGroup(160, 1);
+      runActionGroup(160, 1);  // 收起机械臂
+      //不需要延时，和跑图一起
       //向左平行到仓库(★长距档 120/120)
       ROBOT_Move(mode_red ? -190 : 195,0,SPD_SHORT_V,SPD_SHORT_V,SPD_SHORT_A,SPD_SHORT_A);//蓝要多走一点
       //转身(ROBOT_Move 已阻塞到车停稳，不用再补 HAL_Delay(100))
@@ -2049,7 +2141,7 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
         //右+前移动到阶梯附近:要往右多走点不然会撞；y160太远不利于视觉识别(★长距档 120/120)
         //要拆开两段走，否则会撞到：先走x后走y
         ROBOT_Move(80, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
-        ROBOT_Move(0, 128, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+        ROBOT_Move(0, 129, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
 
         //向左慢走，直到前面的两个光电都感应到障碍物(右2坏了/左4拆了，复用立柱的)，4左2右
         ROBOT_MoveSpeed(-SPD_AVG_V, 0);   //★匀速靠近：SPD_AVG_V
@@ -2067,7 +2159,7 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
 
         //往左走一定距离，视觉里能完整看到两个字母(可省去测距前后校准)(★短距 40cm：20/30)
         //短距档太快速会走斜，不要100速度，50还算可以
-        ROBOT_Move(-45, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+        ROBOT_Move(-43, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
         //停车准备识别
         ROBOT_MoveSpeed(0,0);
 
@@ -2244,6 +2336,12 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
 
         /*激光校准，往右 5cm（激光刚离开时位置偏左,不往右测距出去了）*/
         ROBOT_Move(7, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+        mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));
+        HAL_Delay(100);
+
+        /* ---- M5.1 机械臂到识别位 ---- */
+        runActionGroup(54, 1);
+        HAL_Delay(2000);
 
         /* ---- 到位②：走近阶梯，前测距到 90mm 就停 ---- */
         ROBOT_MoveSpeed(0, SPD_AVG_V);
@@ -2251,13 +2349,18 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
                     那一刻车还会再往前冲 ≈2cm；提前量补上，停稳后就正好落在 90mm 附近。
                     （这里只是“从远处走到车能看清单个坑”的粗到位；后面第1~8坑都按
                       JIETI_FWD_TARGET_MM 再做一次前后校准(M2)，第1坑也不例外） */
-        WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > (JIETI_FWD_TARGET_MM + 20),
+        WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > 100,     //这里不能用70，会顶住,90也顶
                    "JIETI walk-to-ladder(stop at 110mm=90+lead20)");
-        ROBOT_MoveSpeed(0, 0);
+        HAL_Delay(200);
 
-        /* ---- M5.1 机械臂到识别位 ---- */
-        runActionGroup(54, 1);
-        HAL_Delay(2000);
+       WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > (JIETI_FWD_TARGET_MM + 20),
+                  "JIETI walk-to-ladder(stop at 110mm=90+lead20)");
+
+        //防止车子斜测距对空
+          
+        ROBOT_MoveSpeed(0, 0);
+        
+        mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));
 
         /* ---- M1.4 视觉通信：清残留帧 → 发 0xA3 告诉主视觉"进阶梯阶段"（之后它会按 A3 包上报每个物块的 cmd）----
              ★发完先等 300ms：视觉切到“阶梯上报节奏”要一点时间，而第1坑紧接着就读 cmd(M1.5)，
@@ -2284,14 +2387,16 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
             int32_t step_cm = (idx == 3 || idx == 7) ? JIETI_STEP_CROSS_CM : JIETI_STEP_CM;
             ROBOT_Move(step_cm, 0, JIETI_STEP_SPEED, 0, JIETI_STEP_ACC, 0);
             HAL_Delay(750);                       //停稳再校准
+            mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));
           }
 
           /* ---- M2 逐坑校准：★第1~8坑都做（先左右后前后），跟“这一坑要不要夹”无关 ---- */
           JieTi_FlushVision();                  //先清掉走位途中的旧帧：校准只看停下来之后的新帧
-          JieTi_Adjust_X();                     //先校准左右：视觉x，容差30（等不到帧/坐标填0 → 内部跳过，不动）
+          JieTi_Adjust_X();                     //先校准左右：视觉x，容差+-5（等不到帧/坐标填0 → 内部跳过，不动）
           HAL_Delay(750);
           JieTi_Adjust_Y(JIETI_FWD_TARGET_MM);  //再校准前后：前测距，容差20
           HAL_Delay(750);
+          mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));
 
           /* ---- M1.5 读这一坑"夹不夹"：先按"不夹"，清掉校准期间的旧帧，再等一帧 cmd ----
              （视觉协议：帧里坐标可能填0(没目标也会发帧，见文件头)→“等不到/坐标0”一律按不夹处理）
@@ -2326,9 +2431,9 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
           if(need){
             uint8_t act = (idx <= 2) ? 57 : ((idx <= 6) ? 60 : 63);   //57矮 / 60高 / 63中阶梯
             runActionGroup(act, 1);
-            delay_ms(7500);                          //夹取动作约7.5秒(矮阶梯更慢)
+            delay_ms(5500);                          //夹取动作约5.5秒(矮、高阶梯5000，中3800)
             runActionGroup(66, 1);                   //夹完回到识别状态
-            delay_ms(3000);                          //识别动作约3秒
+            delay_ms(3000);                          //回识别动作约3秒
             JieTi_FlushVision();                     //清掉夹取期间滞留的旧帧
           }
         }
@@ -2387,24 +2492,30 @@ LIZHU_START:
               HAL_Delay(50);                                       //每次检测间隔 50ms
             }
           }
+
+          HAL_Delay(100);//多走一小段
+          
           ROBOT_MoveSpeed(0.0f, 0.0f);                      //停车
 
           ROBOT_MoveSpeed(0.0f, 5.0f);                      //② 向前慢逼近到 200mm，180也太远
           WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > 170U,
                      "LiZhu front distance -> 170mm");
-          ROBOT_MoveSpeed(0.0f, 0.0f);                      //停车，准备转圈
+          ROBOT_MoveSpeed(0.0f, 0.0f);                      //停车，准备往前走识别中间方块
 
-          runActionGroup(104, 1);//识别状态
-          HAL_Delay(2500);
+          /* ==================== ★★ 立柱段：识别中间 + 夹取中间（★在绕圈【之前】做）★★ ====================
+             顺序：往前走 6cm 到柱子中间 → 动作组110(识别中间) → 视觉识别“中间要不要夹”
+                   → 需要就 动作组113 夹取中间(等 5.5s) → 往后 6cm 退回原位 → 动作组104(识别旁边)。
+             整段都在 LiZhu_MiddleGrab() 里(函数头有逐条说明)；菜单里单独发指令7 测绕圈时也会先跑一遍
+             (LIZHU_MID_IN_CMD7=1)，这样单测的动作顺序与正式跑图完全一致。 */
+          LiZhu_MiddleGrab();
 
           //立柱转圈（2026-09-26 重写：开环三旋钮 + 测距/激光两路可选反馈，见 LiZhu_Circle_Run 函数头）
           //★前提：车头已经正对着柱子（函数开头就是静止采测距定参考距离）
           LiZhu_Circle_Run();
 
-          /* ★★ 2026-09-29：绕完一圈后的“原地夹取”任务(动作组110 → 视觉识别 → 需要就113 → 160复位)
-             ★不写在这里：它已经挂进 LiZhu_Circle_Run() 的收尾(绕圈循环之后、发 0xA9 之前)，这样
-               【正式流程的立柱段】和【菜单里单独发指令 7 / 单键测试绕圈】跑的是同一段代码，两边都会夹。
-               顺序/时长/开关见该函数头 + “立柱阶段：视觉通信”那一段的 LIZHU_POST_* 常量(main.c:492~503)。
+          /* ★★ 2026-09-30：绕完一圈后这里【不再】做“识别中间+夹取中间”和复位 ——
+             那几步已经按现场流程挪到转圈【之前】跑完了(见上面 LiZhu_Circle_Run() 之前那句
+             LiZhu_MiddleGrab() 调用，顺序/时长/开关见 “立柱段：识别中间+夹取中间” 那一段 LIZHU_MID_* 常量)。
              ★本段下面(原来的 HAL_Delay(1000) + ROBOT_Angle(Yaw_Abs(90)) + 走到仓库倒方块)顺序不变。 */
 
           /*
@@ -2421,8 +2532,25 @@ LIZHU_START:
 
           HAL_Delay(1000);
 
+          runActionGroup(101, 1);//举起
+          HAL_Delay(1000);
+
           //转完一圈，纠正角度
           ROBOT_Angle(Yaw_Abs(90));//车子前面朝右
+
+          //后退，为左右摆方块下来做准备
+          ROBOT_Move(0, -30, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+
+          //高速移动把方块弄下来
+          ROBOT_Move(100, 0, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
+          HAL_Delay(200);
+          ROBOT_Move(0, 100, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
+          HAL_Delay(200);
+          ROBOT_Move(0, -100, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
+          HAL_Delay(200);
+          ROBOT_Move(-100, 0, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
+          HAL_Delay(200);
+
 
           //先后退到合适距离
           /* ★9.25 修方向：原来是 +SPD_AVG_V(v_y>0=前进)，但注释写“后退”、判据又是“后测距(GY53_1)
@@ -2432,6 +2560,8 @@ LIZHU_START:
           WAIT_WHILE(GY53_GetDistance_PWM(GY53_1_GPIO_Port, GY53_1_Pin)>45,
                  "LiZhu back-to-wall(mm<=45)");
 
+          runActionGroup(160, 1);//复位
+          
           //向左慢平移到左后光电感应到无障碍物，之后再往右走固定距离(刚到仓库中间的距离)
           ROBOT_MoveSpeed(-5, 0);   //★匀速靠近：SPD_AVG_V
           
@@ -2445,20 +2575,20 @@ LIZHU_START:
           }
           
           ROBOT_MoveSpeed(0,0);
-          ROBOT_Move(30, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+          ROBOT_Move(32, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
 
           ROBOT_Angle(Yaw_Abs(90));//校准一下
           
           //这里放倒方块的代码
-          runActionGroup(16, 1);//倒方块动作组(复用圆盘机)
+          runActionGroup(116, 1);//快倒方块动作组
           HAL_Delay(200);//倒方块动作约200ms
 
+          //先负后正，防止往前走
           for(uint8_t i = 0; i < 3; i++)
           {
-            ROBOT_MoveSpeed(0, 30);
-            HAL_Delay(90);
             ROBOT_MoveSpeed(0, -30);
-            //往后速度稍微大点，抵消掉往前的一小点位移
+            HAL_Delay(90);
+            ROBOT_MoveSpeed(0, 30);
             HAL_Delay(90);
           }
           ROBOT_MoveSpeed(0, 0);
@@ -2497,6 +2627,12 @@ HUIJIA_START:
           //往后多走一点(★长距档 120/120)，必须保证前后在左右移动后能进入红/蓝区域
           ROBOT_Move(mode_red ? 28 : -28, -228, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);//60，-240能进
 
+          //走固定距离回家
+          //ROBOT_Move(mode_red ? 43 : -43, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+
+//暂时写死，颜色传感器不好用
+//可以在这里加个开关，调试时直接跳过颜色传感器校准，直接走回家
+  if(1){
       /*先校准左右再校准前后，左右走可能会抖，而且前后比左右的反馈更准
           注意！！！必须先让颜色传感器在左右移动之后一定能进入红/蓝区域，
           即前后距离必须能确保在红/蓝区域内（在哪里无所谓，后面再校准）
@@ -2520,7 +2656,7 @@ HUIJIA_START:
 
     //进入红/蓝后，继续向右/左多走 7cm，确保停在红/蓝区域内部（避免停在边缘抖动；距离按区域宽度调整），而且确保车身左右都在红/蓝区域内
     //★短距档 40/50（2026-09-27 统一改用宏；7cm 三角波峰值 √(50×7)=19cm/s，若现场发现走不到位，把这里的第5/6个参数(a)单独加大到 100~200）
-    ROBOT_Move(mode_red ? 9 : -9, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+    ROBOT_Move(mode_red ? 10 : -10, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
     
     //往前走，走到颜色传感器一定在黑色区域内（同样连续3次确认）
     ROBOT_MoveSpeed(0, SPD_AVG_V);   //★匀速靠近：SPD_AVG_V
@@ -2555,7 +2691,11 @@ HUIJIA_START:
     //  仍在起转阈值边缘 ⇒ 若现场发现这条走不动，把它第5/6个参数(a)单独加大到 200，峰值就有 24cm/s）
     ROBOT_Move(0, -3, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
     ROBOT_MoveSpeed(0, 0);
-        }
+        
+}//if(0)的尾括号
+  
+  
+  }//这个大括号是回家那个if的
       }
 
     }
@@ -2571,7 +2711,10 @@ HUIJIA_START:
     //       测距反馈(FB_DIST=1)：测距偏大→往前靠、偏小→往后退，满幅 3cm 误差 → v_y=V_RAD cm/s
     //       双激光反馈(FB_LASER=1)：左4右2，一个有一个没有=横向偏了 → 摆速加 LAS_YAW、切向速度加 LAS_TAN
     //       两个开关都置 0 = 纯开环（只有三个旋钮）
-    //  串口(200ms/条)：d=测距mm e=径向误差mm l4/r2=左/右激光 vx=切向速度 vy=径向速度(0.1cm/s) w=角速度×100 yaw=已绕角度(°)
+    //  串口(200ms/条)：d=测距mm e=径向误差mm l4/r2=左/右激光 vx=切向速度 vy=径向速度(0.1cm/s) w=角速度×100 yaw=已绕角度(°) fb=测距校准1/0
+    //  测距可信度门(★2026-10-01)：读数出 80~220mm 窗口 或 窗内一步跳 > RAD_JUMP_CM 都算“很奇怪”，连续 RAD_BAD_N 次就自动关掉
+    //       测距校准(vy 不修、d_cm 冻结，开环圆+激光继续绕)，连续 RAD_OK_N 次正常自动恢复(串口打 dist fb OFF/ON)；
+    //       真·丢目标(一直出窗口)连续 LOST_STOP_MS(5s) 才 LOST! stop 保护停车（原来是“连续20次无效”≈1.3s，太容易误停）
 
     // /* 原“每100ms打印角度环数据(目标/实际/输出w + 里程计x/y) 并解析串口调参指令”的调试代码已删：
     //      角度环 kp/ki/kd/target、vx/vy、mx/my、mv/mvacc 等调参现在走 UART1_DebugCmd / SerialPlot */
