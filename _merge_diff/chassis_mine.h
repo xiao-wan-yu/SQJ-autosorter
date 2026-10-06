@@ -54,21 +54,35 @@ typedef enum {
      改之前只有 kp 分档，ki/kd/bias 是三档共用的 —— 调平移档会把旋转档一起带坏。
    档位由控制循环按"有没有平移"+"合速度"自动选，调用侧无需指定：
      旋转档     no_move（v_x≈0 且 v_y≈0）：原地转向 / 被推动后纠偏 —— 要快，kp 该猛
-     不介入     max(|vx|,|vy|) < YAW_MOVE_MIN_SPEED 的平移：角度环 w 恒为 0，完全不管航向
      低速平移档 该值在 [YAW_MOVE_MIN_SPEED, YAW_KP_LOW_SPEED_BOUND] —— 走直线纠偏要柔
+                ★ 2026-09-27 用户要求：0~20cm/s 的平移也走本档（用下面 YAW_MOVE_LO_* 那套
+                  参数）⇒ YAW_MOVE_MIN_SPEED 定为 0，只要在平移就必落本档，"不介入"不再出现
      高速平移档 该值 >  YAW_KP_LOW_SPEED_BOUND
+     （原"不介入"档：max(|vx|,|vy|) < YAW_MOVE_MIN_SPEED 的平移，角度环 w 恒为 0、完全不管
+       航向 —— 2026-09-27 起该区间并入低速平移档；想恢复就把 YAW_MOVE_MIN_SPEED 改回 20.0f）
    下面这些宏只是**上电初值**：实际取的是 chassis.yaw_param[档].{kp,ki,kd,bias}，
    可串口在线调（ykp1/2/3、yki1/2/3、ykd1/2/3、ybias1/2/3，档号 1旋转 2低速 3高速），
    调好请把值填回对应宏。
    kp 符号为负：HWT101CT yaw 顺时针为正，与 w 的定义（逆时针为正）镜像 */
-#define YAW_MOVE_MIN_SPEED      20.0f // 平移介入下界（cm/s，判据见下面 max 那一段）：低于它 → 不介入
-                                      // 2026-09-19 用户定 20。理由（用户实测）：20cm 以下的短距
-                                      // 平移，平移期间纠偏反而添乱 —— 四轮静摩擦差很大，纠偏那点 w
-                                      // 让某个轮先动、别的还没动，距离忽多忽少甚至干脆不动；
-                                      // 等平移跑完落回旋转档再纠，效果反而更稳。
-                                      // ★ 注意 main.c 里大量 ROBOT_MoveSpeed(10~20cm/s) 都在这条线
-                                      //   以下 —— 它们从此平移期间不纠偏（这正是本改动的目的）。
-                                      // ★ 判据是 <（不含等号）：该值 == 20 仍落低速档
+#define YAW_MOVE_MIN_SPEED      0.0f  // 平移介入下界（cm/s，判据见下面 max 那一段）：低于它 → 不介入
+                                      // ★ 2026-09-27 用户定 0（原 20）：要求 0~20cm/s 的平移也介入，
+                                      //   且**采用 20~80cm/s（低速档）那套参数**。判速是
+                                      //   max(|vx|,|vy|) 的绝对值（恒 ≥ 0），取 0 后判据 < 恒不成立
+                                      //   （两轴都 <0.001 时先被 no_move 判成旋转档，走不到这里）
+                                      //   ⇒ 有平移必介入、必落低速档；"不介入"(yaw_gear=1) 不再出现。
+                                      // ★ 想回退不用改代码：把本宏填回 20.0f 即恢复
+                                      //   "0~20 平移期间不纠偏"的旧行为。
+                                      // ★ 旧值 20 的理由（2026-09-19，留档给回退时参考）：20cm 以下的
+                                      //   短距平移，平移期间纠偏反而添乱 —— 四轮静摩擦差很大，纠偏那点 w
+                                      //   让某个轮先动、别的还没动，距离忽多忽少甚至干脆不动；
+                                      //   等平移跑完落回旋转档再纠，效果反而更稳。
+                                      //   ★ 这次按用户要求低速也纠偏，上面那条代价跟着回来：极低速段
+                                      //   （起步/收尾 v 只有几 cm/s）可能因静摩擦差出现"某个轮先动"，
+                                      //   属已知、已被用户接受。
+                                      // ★ 覆盖范围：main.c 里大量 ROBOT_MoveSpeed(10~20cm/s) 原来
+                                      //   落在"不介入"区间，现在整个行程（含起步/收尾的极低速段）
+                                      //   都在向 target_yaw 纠偏。
+                                      // ★ 判据是 <（不含等号）：该值 == 20 仍落低速档（回退时有效）
 #define YAW_KP_LOW_SPEED_BOUND  80.0f // 低速/高速平移分界（cm/s，同一判据）
                                       // 2026-09-19 用户定 80（原 40）：40~80 这段从高速档改判低速档
 /* ★ 分档判速为什么用 max(|vx|,|vy|) 而不是合速度 sqrt(vx²+vy²)（2026-09-19 用户定）：
@@ -105,9 +119,9 @@ typedef enum {
 #define YAW_MOVE_HI_KD    0.025f
 #define YAW_MOVE_HI_BIAS  0.0f
 
-#define YAW_PID_OUT_MAX  1.9f    // w 输出上限 rad/s
-#define YAW_PID_OUT_MIN  (-1.9f) // w 输出下限 rad/s
-#define YAW_DEAD_ZONE_TURN  1.0f   // 静止旋转死区（°）：误差进入该范围 → w 归零（只归零 w，不停速度环）
+#define YAW_PID_OUT_MAX  2.8f    // w 输出上限 rad/s
+#define YAW_PID_OUT_MIN  (-2.8f) // w 输出下限 rad/s
+#define YAW_DEAD_ZONE_TURN  1.20f   // 静止旋转死区（°）：误差进入该范围 → w 归零（只归零 w，不停速度环）
                                     // 防小w输出累加到增量式速度环PWM、克服静摩擦猛动造成来回飘动（实测有效）
                                     // 2026-09-19 用户定 0.92（1.0 → 0.65 → 0.75 → 0.92，实测微调）
                                     // ★ 这是本值唯一的定义处，其他文件一律引用本宏、不写死数字
@@ -136,8 +150,10 @@ typedef enum {
      两者独立，只是恰好都能用 no_move 表达"无平移"。 */
 #define YAW_STAGE_TURN     0   // 旋转档：无平移（原地转向 / 被推动后纠偏）
 #define YAW_STAGE_MOVE_LO  1   // 低速平移档：YAW_MOVE_MIN_SPEED ≤ max(|vx|,|vy|) ≤ YAW_KP_LOW_SPEED_BOUND
-                               //   ★ 低于 YAW_MOVE_MIN_SPEED 的平移**角度环不介入**（w 恒 0），
-                               //     但档位仍报本档 —— 档位只有三个，"介不介入"是另一个开关
+                               //   ★ 2026-09-27 起 YAW_MOVE_MIN_SPEED=0 ⇒ 只要在平移就落本档
+                               //     （0~20cm/s 也用本档那套 kp/ki/kd/bias，不再"不介入"）
+                               //   ★ 旧行为（留档）：低于 YAW_MOVE_MIN_SPEED(20) 的平移**角度环不介入**
+                               //     （w 恒 0），但档位仍报本档 —— 档位只有三个，"介不介入"是另一个开关
                                //     （控制循环里的 yaw_on），不为它新增枚举值
 #define YAW_STAGE_MOVE_HI  2   // 高速平移档：合速度 >  该阈值
 #define YAW_STAGE_STOP     3   // ★ 停止档：误差已在死区内 且 四轮都停稳（连续确认过）
@@ -159,7 +175,9 @@ typedef enum {
 #define MOVE_SPEED_DEFAULT  20.0f    // 规划目标速度 cm/s（serialplot param 表 mv 可在线调）
                                      // 2026-09-19 用户定 20（原 60）：恰好卡在 YAW_MOVE_MIN_SPEED
                                      // 下界上（判据是 <，20 不算"低于20"）⇒ mx/my 默认仍落
-                                     // **低速平移档**、平移期间会纠偏；再往下调就变"不介入"了
+                                     // **低速平移档**、平移期间会纠偏
+                                     // ★ 2026-09-27：YAW_MOVE_MIN_SPEED 改为 0 后，再往下调
+                                     //   （10 / 5cm/s）也仍是低速平移档、照常纠偏，不再有"不介入"
 #define MOVE_ACC_DEFAULT    30.0f    // 规划加减速 cm/s²（serialplot param 表 mvacc 可在线调）
                                      // 2026-09-19 用户定 30（原 100）：跟着 20cm/s 的速度降下来
 
@@ -188,30 +206,35 @@ typedef struct {
     SpeedSegParam speed_seg[5][SPEED_SEG_NUM]; // [轮号1..4][速度段0..3] 每轮各自一套（索引0占位不用，与 speed_pid 编号一致）
                                                // 参数初值表在 CHASSIS_Init：改哪一轮就改那一行，其余代码不用动
                                                // 控制循环按 |target| 选段，再按轮号取该轮的 kp/ki/kd
-    /* ==================== 位置式速度环（2026-09-25 加） ====================
+    /* ==================== 位置式速度环（2026-09-25 加，2026-09-27 接入本工程） ====================
        与上面的增量式 speed_pid[] **并存**，由 speed_pos_mode 二选一，两套状态互不干扰：
          speed_pos_mode = 0 → 走 speed_pid[]     + PID_IncUpdate     （原逻辑，一行没动）
-         speed_pos_mode = 1 → 走 speed_pid_pos[] + PID_PosSpeedUpdate（新逻辑，默认）
+         speed_pos_mode = 1 → 走 speed_pid_pos[] + PID_PosSpeedUpdate（新逻辑，★上电默认）
        ★ 两者**共用上游**：麦轮解算/梯形规划把目标速度写在 speed_pid[i].target，编码器换算的实测
          速度写在 speed_pid[i].actual。位置式每周期把这两个值拷进自己再运算 ⇒ 上游一行都不用改，
-         调试入口 SERIALPLOT_SpeedPidDebug / SERIALPLOT_SpeedTuneLoop 同样一行都不用改。
+         里程计/零漂保护/机器人层判停（robot.c 读 speed_pid[i].target/actual）同样一行都不用改。
        ★ 位置式的参数、限制、积分条件**全在 speed_pid_pos[i] 自己身上**（不查 speed_seg 表、不分速度段），
-         初值在 CHASSIS_Init，串口在线调：
+         初值在 CHASSIS_Init，串口在线调（见 serialplot.c 的位置式指令块）：
              pkp1~pkp4 / pki1~pki4 / pkd1~pkd4  f 值   单轮 kp/ki/kd
              pomax / pomin f 值                        输出上下限（PWM，默认 ±900）
-             pimax  f 值                               误差积分限幅（限的是累加量，不是 i_out）
+             pimax  f 值                               误差积分限幅（限的是累加量 Σerror，不是 i_out）
              psep   f 值                               积分分离阈值：|误差|>它就不积分（0=关闭）
              pidz   f 值                               积分死区阈值：|误差|<它就不积分（0=关闭）
+             pkip   f 值                               |ki| 低于它 → 视为无积分并清 errorint（默认 0.001）
              pmode  i 0/1                              增量式/位置式切换
-       ★ 上电默认**位置式**（speed_pos_mode=1，符合"这次就是要调位置式"的意图）。
-         要切回增量式：串口发 pmode i 0，立即生效、无需复位（也是出问题时最快的回退手段）。*/
+       ★ 队友强调的两点，别搞混：
+         ① 位置式的参数**不在 speed_seg 那张表里**（增量式按速度段分 4 档、1/4 号轮一组 2/3 号轮一组），
+            位置式是四轮各一份、不分速度段，存在 chassis.speed_pid_pos[1..4]；
+         ② 所以发 pq 看参数时，**W1~W4 那段是增量式的、P1~P4 那段才是现在生效的**。
+       ★ 上电默认**位置式**。要切回增量式：串口发 pmode i 0，立即生效、无需复位
+         （也是出问题时最快的回退手段）。 */
     PID_POS  speed_pid_pos[5];   // 4轮位置式速度环（索引0不用；1~4 对应 TIM1_CH1~4）
     uint8_t  speed_pos_mode;     // 0=增量式 1=位置式（CHASSIS_Init 置 1；串口 pmode i 0/1 在线切）
     /* ---- 调试手动定速（2026-09-25 加；默认 0，为 0 时整车逻辑一行都不参与）----
        speed_dbg_manual=1 时，CHASSIS_SpeedLoop 里把四轮 target 全钉成 speed_dbg_tgt、
        旁路麦轮解算 ⇒ 目标速度不再是往复的梯形（峰值只有 20cm/s 且一直在变），
        而是一直钉在你给的值上，便于考察 40/80/120cm/s 下 kp/ki 还够不够用。
-       串口：ptgt f 40 → 定速 40cm/s（负=后退，0=目标0）   pauto i 0 → 回到自动往复 */
+       串口：ptgt f 40 → 定速 40cm/s（负=后退，0=目标0）   pauto i 0 → 回到自动（车停） */
     uint8_t  speed_dbg_manual;
     float    speed_dbg_tgt;
     /* ==================== 单轮速度环临时调参（2026-09-17 调试用；speed_tune=0 时以下字段不参与任何逻辑） ====================
@@ -238,6 +261,8 @@ typedef struct {
     /* 航向环档位状态（见 YAW_STAGE_*）：控制循环每周期刷新，ROBOT_Angle 靠它判断到位且停稳 */
     uint8_t  yaw_stage;          // 当前档位（YAW_STAGE_TURN/MOVE_LO/MOVE_HI/STOP）
     uint8_t  yaw_gear;           // ★档位编码（仅供串口观察，不参与控制）：0旋转 1不介入 2低速 3高速
+                                 //   ★ 2026-09-27：YAW_MOVE_MIN_SPEED=0 ⇒ 1(不介入) 不再出现，
+                                 //     0~20cm/s 的平移报 2(低速)；把该宏改回 20.0f 就会重新出现
                                  //   与 yaw_stage 的区别：yaw_stage 判停稳后会变成 STOP(3)，与本编码
                                  //   的"3=高速"撞车；且它表达"停没停稳"，不表达"介不介入"
     uint8_t  yaw_stage_cnt;      // 停止档判据已连续满足的周期数（控制循环内部用）

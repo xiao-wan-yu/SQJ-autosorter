@@ -1,0 +1,80 @@
+warning: in the working copy of 'main_head.c', LF will be replaced by CRLF the next time Git touches it
+diff --git a/main_head.c b/main_mine.c
+index 7019cac..71b0688 100644
+--- a/main_head.c
++++ b/main_mine.c
+@@ -534 +534 @@ static void JieTi_Adjust_X(void){
+-#define LIZHU_PIC_MS           2500U    //跑完动作组107后等它做完的时间(ms)
++#define LIZHU_PIC_MS            900U    //跑完动作组107后等它做完的时间(ms)=动作组107总时长400ms+500ms
+@@ -553 +553 @@ static void JieTi_Adjust_X(void){
+-     ① 往前走 6cm 到柱子中间 → 动作组110(识别中间) → 等 LIZHU_MID_ACT_MS(2500ms)；
++     ① 往前走 6cm 到柱子中间 → 动作组110(识别中间) → 等 LIZHU_MID_ACT_MS(1900ms)；
+@@ -555,2 +555,2 @@ static void JieTi_Adjust_X(void){
+-        需要就 动作组113(夹取中间) + 等 LIZHU_MID_GRAB_MS(5500ms)；不需要夹就直接跳过；
+-     ③ 往后 6cm 退回原位 → 动作组104(切回“识别旁边”) → 等 LIZHU_MID_BACK_MS(2500ms) → 接着绕圈。
++        需要就 动作组113(夹取中间) + 等 LIZHU_MID_GRAB_MS(4200ms)；不需要夹就直接跳过；
++     ③ 往后 6cm 退回原位 → 动作组104(切回“识别旁边”) → 等 LIZHU_MID_BACK_MS(2600ms) → 接着绕圈。
+@@ -567,3 +567,3 @@ static void JieTi_Adjust_X(void){
+-#define LIZHU_MID_ACT_MS    2500U       //动作组110(识别中间)的等待时间(ms)
+-#define LIZHU_MID_GRAB_MS   5200U       //动作组113(夹取中间)的等待时间(ms)★夹取动作约5.5秒
+-#define LIZHU_MID_BACK_MS   2500U       //动作组104(切回“识别旁边”)的等待时间(ms)
++#define LIZHU_MID_ACT_MS    1900U       //动作组110(识别中间)的等待时间(ms)=动作组110总时长1400ms+500ms
++#define LIZHU_MID_GRAB_MS   4200U       //动作组113(夹取中间)的等待时间(ms)=动作组113总时长3700ms+500ms
++#define LIZHU_MID_BACK_MS   2600U       //动作组104(切回“识别旁边”)的等待时间(ms)=动作组104总时长2100ms+500ms
+@@ -744 +744 @@ static uint8_t LiZhu_NeedGrab(uint32_t wait_ms){
+-     ① 往前走 6cm 到柱子中间(对准中间那个方块) → 动作组110 摆到“识别中间”位 → 等 LIZHU_MID_ACT_MS(2500ms)；
++     ① 往前走 6cm 到柱子中间(对准中间那个方块) → 动作组110 摆到“识别中间”位 → 等 LIZHU_MID_ACT_MS(1900ms)；
+@@ -750 +750 @@ static uint8_t LiZhu_NeedGrab(uint32_t wait_ms){
+-     ③ 需要夹 → 动作组113 夹取中间 → 等 LIZHU_MID_GRAB_MS(5200ms)；不需要夹 → 直接跳过；
++     ③ 需要夹 → 动作组113 夹取中间 → 等 LIZHU_MID_GRAB_MS(4200ms)；不需要夹 → 直接跳过；
+@@ -752 +752 @@ static uint8_t LiZhu_NeedGrab(uint32_t wait_ms){
+-        → 动作组104 切回“识别旁边” → 等 LIZHU_MID_BACK_MS(2500ms)。
++        → 动作组104 切回“识别旁边” → 等 LIZHU_MID_BACK_MS(2600ms)。
+@@ -1036 +1036 @@ static void LiZhu_Circle_Run(void)
+-        //   ★若 107 跑完不自带回“识别状态”，放开这行: runActionGroup(104, 1); HAL_Delay(2500);
++        //   ★若 107 跑完不自带回“识别状态”，放开这行: runActionGroup(104, 1); HAL_Delay(2600);
+@@ -1783 +1783 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(20,0); HAL_Delay(15);
+-                      ROBOT_Move(10,0,短距档) → runActionGroup(16,1) 倒球 → delay_ms(2000)
++                      ROBOT_Move(10,0,短距档) → runActionGroup(16,1) 倒球 → delay_ms(1700)
+@@ -1958 +1958 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(20,0); HAL_Delay(15);
+-    delay_ms(1400);
++    delay_ms(1200);
+@@ -1997 +1997 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(20,0); HAL_Delay(15);
+-    const uint32_t YPJ_HIT_EXIT_WAIT_MS = 450; /* ★第10拍之后等动作组跑完(约400ms)再抬臂退出，避免把最后一拍打断 */
++    const uint32_t YPJ_HIT_EXIT_WAIT_MS = 740; /* ★第10拍之后等动作组跑完(约740ms=动作组7/10总时长240ms+500ms)再抬臂退出，避免把最后一拍打断 */
+@@ -2028 +2028 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(20,0); HAL_Delay(15);
+-          HAL_Delay(1000);
++          HAL_Delay(1200);
+@@ -2115 +2115 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(20,0); HAL_Delay(15);
+-        HAL_Delay(YPJ_HIT_EXIT_WAIT_MS);  // 等第10次拍球动作组跑完(约400ms)，否则会被下面的抬臂指令打断
++        HAL_Delay(YPJ_HIT_EXIT_WAIT_MS);  // 等第10次拍球动作组跑完(约740ms=240+500)，否则会被下面的抬臂指令打断
+@@ -2132 +2132 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(20,0); HAL_Delay(15);
+-        HAL_Delay(1000);
++        HAL_Delay(1200);
+@@ -2190 +2190 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(20,0); HAL_Delay(15);
+-      delay_ms(2000);
++      delay_ms(1700);
+@@ -2221 +2221 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto 
+-        delay_ms(2000);
++        delay_ms(1200);
+@@ -2464 +2464 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto 
+-        HAL_Delay(2000);
++        HAL_Delay(1900);
+@@ -2554 +2554 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto 
+-            delay_ms(5500);                          //夹取动作约5.5秒(矮、高阶梯5000，中3800)
++            delay_ms((act == 60) ? 5500 : ((act == 57) ? 3500 : 4300));                          //★等待=动作组总时长+500ms：57矮=3000+500 / 60高=5000+500 / 63中=3800+500
+@@ -2556 +2556 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto 
+-            delay_ms(3000);                          //回识别动作约3秒
++            delay_ms(1900);                          //66回识别=动作组总时长1400ms+500ms
+@@ -2566 +2566 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto 
+-        HAL_Delay(1000);
++        HAL_Delay(1200);
+@@ -2656 +2656 @@ LIZHU_START:
+-          HAL_Delay(1000);
++          HAL_Delay(2300);
+@@ -2704 +2704 @@ LIZHU_START:
+-          HAL_Delay(200);//倒方块动作约200ms
++          HAL_Delay(900);//116快倒方块=动作组总时长400ms+500ms
+@@ -2723 +2723 @@ LIZHU_START:
+-          HAL_Delay(1000);
++          HAL_Delay(1200);

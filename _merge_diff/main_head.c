@@ -181,16 +181,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
       CHASSIS_Control_Loop();      // 4轮速度环（PID + 编码器 + PWM）
     }
 
-    /* ★2026.10.6 合并（队友 oled_ui 调参菜单）：20ms 一次刷新菜单。
-       只有上电按住 KEY0 进了菜单、且在菜单里没退出时 flag.oled_ui 才为 1，
-       正常跑流程时这一句不执行 ⇒ 对 1ms 中断的开销为 0。
-       ★oled_ui 库要求中断周期 20ms（见 oled_ui.h 注释），别改这个分母。 */
-    static uint8_t count3 = 0;
-    if(flag.oled_ui && ++count3 >= 20){
-      count3 = 0;
-      OLED_UI_InterruptHandler();
-    }
-
   }
   /* 编码器用清零法，无 htim3/htim4 溢出中断分支 */
 
@@ -306,13 +296,11 @@ static void ZM_ShowComm(int rx4, int rx2){
 #define JIETI_XFIX_MAX_MS    3000U    //★单坑左右校准时限(ms)：坐标一直不满足容差就收手
                                       //  (0=不限时)
 /* ---- 前测距目标：①“走近阶梯”到 50mm 附近停，实测是50，55太近了；②第1~8坑逐坑前后校准(JieTi_Adjust_Y)的目标 ---- */
-/* ★2026.10.6 合并：下面这 3 个宏已改成“从 Flash 参数表读”（上电 KEY0 菜单里可调），原来的宏保留成注释备查；
-   要改回编译期常量就把注释去掉，并把 main.c 里 STORAGE_Data.C_Jieti_FwdTarget_y / C_JitTi_Step_x / C_Jieti_Cross_x 换回宏名 */
-// #define JIETI_FWD_TARGET_MM   55      //★目标前后距离(mm)：既是“走近阶梯”的停止距离，也是逐坑前后校准的目标
+#define JIETI_FWD_TARGET_MM   55      //★目标前后距离(mm)：既是“走近阶梯”的停止距离，也是逐坑前后校准的目标
 
 /* ---- 8 个坑固定位移：STEP=同阶梯相邻坑间距；CROSS=换阶梯那一步(第2→3、第6→7个坑) ---- */
-// #define JIETI_STEP_CM         16      //★阶梯内坑间距(cm)：实际8，红15，19可，调蓝发现需要给多，蓝17，21太大，很容易按右边的来校准
-// #define JIETI_STEP_CROSS_CM  20      //★换阶梯那一步(cm)：实际10       → 以上两个现用 STORAGE_Data.C_JitTi_Step_x / STORAGE_Data.C_Jieti_Cross_x
+#define JIETI_STEP_CM         16      //★阶梯内坑间距(cm)：实际8，红15，19可，调蓝发现需要给多，蓝17，21太大，很容易按右边的来校准
+#define JIETI_STEP_CROSS_CM  20      //★换阶梯那一步(cm)：实际10
 //多走一点，避免视觉判别到左边的来校准
 #define JIETI_STEP_SPEED      (float)SPD_SHORT_V   //走位速度=短距档(要≥20 才压得过起转PWM)
 #define JIETI_STEP_ACC        (float)SPD_SHORT_A   //★加速度=短距档：8cm 峰值 √(50×8)=20cm/s 刚好够起转(想一拍就起转可提到100~150)
@@ -440,7 +428,7 @@ static void JieTi_Adjust_Y(int Target_Y_Distance){
   while(1){
                 uint16_t dis = GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin);
                 //校准容差：x 给 30 像素，y 给 20mm
-                if(dis > (Target_Y_Distance + STORAGE_Data.C_JieTi_JiaoZhun_y2)){   //★容差 +5 改成 Flash 参数 C_JieTi_JiaoZhun_y2(默认+5，菜单可调)
+                if(dis > (Target_Y_Distance + 5)){
                   for(uint8_t i = 0; i < 5; i++)
                   {
                     //速度不能太小，否则蠕动就乱动，30合适
@@ -451,7 +439,7 @@ static void JieTi_Adjust_Y(int Target_Y_Distance){
 
                   }
                 }
-                else if(dis  < (Target_Y_Distance + STORAGE_Data.C_JieTi_JiaoZhun_y1)){   //★容差 -5 改成 Flash 参数 C_JieTi_JiaoZhun_y1(默认-5，菜单可调)
+                else if(dis  < (Target_Y_Distance - 5)){
                   for(uint8_t i = 0; i < 5; i++)
                   {
                     //速度不能太小，否则蠕动就乱动，y20合适
@@ -481,7 +469,7 @@ static void JieTi_Adjust_X(void){
                   break;                                            //同样不校(别把填充值当"目标在左边")
                 }
                 int16_t cx = jieti_cam_x;
-                if(cx > STORAGE_Data.C_JieTi_JiaoZhun_x2){//稍微给大一点，防止第七个校准后偏左卡到阶梯（x2 默认18，Flash 菜单可调）
+                if(cx > 18){//稍微给大一点，防止第七个校准后偏左卡到阶梯
                   //for(uint8_t i = 0; i < 5; i++)
                   {
                     //速度不能太小，否则蠕动就乱动，x30合适
@@ -492,7 +480,7 @@ static void JieTi_Adjust_X(void){
                     //降低调整频率，因为视觉帧间隔约20~50ms，5次脉冲=100ms，太快了会把目标挪过头
                   }
                 }
-                else if(cx < STORAGE_Data.C_JieTi_JiaoZhun_x1){   //★x1 默认-5，Flash 菜单可调
+                else if(cx < -5){
                   //for(uint8_t i = 0; i < 5; i++)
                   {
                     //速度不能太小，否则蠕动就乱动，x30合适
@@ -543,7 +531,7 @@ static void JieTi_Adjust_X(void){
 #define LIZHU_VIS_END          0xA9     //我→视觉：立柱结束
 #define LIZHU_ACCEPT_A3        1        //1=也认阶梯的 0xA3 包(实测视觉还发A3)；
                                         //  0=只认 A4 包
-#define LIZHU_PIC_MS            900U    //跑完动作组107后等它做完的时间(ms)=动作组107总时长400ms+500ms
+#define LIZHU_PIC_MS           2500U    //跑完动作组107后等它做完的时间(ms)
 #define LIZHU_PIC_COOLDOWN_MS  1000U    //两次"停拍"的最短间隔(ms)：防同一目标连拍；0=不防
 /* ★★ 2026-10-02：立柱阶段“坐标窗口”（只给【旁边】用）★★
    绕圈边绕边拍的那个钩子里(拍“旁边”)，视觉报的目标 x 不在 [LIZHU_X_MIN, LIZHU_X_MAX] 内 → 这一帧不算数，
@@ -562,10 +550,10 @@ static void JieTi_Adjust_X(void){
    ★2026-09-30 流程调整：这段原来挂在 LiZhu_Circle_Run() 的收尾(绕完一圈之后)，现在按现场流程挪到
      【转圈之前】——车校准到位、正对柱子之后先做“识别中间+夹取中间”，做完再绕圈。
    整段实现在 LiZhu_MiddleGrab()（见它的函数头），流程：
-     ① 往前走 6cm 到柱子中间 → 动作组110(识别中间) → 等 LIZHU_MID_ACT_MS(1900ms)；
+     ① 往前走 6cm 到柱子中间 → 动作组110(识别中间) → 等 LIZHU_MID_ACT_MS(2500ms)；
      ② 视觉识别“中间要不要夹”（发 0xA4 + 在 LIZHU_MID_VIS_MS 内等一帧包，cmd≠0 = 要夹）→
-        需要就 动作组113(夹取中间) + 等 LIZHU_MID_GRAB_MS(4200ms)；不需要夹就直接跳过；
-     ③ 往后 6cm 退回原位 → 动作组104(切回“识别旁边”) → 等 LIZHU_MID_BACK_MS(2600ms) → 接着绕圈。
+        需要就 动作组113(夹取中间) + 等 LIZHU_MID_GRAB_MS(5500ms)；不需要夹就直接跳过；
+     ③ 往后 6cm 退回原位 → 动作组104(切回“识别旁边”) → 等 LIZHU_MID_BACK_MS(2500ms) → 接着绕圈。
    两个调用点、跑的完全是同一段代码：
      · 正式流程的“立柱”段：校准完、LiZhu_Circle_Run() 之前；
      · 菜单里单独发指令 7 测绕圈：LIZHU_MID_IN_CMD7=1 时先跑一遍（单测动作顺序和跑图一模一样）。
@@ -576,9 +564,9 @@ static void JieTi_Adjust_X(void){
 #define LIZHU_MID_IN_CMD7    1          //1=菜单里单独发指令7(测绕圈)时也先跑一遍“识别中间+夹取”
                                         //  0=只绕圈(纯调绕圈参数时省掉前面这十几秒)
 #define LIZHU_MID_VIS_MS    1000U       //“中间要不要夹”等一帧包的总时限(ms)：超时/没帧=不夹
-#define LIZHU_MID_ACT_MS    1900U       //动作组110(识别中间)的等待时间(ms)=动作组110总时长1400ms+500ms
-#define LIZHU_MID_GRAB_MS   4200U       //动作组113(夹取中间)的等待时间(ms)=动作组113总时长3700ms+500ms
-#define LIZHU_MID_BACK_MS   2600U       //动作组104(切回“识别旁边”)的等待时间(ms)=动作组104总时长2100ms+500ms
+#define LIZHU_MID_ACT_MS    2500U       //动作组110(识别中间)的等待时间(ms)
+#define LIZHU_MID_GRAB_MS   5200U       //动作组113(夹取中间)的等待时间(ms)★夹取动作约5.5秒
+#define LIZHU_MID_BACK_MS   2500U       //动作组104(切回“识别旁边”)的等待时间(ms)
 
 static uint32_t lizhu_vis_cnt = 0;      //本阶段累计收帧数
 static uint32_t lizhu_pic_cnt = 0;      //本阶段停下来拍了几次
@@ -753,19 +741,19 @@ static uint8_t LiZhu_NeedGrab(uint32_t wait_ms){
    调用点两处、跑的是同一段代码：① 正式流程的“立柱”段(校准到位、LiZhu_Circle_Run() 之前)；
                               ② 菜单里单独发指令7 测绕圈(LIZHU_MID_IN_CMD7=1 时先跑一遍，单测与跑图一致)。
    就在车停在刚才校准出来的那个位置(正对柱子)上做，动作顺序：
-     ① 往前走 6cm 到柱子中间(对准中间那个方块) → 动作组110 摆到“识别中间”位 → 等 LIZHU_MID_ACT_MS(1900ms)；
+     ① 往前走 6cm 到柱子中间(对准中间那个方块) → 动作组110 摆到“识别中间”位 → 等 LIZHU_MID_ACT_MS(2500ms)；
      ② 视觉识别“中间要不要夹”：先发一次 0xA4(LIZHU_MID_VIS=1 时；绕圈自己那个 0xA4 在 LiZhu_Circle_Run
         里更晚才发，这里得先让主视觉开工) → 在 LIZHU_MID_VIS_MS(1000ms) 内等一帧包，cmd≠0 = 需要夹
         ★只要 cmd≠0 就夹，**不看 x 窗口**(现场要求“夹中间的不管，只要有就要夹”；
           坐标窗口 LIZHU_X_* 只管绕圈时拍“旁边”那条路，见 LiZhu_XOk)；
         等不到/超时/包是 cmd=0 → 按不夹处理；
-     ③ 需要夹 → 动作组113 夹取中间 → 等 LIZHU_MID_GRAB_MS(4200ms)；不需要夹 → 直接跳过；
-     ④ 往后退回原来的位置(绕圈就在这个位置起步；★退回量分颜色且在 KEY0 菜单里可调：R_LiZhuang_Back_y / B_LiZhuang_Back_y，标称 -8/-9)
-        → 动作组104 切回“识别旁边” → 等 LIZHU_MID_BACK_MS(2600ms)。
+     ③ 需要夹 → 动作组113 夹取中间 → 等 LIZHU_MID_GRAB_MS(5200ms)；不需要夹 → 直接跳过；
+     ④ 往后退回原来的位置(绕圈就在这个位置起步；★退回量分颜色：红 8cm / 蓝 9cm)
+        → 动作组104 切回“识别旁边” → 等 LIZHU_MID_BACK_MS(2500ms)。
    串口1 每次打一行 “LZ middle need=0/1”。要改时长/时限就改上面那几个 LIZHU_MID_* 常量。 */
 static void LiZhu_MiddleGrab(void){
   /* ① 往前走一小段到柱子中间，动作组110 摆到“识别中间”位 */
-  ROBOT_Move(0, STORAGE_Data.C_LiZhuang_Fwd_y, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //★前进 6 改成 Flash 参数 C_LiZhuang_Fwd_y(菜单可调)
+  ROBOT_Move(0, 6, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
   runActionGroup(110, 1);                                 //识别中间动作
   HAL_Delay(LIZHU_MID_ACT_MS);
 
@@ -783,7 +771,7 @@ static void LiZhu_MiddleGrab(void){
 
   /* ④ 退回原位 + 切回“识别旁边”(夹不夹都做)；回到原位后就由调用点接着绕圈 */
   //蓝要退多1cm
-  ROBOT_Move(0, mode_red ? STORAGE_Data.R_LiZhuang_Back_y : STORAGE_Data.B_LiZhuang_Back_y, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //★-8/-9 改成 Flash 参数(菜单可调)
+  ROBOT_Move(0, mode_red ? -8 : -9, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
   
   runActionGroup(104, 1);                                 //识别旁边(识别状态)
   HAL_Delay(LIZHU_MID_BACK_MS);
@@ -1045,7 +1033,7 @@ static void LiZhu_Circle_Run(void)
 
         runActionGroup(107, 1);                                       //② 拍：动作组 107
         HAL_Delay(LIZHU_PIC_MS);                                      //   等它跑完(按现场标定改 LIZHU_PIC_MS)
-        //   ★若 107 跑完不自带回“识别状态”，放开这行: runActionGroup(104, 1); HAL_Delay(2600);
+        //   ★若 107 跑完不自带回“识别状态”，放开这行: runActionGroup(104, 1); HAL_Delay(2500);
 
         LiZhu_FlushVision();                                          //③ 拍期间滞留的旧帧全清
         yaw_last = HWT101CT_Data.yaw;                                 //   拍时车没走：这段陀螺仪抖动不算进“已绕角度”
@@ -1539,53 +1527,6 @@ static int CHASSIS_PwmOut(uint8_t wheel){
                                       : chassis.speed_pid[wheel].out);
 }
 
-/* ==================== ★2026.10.6 合并：比赛流程参数的“标称值” ====================
-   作用：往 STORAGE_Data 里填默认值（= 2026.10.2 之前 main.c 里硬编码的那些数，
-         和 storage.h 每一项后面的注释一一对应）。
-   ★必须在 STORAGE_Init() 之前调用：Flash 里没有数据（第一次烧这版固件、标志位对不上）时，
-     STORAGE_Init() 会把这份标称值整块写进 Flash；Flash 里有数据时它的读取会覆盖这份默认值。
-   ★调乱了想恢复出厂值：在 KEY0 菜单里 exit&save 前，把下面那句 ROBO_LoadDefaultParams();
-     的注释取消（见 main() 里“Saving...”分支），再 exit&save 一次即可。
-   ★第二部分(PID/编码器那些字段)这里故意不填：本工程 PID 全在 chassis.h，菜单里那两页只是显示。 */
-static void ROBO_LoadDefaultParams(void){
-  STORAGE_Data.flag = STORAGE_Flag;   //★标志位必须填：exit&save 的 STORAGE_Save() 会把整块(含标志位)写 Flash，
-                                      //  不填的话写进去是 0，下次上电会当成"没存过"而重新写默认值(调好的参数全丢)
-
-  /* 出发（红/蓝各自一套） */
-  STORAGE_Data.R_ChuFa_x = -88;   STORAGE_Data.R_ChuFa_y = 424;
-  STORAGE_Data.B_ChuFa_x =  50;   STORAGE_Data.B_ChuFa_y = 405;
-
-  /* 圆盘机（拍球前的后退距离） */
-  STORAGE_Data.R_YuanPan_y = -6;  STORAGE_Data.B_YuanPan_y = -6;
-
-  /* 正面识别：到目标字母位置的 x/y */
-  STORAGE_Data.C_GetTarget_y = 129;
-  STORAGE_Data.C_GetTarget_x = -42;
-
-  /* 阶梯：最左→第1坑、前测距目标、坑间距、换阶梯步长、校准容差 */
-  STORAGE_Data.C_JieTi_Left_x       =  7;
-  STORAGE_Data.C_Jieti_FwdTarget_y  = 55;
-  STORAGE_Data.C_JitTi_Step_x       = 16;
-  STORAGE_Data.C_Jieti_Cross_x      = 20;
-  STORAGE_Data.C_JieTi_JiaoZhun_x1  =  -5;
-  STORAGE_Data.C_JieTi_JiaoZhun_x2  =  18;
-  STORAGE_Data.C_JieTi_JiaoZhun_y1  =  -5;
-  STORAGE_Data.C_JieTi_JiaoZhun_y2  =   5;
-
-  /* 立柱：左右延时、前测距目标、前进距离、后退距离(菜单可调) */
-  STORAGE_Data.R_LiZhuang_Delay_x = 120;
-  STORAGE_Data.B_LiZhuang_Delay_x = 150;
-  STORAGE_Data.C_LiZhuang_Target_y = 175;
-  STORAGE_Data.C_LiZhuang_Fwd_y    =   6;
-  STORAGE_Data.R_LiZhuang_Back_y   =  -8;
-  STORAGE_Data.B_LiZhuang_Back_y   =  -9;
-
-  /* 回家：进红/蓝区再横走一段 + 前后微调 */
-  STORAGE_Data.R_HuiJia_x =  11;
-  STORAGE_Data.B_HuiJia_x = -33;
-  STORAGE_Data.C_HuiJia_y =  -6;
-}
-
 /**
   * @brief  The application entry point.
   * @retval int
@@ -1631,7 +1572,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
 
-  OLED_Init();   //★菜单的 OLED_UI_Init() 内部也会调一次；这里保留：菜单初始化前也要用屏/沿用老流程
+  OLED_Init();
 
 
   /*外设启动区域*/
@@ -1664,47 +1605,6 @@ int main(void)
 
 
   HAL_Delay(300);
-
-  /* ==================== ★2026.10.6 合并(队友)：Flash参数表 + 上电KEY0调参菜单 ====================
-     顺序不能颠倒：ROBO_LoadDefaultParams() 先填标称值 → STORAGE_Init() 再决定“用Flash里的”
-     还是“把标称值整块写进Flash”。
-     - STORAGE_Init()：把参数从Flash读进 STORAGE_Data（main.c 里所有距离/时间参数都取自它）。
-     - 上电按住 KEY0 才进菜单；菜单项/窗口见 Mycode/oled_ui/oled_ui_menudata.c
-       （exit&save=存Flash，exit&cancel=丢掉改动并重新从Flash读）。
-     - 不按 KEY0 就直接往下跑，和以前完全一样（flag.oled_ui 保持 0，1ms中断里不刷菜单）。
-     ★菜单里“PID Param / Other Param”两页是本工程旧版参数页：现在的PID在 chassis.h（每轮/每速度段
-       一套 + 航向环三档），那两页只用于显示，改了不影响控制。 */
-  ROBO_LoadDefaultParams();          //★必须在上电第一时间调用，且必须在 STORAGE_Init() 之前
-  STORAGE_Init();                    //把数据从flash加载到存储模块中
-  OLED_UI_Init(&MainMenuPage);       //OLED菜单初始化(内部会调 OLED_Init)
-  if(!HAL_GPIO_ReadPin(KEY0_GPIO_Port, KEY0_Pin)){    //上电按下KEY0进入调参模式
-    flag.oled_ui = true;             //启动20ms中断里调用菜单更新函数
-    while(1){
-      OLED_UI_MainLoop();
-      if(oled_ui_exit_save == true){ //退出菜单（保存）
-        flag.oled_ui = false;
-        OLED_Clear();
-        OLED_Printf(0, 0, OLED_8X16_HALF, "Saving...");
-        OLED_Update();
-        /* ★要恢复成 storage.h 里那套标称值(调乱了想重来)：把下面这句的注释打开，再 exit&save 一次 */
-        // ROBO_LoadDefaultParams();
-        STORAGE_Save();              //把调好的参数保存到flash中
-        OLED_Clear();
-        OLED_Update();
-        break;
-      }
-      if(oled_ui_exit_cancel == true){ //退出菜单（不保存）
-        flag.oled_ui = false;
-        OLED_Clear();
-        OLED_Printf(0, 0, OLED_8X16_HALF, "Cancel...");
-        OLED_Update();
-        STORAGE_Init();              //重新从flash读(覆盖调参时改错的参数)
-        OLED_Clear();
-        OLED_Update();
-        break;
-      }
-    }
-  }
 
   HWT101CT_Init();//陀螺仪初始化
   HAL_UARTEx_ReceiveToIdle_DMA(&huart3, UART3_RxBuf, UART3_RxLength);//陀螺仪串口
@@ -1880,7 +1780,7 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(20,0); HAL_Delay(15);
         /* ================= 旧代码（原来的按键1“倒球调试”，整段注释保留）=================
                 要恢复原来的倒球调试：把本行与“旧代码结束”那一行的注释符去掉，并把上面的等待接收测试删掉。
                 流程：打串口“3” → 后退到前测距 ≤90 → 打“4” → 左移到 LASER1(左后) 无遮挡 →
-                      ROBOT_Move(10,0,短距档) → runActionGroup(16,1) 倒球 → delay_ms(1700)
+                      ROBOT_Move(10,0,短距档) → runActionGroup(16,1) 倒球 → delay_ms(2000)
                 ================= 旧代码结束 ================= */
 
       }
@@ -1947,7 +1847,7 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(20,0); HAL_Delay(15);
     
     //先盲走到圆盘机中心+面向(★长距档 120/120)
     //发现左右移动难易程度不同，右移轻松，左移动，往往需要给大很多，往右的一点点即可
-    ROBOT_Move(mode_red ? STORAGE_Data.R_ChuFa_x : STORAGE_Data.B_ChuFa_x, mode_red ? STORAGE_Data.R_ChuFa_y : STORAGE_Data.B_ChuFa_y, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);//58太靠右  ★出发距离改成 Flash 参数(菜单可调)
+    ROBOT_Move(mode_red ? -88 :50,mode_red ? 424 : 405,SPD_LONG_V,SPD_LONG_V,SPD_LONG_A,SPD_LONG_A);//58太靠右
     /* ★2026-09-20 新底盘：ROBOT_Move / ROBOT_Angle 都是阻塞式，且 ROBOT_Angle 会等到
            “航向到位 且 四轮真正停稳”才返回 —— 后面不用再补 HAL_Delay(100) 提高稳定性了 */
     mode_red ? ROBOT_Angle(270) : ROBOT_Angle(90);
@@ -2049,13 +1949,13 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(20,0); HAL_Delay(15);
                    (unsigned long)(HAL_GetTick() - line_t0));
 
     //往后走一点点(★短距 2cm；往前会拍不到球)
-    ROBOT_Move(0, mode_red ? STORAGE_Data.R_YuanPan_y : STORAGE_Data.B_YuanPan_y, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //★-6 改成 Flash 参数(菜单可调)
+    ROBOT_Move(0, mode_red ? -6 : -6, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
 
     //(不需要后退了，直接灰度校准更准确)
 
     //走到位后，放到识别状态
     runActionGroup(4, 1);
-    delay_ms(1200);
+    delay_ms(1400);
     UART2_Printf("%c", 0xA1);//发0xA1告诉主视觉进入圆盘机识别
 
     /******************** 圆盘机视觉处理代码 ********************/
@@ -2094,7 +1994,7 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(20,0); HAL_Delay(15);
     const uint16_t YPJ_RUN_GAP_MS = 100;       /* ★标定用：相邻两帧"有球"的间隔≥100ms 就认为上一个球已离开画面 */
     const uint8_t  YPJ_HIT_LOG = 1;            /* 1=开日志 0=关 */
     const uint8_t  YPJ_HIT_MAX = 10;           /* ★拍球次数上限：实拍够10个球就不再等视觉，强制退出圆盘机阶段 */
-    const uint32_t YPJ_HIT_EXIT_WAIT_MS = 740; /* ★第10拍之后等动作组跑完(约740ms=动作组7/10总时长240ms+500ms)再抬臂退出，避免把最后一拍打断 */
+    const uint32_t YPJ_HIT_EXIT_WAIT_MS = 450; /* ★第10拍之后等动作组跑完(约400ms)再抬臂退出，避免把最后一拍打断 */
     /* ★★ 新增"9秒没有触发拍球就强行结束圆盘机" ★★
        为什么要它：视觉掉线/球流断了/车没对好位时，一台球都没得拍，以前会一直卡在
        本while里，后面去仓库倒球、正面识别、阶梯全都跑不到，等于整场比赛报废。
@@ -2125,7 +2025,7 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(20,0); HAL_Delay(15);
           YuanPanJi_Flag = 0;//只是圆盘机结束，不代表阶梯开始，还要倒球
           //单独的机械臂抬起
           runActionGroup(151, 1);
-          HAL_Delay(1200);
+          HAL_Delay(1000);
       
           break;//收起机械臂不能放这里，因为会直接break出去了
         }
@@ -2212,7 +2112,7 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(20,0); HAL_Delay(15);
                        (unsigned)ypj_hit_cnt, (unsigned)YPJ_HIT_MAX,
                        (unsigned long)(HAL_GetTick() - ypj_t_start));
 
-        HAL_Delay(YPJ_HIT_EXIT_WAIT_MS);  // 等第10次拍球动作组跑完(约740ms=240+500)，否则会被下面的抬臂指令打断
+        HAL_Delay(YPJ_HIT_EXIT_WAIT_MS);  // 等第10次拍球动作组跑完(约400ms)，否则会被下面的抬臂指令打断
         ypj_force_exit = 1;
       }else if((HAL_GetTick() - ypj_no_hit_ref_t) >= YPJ_NO_HIT_TIMEOUT_MS){
         /* ★连续9s没触发过拍球 → 强行结束圆盘机
@@ -2229,7 +2129,7 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(20,0); HAL_Delay(15);
         YuanPanJi_Flag = 0;//只是圆盘机结束，不代表阶梯开始，还要倒球
         //单独的机械臂抬起
         runActionGroup(151, 1);
-        HAL_Delay(1200);
+        HAL_Delay(1000);
 
         runActionGroup(160, 1);  // 收起机械臂
         break;                 // 跳出 while(YuanPanJi_Flag == 1)
@@ -2287,7 +2187,7 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(20,0); HAL_Delay(15);
 
       //flag.angle = 0;
       runActionGroup(16, 1); 	//这里是倒球动作组
-      delay_ms(1700);
+      delay_ms(2000);
       //flag.angle = 1;
       //加一次角度校准（这些地方的角度很重要；ROBOT_Angle 已阻塞到停稳，不必再补延时）
       mode_red ? ROBOT_Angle(90) : ROBOT_Angle(270);
@@ -2318,12 +2218,12 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
         ZM_ShowComm(comm_rx4, comm_rx2);            //先画一屏：进度0(移动中)，V4/V2 都是 WAIT
 
         runActionGroup(19, 1); 	//这里是收倒球槽
-        delay_ms(1200);
+        delay_ms(2000);
 
         //右+前移动到阶梯附近:要往右多走点不然会撞；y160太远不利于视觉识别(★长距档 120/120)
         //要拆开两段走，否则会撞到：先走x后走y
         ROBOT_Move(80, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
-        ROBOT_Move(0, STORAGE_Data.C_GetTarget_y, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //★129 改成 Flash 参数(菜单可调)
+        ROBOT_Move(0, 129, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
 
         //向左慢走，直到前面的两个光电都感应到障碍物(右2坏了/左4拆了，复用立柱的)，4左2右
         ROBOT_MoveSpeed(-SPD_AVG_V, 0);   //★匀速靠近：SPD_AVG_V
@@ -2341,7 +2241,7 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
 
         //往左走一定距离，视觉里能完整看到两个字母(可省去测距前后校准)(★短距 40cm：20/30)
         //短距档太快速会走斜，不要100速度，50还算可以
-        ROBOT_Move(STORAGE_Data.C_GetTarget_x, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //★-42 改成 Flash 参数(菜单可调)
+        ROBOT_Move(-42, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
         //停车准备识别
         ROBOT_MoveSpeed(0,0);
 
@@ -2515,7 +2415,7 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
       if(JieTi_Flag == 1){//阶梯开始
         /* ==================== 阶梯阶段（模块化，序号与下面注释一一对应）====================
                    M1 视觉通信 : 收帧/解析(JieTi_VisionPoll) + 清帧 + 发 0xA3 + 读每坑的 cmd
-                   M3 走位/计数: 第2~8坑每坑走固定距离(STORAGE_Data.C_JitTi_Step_x / STORAGE_Data.C_Jieti_Cross_x) + 计第几个坑
+                   M3 走位/计数: 第2~8坑每坑走固定距离(JIETI_STEP_CM / JIETI_STEP_CROSS_CM) + 计第几个坑
                                 (第1坑守着“进阶梯到位”点，不走位，但照样校准/读数)
                    M5 动作组   : 识别位(54) / 夹取(57·60·63) / 回识别位(66) / 收尾抬臂(151)
                    M6 显示/收尾: OLED + 停车 + 按 JIETI_GO_LIZHU 交棒给“立柱”或“回家”
@@ -2555,25 +2455,25 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
         mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));
 
         /*激光校准，往右 5cm（激光刚离开时位置偏左,不往右测距出去了）*/
-        ROBOT_Move(STORAGE_Data.C_JieTi_Left_x, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //★7 改成 Flash 参数(菜单可调)
+        ROBOT_Move(7, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
         mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));
         HAL_Delay(100);
 
         /* ---- M5.1 机械臂到识别位 ---- */
         runActionGroup(54, 1);
-        HAL_Delay(1900);
+        HAL_Delay(2000);
 
         /* ---- 到位②：走近阶梯，前测距到 90mm 就停 ---- */
         ROBOT_MoveSpeed(0, SPD_AVG_V);
         /* ★提前 20mm 停（不是读到 90 才停）：GY-53 一次读数 ≈200ms，10cm/s 逼近时“读到 ≤90mm”
                     那一刻车还会再往前冲 ≈2cm；提前量补上，停稳后就正好落在 90mm 附近。
                     （这里只是“从远处走到车能看清单个坑”的粗到位；后面第1~8坑都按
-                      STORAGE_Data.C_Jieti_FwdTarget_y 再做一次前后校准(M2)，第1坑也不例外） */
+                      JIETI_FWD_TARGET_MM 再做一次前后校准(M2)，第1坑也不例外） */
         WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > 102,     //这里不能用70，会顶住,90也顶
                    "JIETI walk-to-ladder(stop at 102)");
         HAL_Delay(200);
 
-       WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > (STORAGE_Data.C_Jieti_FwdTarget_y + 20),
+       WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > (JIETI_FWD_TARGET_MM + 20),
                   "JIETI walk-to-ladder(stop at 110mm=90+lead20)");
 
         //防止车子斜测距对空
@@ -2604,7 +2504,7 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
             ROBOT_MoveSpeed(0, 0);
             /* 换阶梯那一步(第2→3个、第6→7个，就是动作组 57/60/63 切换处)隔得远，走 JIETI_STEP_CROSS_CM；
                             同一个阶梯里相邻坑走 JIETI_STEP_CM */
-            int32_t step_cm = (idx == 3 || idx == 7) ? STORAGE_Data.C_Jieti_Cross_x : STORAGE_Data.C_JitTi_Step_x;
+            int32_t step_cm = (idx == 3 || idx == 7) ? JIETI_STEP_CROSS_CM : JIETI_STEP_CM;
             ROBOT_Move(step_cm, 0, JIETI_STEP_SPEED, 0, JIETI_STEP_ACC, 0);
             HAL_Delay(750);                       //停稳再校准
             mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));
@@ -2614,7 +2514,7 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
           JieTi_FlushVision();                  //先清掉走位途中的旧帧：校准只看停下来之后的新帧
           JieTi_Adjust_X();                     //先校准左右：视觉x，容差+-5（等不到帧/坐标填0 → 内部跳过，不动）
           HAL_Delay(750);
-          JieTi_Adjust_Y(STORAGE_Data.C_Jieti_FwdTarget_y);  //再校准前后：前测距，容差20
+          JieTi_Adjust_Y(JIETI_FWD_TARGET_MM);  //再校准前后：前测距，容差20
           HAL_Delay(750);
           mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));
 
@@ -2651,9 +2551,9 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
           if(need){
             uint8_t act = (idx <= 2) ? 57 : ((idx <= 6) ? 60 : 63);   //57矮 / 60高 / 63中阶梯
             runActionGroup(act, 1);
-            delay_ms((act == 60) ? 5500 : ((act == 57) ? 3500 : 4300));                          //★等待=动作组总时长+500ms：57矮=3000+500 / 60高=5000+500 / 63中=3800+500
+            delay_ms(5500);                          //夹取动作约5.5秒(矮、高阶梯5000，中3800)
             runActionGroup(66, 1);                   //夹完回到识别状态
-            delay_ms(1900);                          //66回识别=动作组总时长1400ms+500ms
+            delay_ms(3000);                          //回识别动作约3秒
             JieTi_FlushVision();                     //清掉夹取期间滞留的旧帧
           }
         }
@@ -2663,7 +2563,7 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
        
         //单独的机械臂抬起
         runActionGroup(151, 1);
-        HAL_Delay(1200);
+        HAL_Delay(1000);
         
         JieTi_Flag = 0;                     //M6.3 阶梯结束
         /* ★阶梯跑完去哪儿：就按上面那个开关 JIETI_GO_LIZHU 走（改一个数就能切回来）
@@ -2713,12 +2613,12 @@ LIZHU_START:
             }
           }
 
-          mode_red ? HAL_Delay(STORAGE_Data.R_LiZhuang_Delay_x) : HAL_Delay(STORAGE_Data.B_LiZhuang_Delay_x);;//多走一小段，蓝要比红多走点（120/150 改成 Flash 参数，菜单可调）
+          mode_red ? HAL_Delay(120) : HAL_Delay(150);;//多走一小段，蓝要比红多走点
           
           ROBOT_MoveSpeed(0.0f, 0.0f);                      //停车
 
           ROBOT_MoveSpeed(0.0f, 5.0f);                      //② 向前慢逼近到 200mm，180也太远
-          WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > STORAGE_Data.C_LiZhuang_Target_y,//175比170稍微远一点，防顶（175 改成 Flash 参数 C_LiZhuang_Target_y，菜单可调）
+          WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > 175U,//175比170稍微远一点，防顶
                      "LiZhu front distance -> 175mm");
           ROBOT_MoveSpeed(0.0f, 0.0f);                      //停车，准备往前走识别中间方块
 
@@ -2753,7 +2653,7 @@ LIZHU_START:
           HAL_Delay(1000);
 
           runActionGroup(101, 1);//举起
-          HAL_Delay(2300);
+          HAL_Delay(1000);
 
           //转完一圈，纠正角度.车子前面朝右/朝左
           mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));
@@ -2801,7 +2701,7 @@ LIZHU_START:
           
           //这里放倒方块的代码
           runActionGroup(116, 1);//快倒方块动作组
-          HAL_Delay(900);//116快倒方块=动作组总时长400ms+500ms
+          HAL_Delay(200);//倒方块动作约200ms
 
           for(uint8_t j = 0; j < 3; j++)//三次
           {
@@ -2820,7 +2720,7 @@ LIZHU_START:
 
           ROBOT_MoveSpeed(0, 0);
           runActionGroup(19, 1);//收倒球槽
-          HAL_Delay(1200);
+          HAL_Delay(1000);
 
           LiZhu_Flag = 0;//立柱结束，回家开始
           HuiJia_Flag = 1;
@@ -2872,7 +2772,7 @@ HUIJIA_START:
 
     //进入红/蓝后，继续向右/左多走 7cm，确保停在红/蓝区域内部（避免停在边缘抖动；距离按区域宽度调整），而且确保车身左右都在红/蓝区域内
     //★短距档 40/50（2026-09-27 统一改用宏；7cm 三角波峰值 √(50×7)=19cm/s，若现场发现走不到位，把这里的第5/6个参数(a)单独加大到 100~200）
-    ROBOT_Move(mode_red ? STORAGE_Data.R_HuiJia_x : STORAGE_Data.B_HuiJia_x, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //★11/-33 改成 Flash 参数(菜单可调)
+    ROBOT_Move(mode_red ? 11 : -33, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
     //颜色传感器在车左边，所以会更靠近蓝色的，蓝色的需要多走一段固定位移
 
     //往前走，走到颜色传感器一定在黑色区域内（同样连续3次确认）
@@ -2906,7 +2806,7 @@ HUIJIA_START:
     //识别为红/蓝后继续向后多走3cm，确保停在红/蓝区域内部（避免停在边缘抖动；距离按区域宽度调整），而且确保车身前后都在红/蓝区域内
     //★短距档 40/50（原手写 5/5：5cm/s 第一拍根本推不动，白走一趟；3cm 三角波峰值 √(50×3)=12cm/s，
     //  仍在起转阈值边缘 ⇒ 若现场发现这条走不动，把它第5/6个参数(a)单独加大到 200，峰值就有 24cm/s）
-    ROBOT_Move(0, STORAGE_Data.C_HuiJia_y, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //★-6 改成 Flash 参数(菜单可调)
+    ROBOT_Move(0, -6, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
     ROBOT_MoveSpeed(0, 0);
         
 }//if(0)的尾括号

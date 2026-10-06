@@ -11,7 +11,7 @@ typedef struct {
   uint8_t hwt101ct;   // 陀螺仪数据更新标志
   uint8_t chassis;    // 底盘控制循环标志
   uint8_t angle;      // 航向环（角度环）开关：1 开启（默认），0 关闭回手动 w
-  uint8_t oled_ui;    // OLED UI 显示开关：1 开启，0 关闭（默认）——队友新增：上电 KEY0 调参菜单用
+  uint8_t oled_ui;   // OLED UI 显示开关：1 开启，0 关闭（默认）
 } FLAG;
 
 extern FLAG flag;

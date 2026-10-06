@@ -140,23 +140,22 @@ void CHASSIS_Init(void){
   chassis.tune_kd    = SPEED_PID_DFT[CHASSIS_MOTOR_LF][0].kd;
   chassis.tune_pulse = 0;
 
-  /* ==================== 位置式速度环初值（2026-09-25 加，串口在线调，字段说明见 chassis.h） ====================
+  /* ==================== 位置式速度环初值（2026-09-25 加，字段说明见 chassis.h） ====================
      ★ 这套 kp/ki **不能照搬上面增量式那张表** —— 两者语义不同：
          增量式  out += kp*(e-e_prev) + ...  → kp 是"误差变化量"的增益
          位置式  out  = kp*e + ki*Σe + ...   → kp 是"绝对误差"的增益，量纲 PWM/(cm/s)
-       数量级恰好接近（都在 4~6），所以先拿增量式那两组当起点试，但**必须重新调**。
-     起调顺序（配合 main.c 里 SERIALPLOT_SpeedPidDebug 的 6 通道输出）：
+       数量级恰好接近（都在 4~10），所以先拿增量式那两组当起点试，但**必须重新调**。
+     起调顺序：
        ① pki1~pki4 全置 0 → 只剩 P。调 pkp 到"给定 20cm/s 能稳定起转、不持续振荡"
-          （起转 PWM 60~110，kp=5 时误差 20cm/s 就给 100 → 刚够，所以 kp 从 5 附近起调）
-       ② 再加 ki（0.05 → 0.1 → …）→ 盯 i_out 通道，看它慢慢把稳态误差顶掉、且不冲过 pomax
+          （起转 PWM 60~110，kp=10 时误差 20cm/s 就给 200 → 压得过，所以 kp 从 5~10 附近起调）
+       ② 再加 ki（0.05 → 0.1 → …）→ 盯 i_out，看它慢慢把稳态误差顶掉、且不冲过 pomax
        ③ 启动/换向时 i_out 冲得猛 → 开积分分离 psep f 30（误差 >30cm/s 期间不积分）
           到位后 i_out 拖着不收     → 开积分死区 pidz f 2（误差 <2cm/s 期间不积分）
        ④ 全程盯 out 是否顶到 pomax：顶了就减 kp 或收紧 pimax，**不要继续加积分**
      ★ 限制默认"先放开、后收紧"：积分分离/死区默认 0（=关闭），先把裸 PID 跑起来再逐个开。 */
   /* ★2026-09-27：四轮统一用一组现场实测可用的参数（kp10 / ki0.6），四轮完全同参。
      用途：悬空四轮同速跑，四条实际值曲线本该高度重合 —— 哪条明显偏低或掉到 0，
-     就是那个轮子机械阻力大 / 推不动，再单独给它调 pkp/pki。
-     （更早的版本这里是全 0，做成"只调左前轮"的单轮环境；现在改成四轮一起跑。） */
+     就是那个轮子机械阻力大 / 推不动，再单独给它调 pkp/pki。 */
   static const float SPEED_POS_KP_DFT[5] = {0.0f, 10.0f, 10.0f, 10.0f, 10.0f};
   static const float SPEED_POS_KI_DFT[5] = {0.0f,  0.6f,  0.6f,  0.6f,  0.6f};
   static const float SPEED_POS_KD_DFT[5] = {0.0f,  0.0f,  0.0f,  0.0f,  0.0f};  // kd 留 0：速度来自编码器有量化台阶(2.27cm/s)，微分会放大抖动
@@ -183,8 +182,8 @@ void CHASSIS_Init(void){
     pp->int_sep_th   = 0.0f;                 // 积分分离阈值：0 = 关闭（需要时串口 psep 打开）
     pp->int_dz       = 0.0f;                 // 积分死区阈值：0 = 关闭（需要时串口 pidz 打开）
   }
-  chassis.speed_pos_mode = 1;   // ★默认位置式（本次就是要调它）。要切回增量式：串口 pmode i 0，立即生效无需复位
-  chassis.speed_dbg_manual = 0; // 调试手动定速：默认关（串口 ptgt f <速度> 打开，pauto i 0 关回）
+  chassis.speed_pos_mode   = 1;   // ★默认位置式。要切回增量式：串口 pmode i 0，立即生效无需复位
+  chassis.speed_dbg_manual = 0;   // 调试手动定速：默认关（串口 ptgt f <速度> 打开，pauto i 0 关回）
   chassis.speed_dbg_tgt    = 0.0f;
 }
 
@@ -324,8 +323,10 @@ static void CHASSIS_Stop_Now(void){
 }
 
 /**
-  * @brief 速度环段（4轮）：读编码器 → 里程计 → 脉冲换算cm/s → 取PID参数 → 增量式PID → PWM输出
+  * @brief 速度环段（4轮）：读编码器 → 里程计 → 脉冲换算cm/s → 取PID参数 → PID → PWM输出
   * @note  从 CHASSIS_Control_Loop 尾部原样抽出，供"正常行驶"与"单轮调参"两条路径共用
+  *        用哪套 PID 由 chassis.speed_pos_mode 决定：1=位置式（PID_PosSpeedUpdate，默认）/
+  *        0=增量式（PID_IncUpdate，旧逻辑），两套状态各存一份、互不干扰，串口 pmode i 0/1 在线切
   */
 static void CHASSIS_SpeedLoop(void){
   /* 读4轮编码器一次（清零法），供里程计与速度环共用，避免二次读取读到0 */
@@ -420,7 +421,7 @@ static void CHASSIS_SpeedLoop(void){
     /* ==================== 位置式 / 增量式 二选一（2026-09-25 加） ====================
        target/actual 直接用上面刚算好的那份（speed_pid[i].target / .actual），位置式只是把它俩
        拷进自己的结构再运算 ⇒ 上游（麦轮解算/规划/里程计/滤波/零漂保护）一行都不用改。
-       切换开关见 chassis.h 的 speed_pos_mode（串口 pmode i 0/1 在线切）。
+       切换开关见 chassis.h 的 speed_pos_mode（上电默认 1=位置式；串口 pmode i 0/1 在线切）。
        注：上面那段"选参数"（speed_tune / speed_seg 表）在位置式模式下会白跑一次（把值写进
        pid->kp/ki/kd 但没人读）—— 无害，刻意保留以免改动过大；位置式的参数在 speed_pid_pos[i] 里。 */
     if(chassis.speed_pos_mode){
@@ -508,8 +509,10 @@ void CHASSIS_Control_Loop(void){
     uint8_t no_move = (fabsf(chassis.v_x) < 0.001f && fabsf(chassis.v_y) < 0.001f);
     /* 航向环三档（2026-09-19 改：kp/ki/kd/bias **每档一套、彼此独立**，改前只有 kp 分档）：
        ① 无平移 → 旋转档（原地转向/被推动后纠偏，要快，kp 该猛）
-       ②③④ 有平移时按分量最大值分三态：低于 YAW_MOVE_MIN_SPEED 不介入 / 到
-             YAW_KP_LOW_SPEED_BOUND 为止是低速档（纠偏更柔、防来回猛纠）/ 之上是高速档
+       ②③④ 有平移时按分量最大值分档：到 YAW_KP_LOW_SPEED_BOUND 为止是低速档（纠偏更柔、
+             防来回猛纠）/ 之上是高速档
+             ★ 2026-09-27 用户要求：0~20cm/s 的平移也要介入、且用低速档那套参数 ⇒
+               YAW_MOVE_MIN_SPEED 由 20 改 0，原来"不介入"那一态并入低速档，三态变两态
        判速用整车目标速度 v_x/v_y（与速度环按 target 分段一致），取**两分量绝对值的较大者**
        max(|vx|,|vy|)，而不是合速度 sqrt(vx²+vy²)。★ 2026-09-19 用户定。
        理由：麦轮斜移时四轮的平移分量是 vy±vx —— 越接近 45°，必有一对轮子的分量越接近 0
@@ -521,16 +524,25 @@ void CHASSIS_Control_Loop(void){
          BOUND 现为 80，合速度 42.4 和 max 30 都落低速档。）
        三档的值取 chassis.yaw_param[档]（不是宏）—— 因为本循环每周期都会覆盖 yaw_pid 的
        kp/ki/kd，直接改 yaw_pid.* 会被立刻冲掉，所以要串口 ykp1/2/3 等改数组才调得动。
-      ★ 2026-09-19 加"不介入"：分量最大值低于 YAW_MOVE_MIN_SPEED 的平移，角度环整个不参与 ——
-        kp/ki/kd 当 0 送进 PID、bias 也不叠 ⇒ out 恒 0 ⇒ w 恒 0。理由见 chassis.h
-        的 YAW_MOVE_MIN_SPEED。档位本身仍报 YAW_STAGE_MOVE_LO（只有三个档位，
+      ★ 2026-09-27 用户要求：0~20cm/s 的平移也要介入、且用低速档(20~80)那套参数 ⇒
+        chassis.h 的 YAW_MOVE_MIN_SPEED 定为 0，下面那个"不介入"分支（yaw_on=0）恒不成立，
+        所有平移都落 YAW_STAGE_MOVE_LO、参数照常送进 PID。控制逻辑一字未改：要回退只需把
+        该宏改回 20.0f。代价（用户已知并接受）：极低速段 w 只等效几 cm/s，可能因四轮静摩擦
+        差出现"某个轮先动"。
+      ★ 2026-09-19 加"不介入"（留档）：分量最大值低于 YAW_MOVE_MIN_SPEED 的平移，角度环
+        整个不参与 —— kp/ki/kd 当 0 送进 PID、bias 也不叠 ⇒ out 恒 0 ⇒ w 恒 0。理由见
+        chassis.h 的 YAW_MOVE_MIN_SPEED。档位本身仍报 YAW_STAGE_MOVE_LO（只有三个档位，
         "介不介入"另用 yaw_on 表达，不新增枚举值）。 */
     uint8_t motion_stage;                          // 本周期用哪一档（下面判停止档时也要用）
     uint8_t yaw_on = 1;                            // 本周期角度环是否介入（0 ⇒ w 恒 0）
+                                                   // ★ YAW_MOVE_MIN_SPEED=0 时不会再被置 0
     if(no_move){
       motion_stage = YAW_STAGE_TURN;
     }else{
       float move_max = fmaxf(fabsf(chassis.v_x), fabsf(chassis.v_y));   // 两分量绝对值的较大者
+      /* ★ YAW_MOVE_MIN_SPEED 现为 0（chassis.h）⇒ 本分支恒不成立（move_max 是绝对值，恒 ≥ 0），
+         0~20cm/s 的平移同样走下面的低速档、照常介入；
+         留着它只是为了把宏改回 20.0f 就能立刻恢复旧行为 */
       if(move_max < YAW_MOVE_MIN_SPEED){
         motion_stage = YAW_STAGE_MOVE_LO;          // 名义落到低速档，但参数不生效
         yaw_on       = 0;
@@ -540,6 +552,7 @@ void CHASSIS_Control_Loop(void){
       }
     }
     /* 档位编码（2026-09-19 加，仅供串口观察，不参与控制）：0=旋转 1=不介入 2=低速 3=高速
+       ★ 2026-09-27：YAW_MOVE_MIN_SPEED=0 ⇒ 1(不介入) 不再出现，0~20cm/s 报 2(低速)
        ★ 为什么另立一个字段而不是用 chassis.yaw_stage：那个档位在确认停稳时会被改写成
          YAW_STAGE_STOP(3)，与本编码的"3=高速"撞车；而且它表达的是"停没停稳"，不是"介不介入"。 */
     if(no_move)                                chassis.yaw_gear = 0;

@@ -1,0 +1,180 @@
+warning: in the working copy of 'main_head.c', LF will be replaced by CRLF the next time Git touches it
+diff --git a/main_head.c b/main_mate.c
+index 7019cac..b9fc9d9 100644
+--- a/main_head.c
++++ b/main_mate.c
+@@ -159 +158,0 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+-
+@@ -162,4 +160,0 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+-    // (已废弃) ICM42688 5ms 更新 与 CAR_Control_Loop 10ms 车体控制周期
+-
+-
+-
+@@ -176 +170,0 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+-
+@@ -183,0 +178,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
++    //20ms执行一次--oled_ui更新
++    static uint8_t count3 = 0;
++    if(flag.oled_ui && ++count3 >= 20){
++      count3 = 0;
++      OLED_UI_InterruptHandler();
++    }
++    
+@@ -185,2 +185,0 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+-  /* 编码器用清零法，无 htim3/htim4 溢出中断分支 */
+-
+@@ -299 +298 @@ static void ZM_ShowComm(int rx4, int rx2){
+-#define JIETI_FWD_TARGET_MM   55      //★目标前后距离(mm)：既是“走近阶梯”的停止距离，也是逐坑前后校准的目标
++// #define STORAGE_Data.C_Jieti_Forward_y   55      //★目标前后距离(mm)：既是“走近阶梯”的停止距离，也是逐坑前后校准的目标
+@@ -302,2 +301,2 @@ static void ZM_ShowComm(int rx4, int rx2){
+-#define JIETI_STEP_CM         16      //★阶梯内坑间距(cm)：实际8，红15，19可，调蓝发现需要给多，蓝17，21太大，很容易按右边的来校准
+-#define JIETI_STEP_CROSS_CM  20      //★换阶梯那一步(cm)：实际10
++// #define STORAGE_Data.C_JitTi_Step_x         16      //★阶梯内坑间距(cm)：实际8，红15，19可，调蓝发现需要给多，蓝17，21太大，很容易按右边的来校准
++// #define STORAGE_Data.C_Jieti_Cross_x  20      //★换阶梯那一步(cm)：实际10
+@@ -431 +430 @@ static void JieTi_Adjust_Y(int Target_Y_Distance){
+-                if(dis > (Target_Y_Distance + 5)){
++                if(dis > (Target_Y_Distance + STORAGE_Data.C_JieTi_JiaoZhun_y2)){
+@@ -442 +441 @@ static void JieTi_Adjust_Y(int Target_Y_Distance){
+-                else if(dis  < (Target_Y_Distance - 5)){
++                else if(dis  < (Target_Y_Distance + STORAGE_Data.C_JieTi_JiaoZhun_y1)){
+@@ -472 +471 @@ static void JieTi_Adjust_X(void){
+-                if(cx > 18){//稍微给大一点，防止第七个校准后偏左卡到阶梯
++                if(cx > STORAGE_Data.C_JieTi_JiaoZhun_x2){//稍微给大一点，防止第七个校准后偏左卡到阶梯
+@@ -483 +482 @@ static void JieTi_Adjust_X(void){
+-                else if(cx < -5){
++                else if(cx < STORAGE_Data.C_JieTi_JiaoZhun_x1){
+@@ -756 +755 @@ static void LiZhu_MiddleGrab(void){
+-  ROBOT_Move(0, 6, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
++  ROBOT_Move(0, STORAGE_Data.C_LiZhuang_Fwd_y, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+@@ -1575 +1574 @@ int main(void)
+-  OLED_Init();
++  // OLED_Init();
+@@ -1603,0 +1603,78 @@ int main(void)
++  HAL_Delay(300);
++
++
++
++  STORAGE_Init();//把数据从flash加载到存储模块中
++  OLED_UI_Init(&MainMenuPage);
++  /*上电按下key0进入调参模式*/
++  if(!HAL_GPIO_ReadPin(KEY0_GPIO_Port, KEY0_Pin)){
++    flag.oled_ui = true; //启动20ms调用更新函数
++    extern bool oled_ui_exit_save;
++    extern bool oled_ui_exit_cancel;
++    while(1){
++      OLED_UI_MainLoop();
++      if(oled_ui_exit_save == true){//退出oled菜单（保存）
++        flag.oled_ui = false;
++        OLED_Clear();
++        OLED_Printf(0, 0, OLED_8X16_HALF, "Saving...");
++        OLED_Update();
++        // STORAGE_Data.R_ChuFa_x = -75;
++        // STORAGE_Data.R_ChuFa_y = 410;
++        // STORAGE_Data.B_ChuFa_x = 50;
++        // STORAGE_Data.B_ChuFa_y = 405;
++
++        // STORAGE_Data.R_YuanPan_y = -6;
++        // STORAGE_Data.B_YuanPan_y = -6;
++
++        // STORAGE_Data.C_GetTarget_y = 129;
++        // STORAGE_Data.C_GetTarget_x = -42;
++
++        // STORAGE_Data.C_JieTi_Left_x = 7;
++        // STORAGE_Data.C_Jieti_FwdTarget_y = 55;
++        // STORAGE_Data.C_JitTi_Step_x = 16;
++        // STORAGE_Data.C_Jieti_Cross_x = 20;
++        // STORAGE_Data.C_JieTi_JiaoZhun_x1 = -5;
++        // STORAGE_Data.C_JieTi_JiaoZhun_x2 = 18;
++        // STORAGE_Data.C_JieTi_JiaoZhun_y1 = -5;
++        // STORAGE_Data.C_JieTi_JiaoZhun_y2 = +5;
++
++        // STORAGE_Data.R_LiZhuang_Delay_x = 120;
++        // STORAGE_Data.B_LiZhuang_Delay_x = 150;
++        // STORAGE_Data.C_LiZhuang_Target_y = 175;
++        // STORAGE_Data.C_LiZhuang_Fwd_y = 6;
++        // STORAGE_Data.R_LiZhuang_Back_y = -8;
++        // STORAGE_Data.B_LiZhuang_Back_y = -9;
++
++        // STORAGE_Data.R_HuiJia_x = 12;
++        // STORAGE_Data.B_HuiJia_x = -33;
++        // STORAGE_Data.C_HuiJia_y = -6;
++
++        STORAGE_Save(); //把调好的参数保存到flash中
++        OLED_Clear(); 
++        OLED_Update();
++        break;
++      }
++      if(oled_ui_exit_cancel == true){//退出oled菜单（不保存）
++        flag.oled_ui = false;
++        OLED_Clear();
++        OLED_Printf(0, 0, OLED_8X16_HALF, "Cancel...");
++        OLED_Update();
++        STORAGE_Init(); //把数据从flash加载到存储模块中（覆盖调参时整定的错误参数）
++        OLED_Clear(); 
++        OLED_Update();
++        break;
++      }
++    }
++  }
++
++  /*上电按下key1进入调试模式*/
++  if(!HAL_GPIO_ReadPin(KEY1_GPIO_Port, KEY1_Pin)){
++
++  }
++
++
++
++
++
++
++
+@@ -1607 +1683,0 @@ int main(void)
+-  HAL_Delay(300);
+@@ -1850 +1926 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(20,0); HAL_Delay(15);
+-    ROBOT_Move(mode_red ? -88 :50,mode_red ? 424 : 405,SPD_LONG_V,SPD_LONG_V,SPD_LONG_A,SPD_LONG_A);//58太靠右
++    ROBOT_Move(mode_red ? STORAGE_Data.R_ChuFa_x : STORAGE_Data.B_ChuFa_x, mode_red ? STORAGE_Data.R_ChuFa_y : STORAGE_Data.B_ChuFa_y, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);//58太靠右
+@@ -1952 +2028 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(20,0); HAL_Delay(15);
+-    ROBOT_Move(0, mode_red ? -6 : -6, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
++    ROBOT_Move(0, mode_red ? STORAGE_Data.R_YuanPan_y : STORAGE_Data.B_YuanPan_y, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+@@ -2226 +2302 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto 
+-        ROBOT_Move(0, 129, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
++        ROBOT_Move(0, STORAGE_Data.C_GetTarget_y, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+@@ -2244 +2320 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto 
+-        ROBOT_Move(-42, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
++        ROBOT_Move(STORAGE_Data.C_GetTarget_x, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+@@ -2418 +2494 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto 
+-                   M3 走位/计数: 第2~8坑每坑走固定距离(JIETI_STEP_CM / JIETI_STEP_CROSS_CM) + 计第几个坑
++                   M3 走位/计数: 第2~8坑每坑走固定距离(STORAGE_Data.C_JitTi_Step_x / STORAGE_Data.C_Jieti_Cross_x) + 计第几个坑
+@@ -2458 +2534 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto 
+-        ROBOT_Move(7, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
++        ROBOT_Move(STORAGE_Data.C_JieTi_Left_x, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+@@ -2471 +2547 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto 
+-                      JIETI_FWD_TARGET_MM 再做一次前后校准(M2)，第1坑也不例外） */
++                      STORAGE_Data.C_Jieti_Forward_y 再做一次前后校准(M2)，第1坑也不例外） */
+@@ -2476 +2552 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto 
+-       WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > (JIETI_FWD_TARGET_MM + 20),
++       WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > (STORAGE_Data.C_Jieti_FwdTarget_y + 20),
+@@ -2505,3 +2581,3 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto 
+-            /* 换阶梯那一步(第2→3个、第6→7个，就是动作组 57/60/63 切换处)隔得远，走 JIETI_STEP_CROSS_CM；
+-                            同一个阶梯里相邻坑走 JIETI_STEP_CM */
+-            int32_t step_cm = (idx == 3 || idx == 7) ? JIETI_STEP_CROSS_CM : JIETI_STEP_CM;
++            /* 换阶梯那一步(第2→3个、第6→7个，就是动作组 57/60/63 切换处)隔得远，走 STORAGE_Data.C_Jieti_Cross_x；
++                            同一个阶梯里相邻坑走 STORAGE_Data.C_JitTi_Step_x */
++            int32_t step_cm = (idx == 3 || idx == 7) ? STORAGE_Data.C_Jieti_Cross_x : STORAGE_Data.C_JitTi_Step_x;
+@@ -2517 +2593 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto 
+-          JieTi_Adjust_Y(JIETI_FWD_TARGET_MM);  //再校准前后：前测距，容差20
++          JieTi_Adjust_Y(STORAGE_Data.C_Jieti_FwdTarget_y);  //再校准前后：前测距，容差20
+@@ -2616,2 +2692,2 @@ LIZHU_START:
+-          mode_red ? HAL_Delay(120) : HAL_Delay(150);;//多走一小段，蓝要比红多走点
+-          
++          mode_red ? HAL_Delay(STORAGE_Data.R_LiZhuang_Delay_x) : HAL_Delay(STORAGE_Data.B_LiZhuang_Delay_x);;//多走一小段，蓝要比红多走点
++
+@@ -2621 +2697 @@ LIZHU_START:
+-          WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > 175U,//175比170稍微远一点，防顶
++          WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > STORAGE_Data.C_LiZhuang_Target_y,//175比170稍微远一点，防顶
+@@ -2775 +2851 @@ HUIJIA_START:
+-    ROBOT_Move(mode_red ? 11 : -33, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
++    ROBOT_Move(mode_red ? STORAGE_Data.R_HuiJia_x : STORAGE_Data.B_HuiJia_x, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+@@ -2809 +2885 @@ HUIJIA_START:
+-    ROBOT_Move(0, -6, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
++    ROBOT_Move(0, STORAGE_Data.C_HuiJia_y, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
