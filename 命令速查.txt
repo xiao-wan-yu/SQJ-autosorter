@@ -140,14 +140,33 @@ git pull 报冲突 → 把报错发给我，不要自己乱删
  例：ykp2 f 0.9   skp f 5.5   target f 90   vx f 30   pq i 0   at f 90
  名字：mx my go gb tspd tkp tki tkd ang skp ski skd
        kp1~kp4 ki1~ki4 kd1~kd4 ykp1~3 yki1~3 ykd1~3 ybias1~3 pq at
+       sdist brkd（短距精细档阈值 / 断电滑停减速度，2026-10-07 加）
+       nspd ncrl nbrk（校准微调：起转速度cm/s / 收尾爬行下限cm/s / 断速余量附加量cm，2026-10-07 加）
        + 参数表 kp ki kd target vx vy w mv mvacc
    ★速度环两套参数（2026-09-27 起默认走位置式）：
       增量式 = kp1~4/ki1~4/kd1~4 与 skp/ski/skd（写 speed_seg 表，按速度段分4档）
       位置式 = pkp1~4/pki1~4/pkd1~4（写 speed_pid_pos[]，四轮各一份、不分速度段）★当前生效
       位置式限制/积分条件：pomax pomin pimax psep pidz pkip
       切换：pmode i 1 位置式(默认) / pmode i 0 增量式（立即生效、不用复位）
+      短距精细档(2026-10-07 加)：sdist f 0 距离阈值cm(★上电默认 0=关)  brkd f 100 断电滑停减速度cm/s^2
+        ★原先 fine_max_dist/brake_decel 全工程没赋值(恒0) => 精细档判停从未生效 => ROBOT_Move 一直是纯时间开环
+        ★试过 sdist=10 被现场否掉："前后想动动不起来" —— 梯形是斜坡，1cm 小步峰值只有√(a*d)=12cm/s(压在起转
+          死区上)且只撑一两个周期，提前量又≈整个目标 => 一动就判停。要用先标 brkd 再从 sdist f 6 起
+      校准微调(2026-10-07 加，逐坑前后校准挪车 JieTi_Nudge_Y：起转阶跃+收尾降速+编码器判停，不走梯形)：
+        nspd f 20  起转/上限速度cm/s(推不动就加到25~30；要≥约20才越过四轮起转死区PWM60~130)
+        ncrl f 8   收尾爬行下限cm/s(速度一路降到它再断速)；日志出 stall 就加，嫌磨蹭可减(别低于6)
+        nbrk f 0   断速余量【附加量】cm(真正余量按当前速度现算 v^2/(2*220)+v*0.02)；总冲过头→加大，总差一点没到→减小(可负)
+        ★一路20cm/s冲到断速线再刹实测多冲9~15mm(20ms延迟4mm+反接刹车≈9mm)，坑才16cm、容差±5mm
+          => "前后一下子走太多"；收尾降到8cm/s再断滑行只剩1~2mm。日志 moved=..(target .., d=..) 的 d 就是 nbrk 依据
+        ★校准全程 JieTi_MoveSpeed() 锁住进校准那刻的绝对角：否则每次脉冲都重锁当前(已歪)朝向 => X 越挪越斜、
+          校准完一句 ROBOT_Angle 就把刚对好的左右位置带偏；X 脉冲时长随超差像素加长(20~60ms, 0.5ms/px)、
+          动作阈值=容差带±5px(带边是视觉抖动)，判定合格仍用原容差带(见 串口指令速查.md 表下 ★★ 段)
+          ★2026-10-07晚补「卡在带边」逃生：停在带边既不挪车、ok_cnt又清零 => 只能白等3s超时(现场8坑占4坑)；
+            现在连续 JIETI_X_EDGE_FRAMES(4) 帧停在带边 => 按对准收工，日志 "JX ok: n frames at edge cx=.."；
+            挪车条件未动，想回到旧行为把该宏写 999
       定速调试：ptgt f 40 四轮钉住40cm/s  pauto i 0 退出定速
       ★发 pq 时 W1~W4 是增量式的、P1~P4 才是现在生效的；改 pkp1 后 W1 不动是正常的
+      ★pq 末尾那行 NUD 是校准微调三旋钮(nspd/crl/brk)的当前生效值
  ★kp/ki/kd 已失效（航向环每20ms按工况覆盖）→ 用 ykp1/ykp2/ykp3 那一组
 
 【其它串口】串口1 会打出 TX/RX2/RX4 日志，流程卡住时看它

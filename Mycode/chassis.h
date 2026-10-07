@@ -50,6 +50,31 @@ typedef enum {
 #define SPEED_SEG_BOUND_2  80.0f    // 段2上边界（40-80）
 #define SPEED_SEG_BOUND_3  120.0f   // 段3上边界（80-120）
 #define SPEED_TARGET_MAX   160.0f   // 4轮目标速度限幅（实测最大车速~160cm/s），防止麦轮解算出超限目标
+/* ==================== 短距精细档（编码器位置闭环判停）默认值 ——— ★2026-10-07 加 / 同日又回退 ====================
+   【为什么加】这两个字段原先**全工程没有一行代码赋值**（chassis 全局变量 ⇒ 恒 0）⇒ CHASSIS_Start_Move 里
+     fine_move 恒 0 ⇒ chassis.c 判停块的精细档分支从未执行过 ⇒ ROBOT_Move 一直是纯时间开环梯形（∫v dt）。
+     填上即启用：两轴目标都 ≤ 本阈值(cm) 的 Move 改由 dist_acc（1 脉冲≈0.455mm）判停 + 按 v²/(2·brkd) 提前断电。
+   【为什么又默认关掉】填 10cm 后现场"前后一直想动但动不起来"：梯形是**斜坡**，1cm 小步峰值只有 √(a·d)=12cm/s
+     （PWM≈120，正压在左前轮起转死区 110~130 上）且只撑一两个 20ms 周期；而提前量 v²/(2·brkd)+v·0.02 在这种
+     小步上 ≈0.99cm ≈ 整个目标 ⇒ 一动就判停。⇒ 本档只适合"距离 ≥3cm 且速度能跑到 20cm/s"的短距走位；几 cm
+     的贴靠微调请用 JieTi_Nudge_Y 那套（速度阶跃 + 编码器判停，见 main.c）。要用：先标 brkd（标法见
+     串口指令速查.md）再发 sdist f 6 起试。
+   ★提前量随 v² 涨（20cm/s→2cm、40cm/s→8.8cm），阈值给大反而半路断电长滑 ⇒ 更容易走歪。 */
+#define FINE_MOVE_MAX_DIST_DFT    0.0f  // 精细档距离阈值 cm（★默认 0 = 关；串口 sdist 在线打开，建议 6~10）
+#define BRAKE_DECEL_DFT         100.0f  // 断电自然滑停等效减速度 cm/s²（旧注释实测≈100；串口 brkd 在线微调）
+                                        // ★只在 sdist>0 时被用到；填 0 会让提前量 = ∞
+/* ==================== 校准微调（起转阶跃 + 收尾降速 + 编码器判停）默认值 ——— ★2026-10-07 加 ====================
+   给 main.c 的 JieTi_Nudge_Y() 用（逐坑/圆环前后校准的挪车），字段说明见下面 Chassis 结构。
+   一趟挪车分两段：① 起转段全速 nudge_speed —— 位置式速度环 P 项 = kp×v ≈ 10×20 = 200 PWM，
+   稳稳越过四轮起转死区（实测 60~130；给 10cm/s 只有 ~100 PWM，正好卡在死区里 ⇒ "速度小反而推不动"）；
+   ② 收尾段按剩余距离把速度一路降到 nudge_crawl 再断速 ⇒ 断速那一刻速度小，刹车滑行只剩 1~2mm。
+   ★为什么必须收尾降速（2026-10-07 现场数据）：一路 20cm/s 冲到断速线再刹，实测要多冲 9~15mm
+     —— 一个坑才 16cm、容差 ±5mm，这就是"前后一下子走太多"的来源。
+   ★断速余量不再是个固定值：main.c 按**当前速度**现算 v²/(2×220cm/s²) + v×20ms，
+     这里的 nudge_brake_cm 只是叠在它上面的**附加量**（冲过头加大 / 差一点没到减小，可为负）。 */
+#define NUDGE_SPEED_DFT         20.0f   // 校准微调起转/上限速度 cm/s（serialplot: nspd）
+#define NUDGE_CRAWL_DFT          8.0f   // 校准微调收尾爬行下限 cm/s（serialplot: ncrl）—— 再低怕推不动
+#define NUDGE_BRAKE_CM_DFT       0.0f   // 校准微调断速余量**附加量** cm（serialplot: nbrk，可为负）
 /* ==================== 航向环（角度环）三档参数 ====================
    ★ 2026-09-19 改：kp / ki / kd / bias 四者**每档一套、彼此独立**。
      改之前只有 kp 分档，ki/kd/bias 是三档共用的 —— 调平移档会把旋转档一起带坏。
@@ -294,8 +319,18 @@ typedef struct {
     float    move_target_y;       // = |y_dist|
     float    brake_decel;        // 断电自然滑停等效减速度 cm/s²（判停提前量 = 当前速度²/(2·brake_decel)；serialplot brkd 在线调）
     uint8_t  fine_move;          // 精细档标志：1=本次 Start_Move 属短距(两轴≤sdist)或低速恒速(lspd)，启 整形+提前判停；0=常规档(大距/高速)纯时间开环
-    float    fine_max_dist;      // 短距精细档判定阈值 cm（serialplot: sdist，默认 FINE_MOVE_MAX_DIST_DFT）
+    float    fine_max_dist;      // 短距精细档判定阈值 cm（serialplot: sdist，默认 FINE_MOVE_MAX_DIST_DFT=0 即关）
     float    fine_max_spd;       // 低速精细档判定阈值 cm/s（serialplot: lspd，默认 FINE_MOVE_MAX_SPD_DFT）
+    /* ---- 校准微调（JieTi_Nudge_Y：起转阶跃 + 收尾降速 + 编码器判停）的三个现场旋钮 ——— ★2026-10-07 加 ----
+       和上面 fine_* 一样放在 chassis 里（而不是 main.c 的宏），因为这三个值**必须现场标**：
+         nudge_speed    起转/上限速度 cm/s：要够大才压得过四轮起转死区（serialplot: nspd，默认 NUDGE_SPEED_DFT）
+         nudge_crawl    收尾爬行下限 cm/s：越接近断速线速度越往这个值降（serialplot: ncrl，默认 NUDGE_CRAWL_DFT）
+                        ★降速后推不动（日志会出现 "stall"）就往上加；总感觉收尾太磨蹭就减到 6
+         nudge_brake_cm 断速余量**附加量** cm：真正的余量按当前速度现算 v²/(2a)+v×20ms，这里只是加在它上面
+                        （serialplot: nbrk，默认 NUDGE_BRAKE_CM_DFT=0；总是冲过头就加大、总是差一点没到就减小） */
+    float    nudge_speed;        // 校准微调起转/上限速度 cm/s（默认 NUDGE_SPEED_DFT）
+    float    nudge_crawl;        // 校准微调收尾爬行下限 cm/s（默认 NUDGE_CRAWL_DFT）
+    float    nudge_brake_cm;     // 校准微调断速余量的附加量 cm（默认 NUDGE_BRAKE_CM_DFT，可为负）
 } Chassis;
 
 extern Chassis chassis;
