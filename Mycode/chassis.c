@@ -185,18 +185,6 @@ void CHASSIS_Init(void){
   chassis.speed_pos_mode   = 1;   // ★默认位置式。要切回增量式：串口 pmode i 0，立即生效无需复位
   chassis.speed_dbg_manual = 0;   // 调试手动定速：默认关（串口 ptgt f <速度> 打开，pauto i 0 关回）
   chassis.speed_dbg_tgt    = 0.0f;
-
-  /* 短距精细档：这两个字段原先全工程没人赋值(恒 0) ⇒ fine_move 恒 0 ⇒ 本文件的精细档判停块从未执行过。
-     ★2026-10-07 同日又默认关掉(FINE_MOVE_MAX_DIST_DFT=0)：填 10cm 后现场"前后想动动不起来"
-       （梯形斜坡压不过起转死区 + 提前量≈目标），详见 chassis.h。要用先标 brkd 再发 sdist f N。 */
-  chassis.brake_decel   = BRAKE_DECEL_DFT;    // 提前量分母：v²/(2·brake_decel)，0 会让判停条件恒成立
-  chassis.fine_max_dist = FINE_MOVE_MAX_DIST_DFT;
-  chassis.fine_max_spd  = 0.0f;               // 该字段当前无任何代码读取，保留 0 不动
-  chassis.fine_move     = 0;                  // 本次分档由 CHASSIS_Start_Move 按上面阈值现算
-  /* 校准微调的三个现场旋钮 — 给 main.c 的 JieTi_Nudge_Y 用（串口 nspd / ncrl / nbrk 在线改，见 chassis.h） */
-  chassis.nudge_speed    = NUDGE_SPEED_DFT;
-  chassis.nudge_crawl    = NUDGE_CRAWL_DFT;
-  chassis.nudge_brake_cm = NUDGE_BRAKE_CM_DFT;
 }
 
 /**
@@ -486,13 +474,10 @@ void CHASSIS_Control_Loop(void){
        靠 50cm 不受控滑行到位 → 又斜又偏（队友长距走斜的实测元凶）。常规档只用上方 ti>=tp.t 的
        纯时间开环梯形（末速0自然减速），回到分档前已验证的整图走法。 */
     if(chassis.fine_move){
-      /* ★2026-10-07 加"还有地方提前吗"的闸门：glide（断电后还要滑多远）≥ 目标距离，说明是极小步+低速
-         （例：1cm 步、峰值 12cm/s ⇒ glide≈0.99cm），此时再提前判停就等于"第一个编码器脉冲就断电"、
-         车只抖一下不走路 ⇒ 不做提前判停，让本规划走完 ti>=tp.t 的正常减速段（末速本来就是 0）。 */
       if(chassis.move_target_x > 0.1f){
         float nowv   = fabsf(chassis.now_v_x);   // 上一周期实测整车x速度（判停读到的位移同理滞后一周期）
         float glide  = nowv*nowv/(2.0f*chassis.brake_decel) + nowv*ENCODER_TIME_S;
-        if(glide < chassis.move_target_x && chassis.dist_acc_x >= chassis.move_target_x - glide){
+        if(chassis.dist_acc_x >= chassis.move_target_x - glide){
           chassis.x_speed_plan_flag = 0;
           if(chassis.move_target_y <= 0.1f) CHASSIS_Stop_Now();  // x 单轴到位 → 清空断电（斜走两轴同走不刹）
         }
@@ -500,7 +485,7 @@ void CHASSIS_Control_Loop(void){
       if(chassis.move_target_y > 0.1f){
         float nowv   = fabsf(chassis.now_v_y);
         float glide  = nowv*nowv/(2.0f*chassis.brake_decel) + nowv*ENCODER_TIME_S;
-        if(glide < chassis.move_target_y && chassis.dist_acc_y >= chassis.move_target_y - glide){
+        if(chassis.dist_acc_y >= chassis.move_target_y - glide){
           chassis.y_speed_plan_flag = 0;
           if(chassis.move_target_x <= 0.1f) CHASSIS_Stop_Now();  // y 单轴到位 → 清空断电
         }

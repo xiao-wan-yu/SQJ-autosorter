@@ -143,35 +143,6 @@ void SERIALPLOT_ChangeParam(char *string){
      flag 定义在 chassis.h，此处已 include */
   if(strcmp(str_name, "ang") == 0){ flag.angle = (uint8_t)val; return; }
 
-  /* ★ 短距精细档（编码器位置闭环判停）在线开关 / 标定 — 2026-10-07 加（字段说明见 chassis.h）
-     背景：chassis.fine_max_dist 与 chassis.brake_decel 原先全工程无人赋值（恒为 0）⇒
-           精细档判停从未生效、ROBOT_Move 一直是纯时间开环。默认值已在 CHASSIS_Init 里补上，
-           这两条指令用来**现场试验和标定**：
-     sdist f 0     → 关掉精细档（回到"纯时间开环"，所有 Move 走常规档）—— **上电默认就是这个**
-     sdist f 10    → 两轴距离都 ≤10cm 的 Move 走精细档（★先在整图上验证过的档位再上，见下）
-     brkd  f 100   → 断电自然滑停等效减速度 cm/s²（默认 = BRAKE_DECEL_DFT）
-     ★改完**下一次调用 CHASSIS_Start_Move / ROBOT_Move 时生效**（fine_move 是在 Start_Move 里现算的），
-       不需要复位，也不需要重发正在跑的那一段。
-     ★两者必须都是"合理非 0 值"：sdist>0 而 brkd=0 时提前量 = v²/(2·0) = ∞ ⇒ 判停条件恒成立
-       ⇒ 规划一启动当周期就被清标志（车几乎不动）。
-     ★2026-10-07 现场教训：sdist 给 10 时"前后想动动不起来" —— 梯形斜坡在 1cm 小步上峰值只有
-       √(a·d)=12cm/s（PWM≈120 压在起转死区）且只撑一两个周期 ⇒ 本档只适合"≥3cm 且速度能跑到
-       20cm/s"的短距走位，几 cm 的贴靠微调请用下面 nspd/nbrk 那套速度阶跃法。 */
-  if(strcmp(str_name, "sdist") == 0){ chassis.fine_max_dist = val; return; }
-  if(strcmp(str_name, "brkd")  == 0){ chassis.brake_decel  = val; return; }
-
-  /* ★ 校准微调（JieTi_Nudge_Y：起转阶跃 + 收尾降速 + 编码器判停）的三个现场旋钮 — 2026-10-07 加
-     nspd f 20   起转/上限速度 cm/s：推不动就往上加(25~30)，甩太猛就往回收（要 ≥18~20 才越得过
-                  四轮起转死区：位置式速度环 P 项 = kp×v）
-     ncrl f 8    收尾爬行下限 cm/s：越接近断速线速度越往它降。降速后推不动（日志 "stall"）就加；
-                  觉得收尾太磨蹭就减（★别低于 6，怕四轮推不动）
-     nbrk f 0    断速余量**附加量** cm：真正的余量按当前速度现算 v²/(2×220) + v×20ms，这里只加在它上面
-                  落点调法：总是冲过头 → 加大(0.1/0.2)；总是差一点没到 → 减小(-0.1/-0.2)
-     改完下一次挪车立即生效（每次现读这三个字段，不用复位）。 */
-  if(strcmp(str_name, "nspd") == 0){ chassis.nudge_speed    = val; return; }
-  if(strcmp(str_name, "ncrl") == 0){ chassis.nudge_crawl    = val; return; }
-  if(strcmp(str_name, "nbrk") == 0){ chassis.nudge_brake_cm = val; return; }
-
   /* ★ 四轮统一速度环参数（在线批量改，不在 param 表）：一条指令同时改 4 轮 × 4 个速度段。
      当前表里四轮全速段本就是同一组值，所以这等效于"改整个速度环的参数"。
      改的是 chassis.speed_seg 表，而控制循环每周期都从表里取参数 ⇒ 发完下一周期立即生效，无需复位。
@@ -340,10 +311,6 @@ void SERIALPLOT_ChangeParam(char *string){
                    chassis.yaw_param[st].kp, chassis.yaw_param[st].ki,
                    chassis.yaw_param[st].kd, chassis.yaw_param[st].bias);
     }
-    /* 校准微调三个旋钮（2026-10-07 加）：nspd/ncrl/nbrk 改完用它确认
-       （★都是内存值，复位/重烧回默认宏 NUDGE_*_DFT，调好记得填回 chassis.h） */
-    UART1_Printf("NUD spd%f crl%f brk%f\r\n",
-                 chassis.nudge_speed, chassis.nudge_crawl, chassis.nudge_brake_cm);
     return;
   }
 
