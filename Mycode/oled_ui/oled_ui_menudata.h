@@ -20,9 +20,15 @@ AboutOLED_UIMenuPage,MoreMenuPage,Font8MenuPage,Font12MenuPage,Font16MenuPage
    - MainMenuItems/MainMenuPage 用的是队友 2026.10.2 版（比赛流程参数：出发/圆盘机/识别/阶梯/立柱/回家，全部可在上电 KEY0 菜单里调）。
    - PIDParamMenuItems/OtherParamMenuItems 与两个菜单页是本工程原有，仍保留（挂在 MainMenuPage 末尾）。
    - 退出菜单用队友的 exit&save / exit&cancel 两个标志（原 oled_ui_exit 已废弃）。 */
-extern MenuItem MainMenuItems[], PIDParamMenuItems[], OtherParamMenuItems[];
-extern MenuPage MainMenuPage, PIDParamMenuPage, OtherParamMenuPage;
-extern bool oled_ui_exit_save, oled_ui_exit_cancel;
+extern MenuItem MainMenuItems[], ParamMenuItems[], DebugMenuItems[], 
+SensorMenuItems[], Param_ChuFaMenuItems[], Param_YuanPanMenuItems[], 
+Param_GetTargetMenuItems[], Param_JieTiMenuItems[], Param_LiZhuangMenuItems[],
+ Param_HuiJiaMenuItems[];
+
+extern MenuPage MainMenuPage, ParamMenuPage,
+Param_ChuFaMenuPage, Param_YuanPanMenuPage, Param_GetTargetMenuPage,
+Param_JieTiMenuPage, Param_LiZhuangMenuPage, Param_HuiJiaMenuPage;
+extern bool oled_ui_exit_save, oled_ui_exit_cancel, sensor_data_show;
 
 
 #ifdef __cplusplus

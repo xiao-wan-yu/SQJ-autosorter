@@ -7,6 +7,7 @@
 #include "./../storage.h"
 bool oled_ui_exit_save = false;
 bool oled_ui_exit_cancel = false;
+bool sensor_data_show = false;
 
 
 
@@ -986,21 +987,51 @@ MenuWindow encoder_cnt_even_Window = {
 void Show_encoder_cnt_even_Window(void){
 	OLED_UI_CreateWindow(&encoder_cnt_even_Window);
 }
+
+
+
 MenuItem MainMenuItems[] = {
+	{.General_item_text = "Param",.General_callback = NULL,.General_SubMenuPage = &ParamMenuPage,.List_BoolRadioBox = NULL},
+	{.General_item_text = "Sensor",.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = &sensor_data_show},
+	{.General_item_text = NULL},/*最后一项的General_item_text置为NULL，表示该项为分割线*/
+};
+
+
+
+MenuItem ParamMenuItems[] = {
+	{.General_item_text = "ChuFa",.General_callback = NULL,.General_SubMenuPage = &Param_ChuFaMenuPage,.List_BoolRadioBox = NULL},
+	{.General_item_text = "YuanPan",.General_callback = NULL,.General_SubMenuPage = &Param_YuanPanMenuPage,.List_BoolRadioBox = NULL},
+	{.General_item_text = "GetTarget",.General_callback = NULL,.General_SubMenuPage = &Param_GetTargetMenuPage,.List_BoolRadioBox = NULL},
+	{.General_item_text = "JieTi",.General_callback = NULL,.General_SubMenuPage = &Param_JieTiMenuPage,.List_BoolRadioBox = NULL},
+	{.General_item_text = "LiZhuang",.General_callback = NULL,.General_SubMenuPage = &Param_LiZhuangMenuPage,.List_BoolRadioBox = NULL},
+	{.General_item_text = "HuiJia",.General_callback = NULL,.General_SubMenuPage = &Param_HuiJiaMenuPage,.List_BoolRadioBox = NULL},
+	{.General_item_text = "exitcancel",.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = &oled_ui_exit_cancel},
+	{.General_item_text = NULL},/*最后一项的General_item_text置为NULL，表示该项为分割线*/
+
+};
+
+
+MenuItem Param_ChuFaMenuItems[] = {	
 	{.General_item_text = "R_ChuFa_x",.General_callback = Show_R_ChuFa_x_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = "R_ChuFa_y",.General_callback = Show_R_ChuFa_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = "B_ChuFa_x",.General_callback = Show_B_ChuFa_x_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = "B_ChuFa_y",.General_callback = Show_B_ChuFa_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "-------------",.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-
+	{.General_item_text = "exit&save",.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = &oled_ui_exit_save},
+	{.General_item_text = NULL},/*最后一项的General_item_text置为NULL，表示该项为分割线*/
+};
+MenuItem Param_YuanPanMenuItems[] = {
 	{.General_item_text = "R_YuanPan_y",.General_callback = Show_R_YuanPan_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = "B_YuanPan_y",.General_callback = Show_B_YuanPan_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "-------------",.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-
+	{.General_item_text = "exit&save",.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = &oled_ui_exit_save},
+	{.General_item_text = NULL},/*最后一项的General_item_text置为NULL，表示该项为分割线*/
+};
+MenuItem Param_GetTargetMenuItems[] = {
 	{.General_item_text = "C_GetTarget_y",.General_callback = Show_C_GetTarget_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = "C_GetTarget_x",.General_callback = Show_C_GetTarget_x_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "-------------",.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-
+	{.General_item_text = "exit&save",.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = &oled_ui_exit_save},
+	{.General_item_text = NULL},/*最后一项的General_item_text置为NULL，表示该项为分割线*/
+};
+MenuItem Param_JieTiMenuItems[] = {
 	{.General_item_text = "C_JieTi_Left_x",.General_callback = Show_C_JieTi_Left_x_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = "C_Jieti_FwdTarget_y",.General_callback = Show_C_Jieti_FwdTarget_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = "C_JitTi_Step_x",.General_callback = Show_C_JitTi_Step_x_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
@@ -1009,57 +1040,25 @@ MenuItem MainMenuItems[] = {
 	{.General_item_text = "C_JieTi_JiaoZhun_x2",.General_callback = Show_C_JieTi_JiaoZhun_x2_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = "C_JieTi_JiaoZhun_y1",.General_callback = Show_C_JieTi_JiaoZhun_y1_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = "C_JieTi_JiaoZhun_y2",.General_callback = Show_C_JieTi_JiaoZhun_y2_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "-------------",.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	
+	{.General_item_text = "exit&save",.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = &oled_ui_exit_save},
+	{.General_item_text = NULL},/*最后一项的General_item_text置为NULL，表示该项为分割线*/
+};
+MenuItem Param_LiZhuangMenuItems[] = {
 	{.General_item_text = "R_LiZhuang_Delay_x",.General_callback = Show_R_LiZhuang_Delay_x_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = "B_LiZhuang_Delay_x",.General_callback = Show_B_LiZhuang_Delay_x_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = "C_LiZhuang_Target_y",.General_callback = Show_C_LiZhuang_Target_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = "C_LiZhuang_Fwd_y",.General_callback = Show_C_LiZhuang_Fwd_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = "R_LiZhuang_Back_y",.General_callback = Show_R_LiZhuang_Back_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = "B_LiZhuang_Back_y",.General_callback = Show_B_LiZhuang_Back_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "-------------",.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	
+	{.General_item_text = "exit&save",.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = &oled_ui_exit_save},
+	{.General_item_text = NULL},/*最后一项的General_item_text置为NULL，表示该项为分割线*/
+};
+MenuItem Param_HuiJiaMenuItems[] = {
 	{.General_item_text = "R_HuiJia_x",.General_callback = Show_R_HuiJia_x_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = "B_HuiJia_x",.General_callback = Show_B_HuiJia_x_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = "C_HuiJia_y",.General_callback = Show_C_HuiJia_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "-------------",.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	
-	{.General_item_text = "PID Param",.General_callback = NULL,.General_SubMenuPage = &PIDParamMenuPage,.List_BoolRadioBox = NULL},
-	{.General_item_text = "Other Param",.General_callback = NULL,.General_SubMenuPage = &OtherParamMenuPage,.List_BoolRadioBox = NULL},
 	{.General_item_text = "exit&save",.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = &oled_ui_exit_save},
-	{.General_item_text = "exit&cancel",.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = &oled_ui_exit_cancel},
-	{.General_item_text = NULL},/*最后一项的General_item_text置为NULL，表示该项为分割线*/
 };
-
-/* ==========================================================================================
-   ★★ PID Param / Other Param 两个子菜单页的菜单项（本工程原有）★★
-   这两页挂在 MainMenuPage 列表末尾（在 exit&save 上面）；不需要就把 MainMenuItems 里这两项删掉。
-   ========================================================================================== */
-MenuItem PIDParamMenuItems[] = {
-	{.General_item_text = "line_kp",.General_callback = Show_line_kp_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "line_ki",.General_callback = Show_line_ki_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "line_kd",.General_callback = Show_line_kd_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "angle_kp",.General_callback = Show_angle_kp_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "angle_ki",.General_callback = Show_angle_ki_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "angle_kd",.General_callback = Show_angle_kd_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "speed_left_kp",.General_callback = Show_speed_left_kp_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "speed_left_ki",.General_callback = Show_speed_left_ki_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "speed_left_kd",.General_callback = Show_speed_left_kd_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "speed_right_kp",.General_callback = Show_speed_right_kp_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
- {.General_item_text = "speed_right_ki",.General_callback = Show_speed_right_ki_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
- {.General_item_text = "speed_right_kd",.General_callback = Show_speed_right_kd_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
- {.General_item_text = NULL},/*最后一项的General_item_text置为NULL，表示该项为分割线*/
-};
-//其他参数的菜单项
-MenuItem OtherParamMenuItems[] = {
-	{.General_item_text = "angle_offset",.General_callback = Show_angle_offset_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "encoder_cnt_odd",.General_callback = Show_encoder_cnt_odd_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "encoder_cnt_even",.General_callback = Show_encoder_cnt_even_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = NULL},/*最后一项的General_item_text置为NULL，表示该项为分割线*/
-};
-
-
-
 
 
 /*上面为示例，下面依照示例创建自己的菜单页变量*/
@@ -1085,20 +1084,17 @@ MenuPage MainMenuPage = {
 };
 
 
-/* ==========================================================================================
-   ★★ PID Param / Other Param 两个子菜单页（本工程原有；父菜单=MainMenuPage）★★
-   ========================================================================================== */
-MenuPage PIDParamMenuPage = {
+MenuPage ParamMenuPage = {
 	//通用属性，必填
 	.General_MenuType = MENU_TYPE_LIST,  		 //菜单类型为列表类型
 	.General_CursorStyle = REVERSE_ROUNDRECTANGLE,	 //光标类型为圆角矩形
 	.General_FontSize = OLED_UI_FONT_12,			//字高
-	.General_ParentMenuPage = &MainMenuPage,		 //父菜单为主菜单
+	.General_ParentMenuPage = &MainMenuPage,		 //父菜单
 	.General_LineSpace = 6,						//行间距 单位：像素
 	.General_MoveStyle = UNLINEAR,				//移动方式为非线性曲线动画
 	.General_MovingSpeed = SPEED,					//动画移动速度(此值根据实际效果调整)
 	.General_ShowAuxiliaryFunction = NULL,		 //显示辅助函数
-	.General_MenuItems = PIDParamMenuItems,		 //菜单项内容数组
+	.General_MenuItems = ParamMenuItems,		 //菜单项内容数组
 
 	//特殊属性，根据.General_MenuType的类型选择
 	.List_MenuArea = {0, 0, 128, 64},			 //列表显示区域
@@ -1108,17 +1104,157 @@ MenuPage PIDParamMenuPage = {
 	.List_StartPointY = 2,                        //列表起始点Y坐标
 };
 
-MenuPage OtherParamMenuPage = {
+MenuPage DebugMenuPage = {
 	//通用属性，必填
 	.General_MenuType = MENU_TYPE_LIST,  		 //菜单类型为列表类型
 	.General_CursorStyle = REVERSE_ROUNDRECTANGLE,	 //光标类型为圆角矩形
 	.General_FontSize = OLED_UI_FONT_12,			//字高
-	.General_ParentMenuPage = &MainMenuPage,		 //父菜单为主菜单
+	.General_ParentMenuPage = &MainMenuPage,		 //父菜单
 	.General_LineSpace = 6,						//行间距 单位：像素
 	.General_MoveStyle = UNLINEAR,				//移动方式为非线性曲线动画
 	.General_MovingSpeed = SPEED,					//动画移动速度(此值根据实际效果调整)
 	.General_ShowAuxiliaryFunction = NULL,		 //显示辅助函数
-	.General_MenuItems = OtherParamMenuItems,		 //菜单项内容数组
+	.General_MenuItems = DebugMenuItems,		 //菜单项内容数组
+
+	//特殊属性，根据.General_MenuType的类型选择
+	.List_MenuArea = {0, 0, 128, 64},			 //列表显示区域
+	.List_IfDrawFrame = true,					 //是否显示边框
+	.List_IfDrawLinePerfix = true,				 //是否显示行前缀
+	.List_StartPointX = 4,                        //列表起始点X坐标
+	.List_StartPointY = 2,                        //列表起始点Y坐标
+};
+
+MenuPage SensorMenuPage = {
+	//通用属性，必填
+	.General_MenuType = MENU_TYPE_LIST,  		 //菜单类型为列表类型
+	.General_CursorStyle = REVERSE_ROUNDRECTANGLE,	 //光标类型为圆角矩形
+	.General_FontSize = OLED_UI_FONT_12,			//字高
+	.General_ParentMenuPage = &MainMenuPage,		 //父菜单
+	.General_LineSpace = 6,						//行间距 单位：像素
+	.General_MoveStyle = UNLINEAR,				//移动方式为非线性曲线动画
+	.General_MovingSpeed = SPEED,					//动画移动速度(此值根据实际效果调整)
+	.General_ShowAuxiliaryFunction = NULL,		 //显示辅助函数
+	.General_MenuItems = SensorMenuItems,		 //菜单项内容数组
+
+	//特殊属性，根据.General_MenuType的类型选择
+	.List_MenuArea = {0, 0, 128, 64},			 //列表显示区域
+	.List_IfDrawFrame = true,					 //是否显示边框
+	.List_IfDrawLinePerfix = true,				 //是否显示行前缀
+	.List_StartPointX = 4,                        //列表起始点X坐标
+	.List_StartPointY = 2,                        //列表起始点Y坐标
+};
+
+
+
+
+MenuPage Param_ChuFaMenuPage = {
+	//通用属性，必填
+	.General_MenuType = MENU_TYPE_LIST,  		 //菜单类型为列表类型
+	.General_CursorStyle = REVERSE_ROUNDRECTANGLE,	 //光标类型为圆角矩形
+	.General_FontSize = OLED_UI_FONT_12,			//字高
+	.General_ParentMenuPage = &ParamMenuPage,		 //父菜单
+	.General_LineSpace = 6,						//行间距 单位：像素
+	.General_MoveStyle = UNLINEAR,				//移动方式为非线性曲线动画
+	.General_MovingSpeed = SPEED,					//动画移动速度(此值根据实际效果调整)
+	.General_ShowAuxiliaryFunction = NULL,		 //显示辅助函数
+	.General_MenuItems = Param_ChuFaMenuItems,		 //菜单项内容数组
+
+	//特殊属性，根据.General_MenuType的类型选择
+	.List_MenuArea = {0, 0, 128, 64},			 //列表显示区域
+	.List_IfDrawFrame = true,					 //是否显示边框
+	.List_IfDrawLinePerfix = true,				 //是否显示行前缀
+	.List_StartPointX = 4,                        //列表起始点X坐标
+	.List_StartPointY = 2,                        //列表起始点Y坐标
+};
+
+MenuPage Param_YuanPanMenuPage = {
+	//通用属性，必填
+	.General_MenuType = MENU_TYPE_LIST,  		 //菜单类型为列表类型
+	.General_CursorStyle = REVERSE_ROUNDRECTANGLE,	 //光标类型为圆角矩形
+	.General_FontSize = OLED_UI_FONT_12,			//字高
+	.General_ParentMenuPage = &ParamMenuPage,		 //父菜单
+	.General_LineSpace = 6,						//行间距 单位：像素
+	.General_MoveStyle = UNLINEAR,				//移动方式为非线性曲线动画
+	.General_MovingSpeed = SPEED,					//动画移动速度(此值根据实际效果调整)
+	.General_ShowAuxiliaryFunction = NULL,		 //显示辅助函数
+	.General_MenuItems = Param_YuanPanMenuItems,		 //菜单项内容数组
+
+	//特殊属性，根据.General_MenuType的类型选择
+	.List_MenuArea = {0, 0, 128, 64},			 //列表显示区域
+	.List_IfDrawFrame = true,					 //是否显示边框
+	.List_IfDrawLinePerfix = true,				 //是否显示行前缀
+	.List_StartPointX = 4,                        //列表起始点X坐标
+	.List_StartPointY = 2,                        //列表起始点Y坐标
+};
+
+MenuPage Param_GetTargetMenuPage = {
+	//通用属性，必填
+	.General_MenuType = MENU_TYPE_LIST,  		 //菜单类型为列表类型
+	.General_CursorStyle = REVERSE_ROUNDRECTANGLE,	 //光标类型为圆角矩形
+	.General_FontSize = OLED_UI_FONT_12,			//字高
+	.General_ParentMenuPage = &ParamMenuPage,		 //父菜单
+	.General_LineSpace = 6,						//行间距 单位：像素
+	.General_MoveStyle = UNLINEAR,				//移动方式为非线性曲线动画
+	.General_MovingSpeed = SPEED,					//动画移动速度(此值根据实际效果调整)
+	.General_ShowAuxiliaryFunction = NULL,		 //显示辅助函数
+	.General_MenuItems = Param_GetTargetMenuItems,		 //菜单项内容数组
+
+	//特殊属性，根据.General_MenuType的类型选择
+	.List_MenuArea = {0, 0, 128, 64},			 //列表显示区域
+	.List_IfDrawFrame = true,					 //是否显示边框
+	.List_IfDrawLinePerfix = true,				 //是否显示行前缀
+	.List_StartPointX = 4,                        //列表起始点X坐标
+	.List_StartPointY = 2,                        //列表起始点Y坐标
+};
+MenuPage Param_JieTiMenuPage = {
+	//通用属性，必填
+	.General_MenuType = MENU_TYPE_LIST,  		 //菜单类型为列表类型
+	.General_CursorStyle = REVERSE_ROUNDRECTANGLE,	 //光标类型为圆角矩形
+	.General_FontSize = OLED_UI_FONT_12,			//字高
+	.General_ParentMenuPage = &ParamMenuPage,		 //父菜单
+	.General_LineSpace = 6,						//行间距 单位：像素
+	.General_MoveStyle = UNLINEAR,				//移动方式为非线性曲线动画
+	.General_MovingSpeed = SPEED,					//动画移动速度(此值根据实际效果调整)
+	.General_ShowAuxiliaryFunction = NULL,		 //显示辅助函数
+	.General_MenuItems = Param_JieTiMenuItems,		 //菜单项内容数组
+
+	//特殊属性，根据.General_MenuType的类型选择
+	.List_MenuArea = {0, 0, 128, 64},			 //列表显示区域
+	.List_IfDrawFrame = true,					 //是否显示边框
+	.List_IfDrawLinePerfix = true,				 //是否显示行前缀
+	.List_StartPointX = 4,                        //列表起始点X坐标
+	.List_StartPointY = 2,                        //列表起始点Y坐标
+};
+MenuPage Param_LiZhuangMenuPage = {
+	//通用属性，必填
+	.General_MenuType = MENU_TYPE_LIST,  		 //菜单类型为列表类型
+	.General_CursorStyle = REVERSE_ROUNDRECTANGLE,	 //光标类型为圆角矩形
+	.General_FontSize = OLED_UI_FONT_12,			//字高
+	.General_ParentMenuPage = &ParamMenuPage,		 //父菜单
+	.General_LineSpace = 6,						//行间距 单位：像素
+	.General_MoveStyle = UNLINEAR,				//移动方式为非线性曲线动画
+	.General_MovingSpeed = SPEED,					//动画移动速度(此值根据实际效果调整)
+	.General_ShowAuxiliaryFunction = NULL,		 //显示辅助函数
+	.General_MenuItems = Param_LiZhuangMenuItems,		 //菜单项内容数组
+
+	//特殊属性，根据.General_MenuType的类型选择
+	.List_MenuArea = {0, 0, 128, 64},			 //列表显示区域
+	.List_IfDrawFrame = true,					 //是否显示边框
+	.List_IfDrawLinePerfix = true,				 //是否显示行前缀
+	.List_StartPointX = 4,                        //列表起始点X坐标
+	.List_StartPointY = 2,                        //列表起始点Y坐标
+};
+MenuPage Param_HuiJiaMenuPage = {
+	//通用属性，必填
+	.General_MenuType = MENU_TYPE_LIST,  		 //菜单类型为列表类型
+	.General_CursorStyle = REVERSE_ROUNDRECTANGLE,	 //光标类型为圆角矩形
+	.General_FontSize = OLED_UI_FONT_12,			//字高
+	.General_ParentMenuPage = &ParamMenuPage,		 //父菜单
+	.General_LineSpace = 6,						//行间距 单位：像素
+	.General_MoveStyle = UNLINEAR,				//移动方式为非线性曲线动画
+	.General_MovingSpeed = SPEED,					//动画移动速度(此值根据实际效果调整)
+	.General_ShowAuxiliaryFunction = NULL,		 //显示辅助函数
+	.General_MenuItems = Param_HuiJiaMenuItems,		 //菜单项内容数组
 
 	//特殊属性，根据.General_MenuType的类型选择
 	.List_MenuArea = {0, 0, 128, 64},			 //列表显示区域
