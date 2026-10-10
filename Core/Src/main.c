@@ -818,7 +818,7 @@ static void YuanHuan_Adjust_Y(int Target_Y_Distance){
                                         //  0=只绕圈(纯调绕圈参数时省掉前面这十几秒)
 #define LIZHU_MID_VIS_MS    1000U       //“中间要不要夹”等一帧包的总时限(ms)：超时/没帧=不夹
 #define LIZHU_MID_ACT_MS    1900U       //动作组110(识别中间)的等待时间(ms)=动作组110总时长1400ms+500ms
-#define LIZHU_MID_GRAB_MS   4200U       //动作组113(夹取中间)的等待时间(ms)=动作组113总时长3700ms+500ms
+#define LIZHU_MID_GRAB_MS   2000U       //动作组113(夹取中间)的等待时间(ms)=动作组113总时长3000ms，但是故意执行一半后退松爪子
 #define LIZHU_MID_BACK_MS   2600U       //动作组104(切回“识别旁边”)的等待时间(ms)=动作组104总时长2100ms+500ms
 
 static uint32_t lizhu_vis_cnt = 0;      //本阶段累计收帧数
@@ -2645,7 +2645,7 @@ YUANPANJI_START:;
       //★绝对角一律过 Yaw_Abs()：道理同上面那句转身(全流程 shift=0 原样；单独测圆盘机 shift=270 时红=180/蓝=180)
       mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));
 
-ZHENGMIAN_START:            //★调 试入口(KEY0选成ZM+KEY3开始)：goto 跳到这一行往下执行 → 正面识别前
+ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto 跳到这一行往下执行 → 正面识别前
       ZhengMian_Flag = 1;//正面识别开始
 
       if(ZhengMian_Flag == 1){
@@ -3046,6 +3046,8 @@ JIETI_START:
         HAL_Delay(1200);
         
         JieTi_Flag = 0;                     //M6.3 阶梯结束
+        UART2_Printf("%c", 0xA8);//发0xA8告诉主视觉阶梯结束了
+
         /* ★阶梯跑完去哪儿：就按上面那个开关 JIETI_GO_LIZHU 走（改一个数就能切回来）
                     1 → 先进“立柱”段（绕柱 → 仓库倒方块 → 回家；★正常流程）   0 → 跳过立柱、直接进“回家”段
                     ★这里必须用“赋值”，别写成 ==（历史上写成 == 导致阶段标志全是 0、车停在阶梯不动） */
@@ -3139,18 +3141,17 @@ LIZHU_START:
           mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));
 
           //后退，为左右摆方块下来做准备
-          ROBOT_Move(0, -30, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+          ROBOT_Move(-12, -40, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
 
-          //高速移动把方块弄下来
-          ROBOT_Move(mode_red ? 100 : -100, 0, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
-          HAL_Delay(200);
-          ROBOT_Move(0, 100, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
-          HAL_Delay(200);
-          ROBOT_Move(0, -100, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
-          HAL_Delay(200);
-          ROBOT_Move(mode_red ? -125 : 115, 0, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
-          HAL_Delay(200);
-
+          //高速移动把方块弄下来（暂时废止）
+          //ROBOT_Move(mode_red ? 100 : -100, 0, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
+          //HAL_Delay(200);
+          //ROBOT_Move(0, 100, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
+          //HAL_Delay(200);
+          //ROBOT_Move(0, -100, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
+          //HAL_Delay(200);
+          //ROBOT_Move(mode_red ? -125 : 115, 0, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
+          //HAL_Delay(200);
 
           //先后退到合适距离
           /* ★9.25 修方向：原来是 +SPD_AVG_V(v_y>0=前进)，但注释写“后退”、判据又是“后测距(GY53_1)
@@ -3203,6 +3204,7 @@ LIZHU_START:
           HAL_Delay(1200);
 
           LiZhu_Flag = 0;//立柱结束，回家开始
+          UART2_Printf("%c", 0xA9);//发0xA9告诉主视觉立柱结束了
           HuiJia_Flag = 1;
         }
 
@@ -3296,7 +3298,7 @@ HUIJIA_START:
           //复位机械臂
           runActionGroup(160, 1);
           //蓝退多点
-          ROBOT_Move(mode_red ? 28 : -28, mode_red ? -228 : -240, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);//60，-240能进
+          ROBOT_Move(mode_red ? 28 : -28, mode_red ? -215 : -240, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);//60，-240能进
 
           //走固定距离回家
           //ROBOT_Move(mode_red ? 43 : -43, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
