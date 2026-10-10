@@ -6504,7 +6504,7 @@ LOAD C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+s
                 0x08000000                g_pfnVectors
                 0x08000188                        . = ALIGN (0x4)
 
-.text           0x08000190    0x1cd24
+.text           0x08000190    0x1cd3c
                 0x08000190                        . = ALIGN (0x4)
  *(.text)
  .text          0x08000190       0x40 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/thumb/v7e-m+fp/hard/crtbegin.o
@@ -7136,1106 +7136,1106 @@ LOAD C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+s
  .text.LiZhu_NeedGrab
                 0x08009a98       0x54 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
  .text.LiZhu_MiddleGrab
-                0x08009aec       0xa4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+                0x08009aec       0xb4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
  .text.LiZhu_VisionStop
-                0x08009b90       0x24 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+                0x08009ba0       0x24 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
  .text.LiZhu_Circle_Run
-                0x08009bb4      0xa60 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+                0x08009bc4      0xa60 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
  .text.DBG_PrintColor
-                0x0800a614       0x9c CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+                0x0800a624       0x9c CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
  .text.DBG_PrintDist
-                0x0800a6b0       0x3c CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+                0x0800a6c0       0x3c CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
  .text.DBG_PrintLaser
-                0x0800a6ec       0x48 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+                0x0800a6fc       0x48 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
  .text.DBG_PrintEnc
-                0x0800a734       0xb8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+                0x0800a744       0xb8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
  .text.DBG_PrintYaw
-                0x0800a7ec       0x50 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+                0x0800a7fc       0x50 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
  .text.DBG_PrintGray
-                0x0800a83c       0x70 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+                0x0800a84c       0x70 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
  .text.DBG_ToggleLog
-                0x0800a8ac       0x64 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+                0x0800a8bc       0x64 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
  .text.DBG_SensorLogPump
-                0x0800a910       0xfc CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+                0x0800a920       0xfc CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
  .text.DBG_SensorSnapshot
-                0x0800aa0c       0x20 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+                0x0800aa1c       0x20 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
  .text.DBG_PrintColorCal
-                0x0800aa2c       0x9c CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+                0x0800aa3c       0x9c CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
  .text.UART1_DebugCmd
-                0x0800aac8      0xaf0 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+                0x0800aad8      0xaf0 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
  .text.TCS_PollColor
-                0x0800b5b8       0x22 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
- *fill*         0x0800b5da        0x2 
+                0x0800b5c8       0x22 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+ *fill*         0x0800b5ea        0x2 
  .text.CHASSIS_PwmOut
-                0x0800b5dc       0x5c CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
- .text.main     0x0800b638     0x2198 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
-                0x0800b638                main
+                0x0800b5ec       0x5c CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+ .text.main     0x0800b648     0x21a0 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+                0x0800b648                main
  .text.SystemClock_Config
-                0x0800d7d0       0xd4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
-                0x0800d7d0                SystemClock_Config
+                0x0800d7e8       0xd4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+                0x0800d7e8                SystemClock_Config
  .text.Error_Handler
-                0x0800d8a4        0xc CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
-                0x0800d8a4                Error_Handler
+                0x0800d8bc        0xc CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+                0x0800d8bc                Error_Handler
  .text.MX_GPIO_Init
-                0x0800d8b0      0x25c CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/gpio.c.obj
-                0x0800d8b0                MX_GPIO_Init
+                0x0800d8c8      0x25c CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/gpio.c.obj
+                0x0800d8c8                MX_GPIO_Init
  .text.MX_DMA_Init
-                0x0800db0c       0x7c CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/dma.c.obj
-                0x0800db0c                MX_DMA_Init
+                0x0800db24       0x7c CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/dma.c.obj
+                0x0800db24                MX_DMA_Init
  .text.MX_TIM1_Init
-                0x0800db88      0x188 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/tim.c.obj
-                0x0800db88                MX_TIM1_Init
+                0x0800dba0      0x188 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/tim.c.obj
+                0x0800dba0                MX_TIM1_Init
  .text.MX_TIM2_Init
-                0x0800dd10       0xa8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/tim.c.obj
-                0x0800dd10                MX_TIM2_Init
+                0x0800dd28       0xa8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/tim.c.obj
+                0x0800dd28                MX_TIM2_Init
  .text.MX_TIM3_Init
-                0x0800ddb8       0xa8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/tim.c.obj
-                0x0800ddb8                MX_TIM3_Init
+                0x0800ddd0       0xa8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/tim.c.obj
+                0x0800ddd0                MX_TIM3_Init
  .text.MX_TIM4_Init
-                0x0800de60       0xa8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/tim.c.obj
-                0x0800de60                MX_TIM4_Init
+                0x0800de78       0xa8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/tim.c.obj
+                0x0800de78                MX_TIM4_Init
  .text.MX_TIM5_Init
-                0x0800df08       0xa8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/tim.c.obj
-                0x0800df08                MX_TIM5_Init
+                0x0800df20       0xa8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/tim.c.obj
+                0x0800df20                MX_TIM5_Init
  .text.MX_TIM6_Init
-                0x0800dfb0       0x6c CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/tim.c.obj
-                0x0800dfb0                MX_TIM6_Init
+                0x0800dfc8       0x6c CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/tim.c.obj
+                0x0800dfc8                MX_TIM6_Init
  .text.MX_TIM7_Init
-                0x0800e01c       0x6c CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/tim.c.obj
-                0x0800e01c                MX_TIM7_Init
+                0x0800e034       0x6c CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/tim.c.obj
+                0x0800e034                MX_TIM7_Init
  .text.HAL_TIM_Base_MspInit
-                0x0800e088       0xa8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/tim.c.obj
-                0x0800e088                HAL_TIM_Base_MspInit
+                0x0800e0a0       0xa8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/tim.c.obj
+                0x0800e0a0                HAL_TIM_Base_MspInit
  .text.HAL_TIM_Encoder_MspInit
-                0x0800e130      0x208 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/tim.c.obj
-                0x0800e130                HAL_TIM_Encoder_MspInit
+                0x0800e148      0x208 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/tim.c.obj
+                0x0800e148                HAL_TIM_Encoder_MspInit
  .text.HAL_TIM_MspPostInit
-                0x0800e338       0x74 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/tim.c.obj
-                0x0800e338                HAL_TIM_MspPostInit
+                0x0800e350       0x74 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/tim.c.obj
+                0x0800e350                HAL_TIM_MspPostInit
  .text.MX_UART4_Init
-                0x0800e3ac       0x54 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/usart.c.obj
-                0x0800e3ac                MX_UART4_Init
+                0x0800e3c4       0x54 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/usart.c.obj
+                0x0800e3c4                MX_UART4_Init
  .text.MX_UART5_Init
-                0x0800e400       0x54 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/usart.c.obj
-                0x0800e400                MX_UART5_Init
+                0x0800e418       0x54 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/usart.c.obj
+                0x0800e418                MX_UART5_Init
  .text.MX_USART1_UART_Init
-                0x0800e454       0x54 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/usart.c.obj
-                0x0800e454                MX_USART1_UART_Init
+                0x0800e46c       0x54 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/usart.c.obj
+                0x0800e46c                MX_USART1_UART_Init
  .text.MX_USART2_UART_Init
-                0x0800e4a8       0x54 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/usart.c.obj
-                0x0800e4a8                MX_USART2_UART_Init
+                0x0800e4c0       0x54 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/usart.c.obj
+                0x0800e4c0                MX_USART2_UART_Init
  .text.MX_USART3_UART_Init
-                0x0800e4fc       0x54 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/usart.c.obj
-                0x0800e4fc                MX_USART3_UART_Init
+                0x0800e514       0x54 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/usart.c.obj
+                0x0800e514                MX_USART3_UART_Init
  .text.HAL_UART_MspInit
-                0x0800e550      0x428 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/usart.c.obj
-                0x0800e550                HAL_UART_MspInit
+                0x0800e568      0x428 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/usart.c.obj
+                0x0800e568                HAL_UART_MspInit
  .text.NMI_Handler
-                0x0800e978        0x8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
-                0x0800e978                NMI_Handler
- .text.HardFault_Handler
-                0x0800e980        0x8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
-                0x0800e980                HardFault_Handler
- .text.MemManage_Handler
-                0x0800e988        0x8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
-                0x0800e988                MemManage_Handler
- .text.BusFault_Handler
                 0x0800e990        0x8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
-                0x0800e990                BusFault_Handler
- .text.UsageFault_Handler
+                0x0800e990                NMI_Handler
+ .text.HardFault_Handler
                 0x0800e998        0x8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
-                0x0800e998                UsageFault_Handler
+                0x0800e998                HardFault_Handler
+ .text.MemManage_Handler
+                0x0800e9a0        0x8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
+                0x0800e9a0                MemManage_Handler
+ .text.BusFault_Handler
+                0x0800e9a8        0x8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
+                0x0800e9a8                BusFault_Handler
+ .text.UsageFault_Handler
+                0x0800e9b0        0x8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
+                0x0800e9b0                UsageFault_Handler
  .text.SVC_Handler
-                0x0800e9a0        0xe CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
-                0x0800e9a0                SVC_Handler
+                0x0800e9b8        0xe CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
+                0x0800e9b8                SVC_Handler
  .text.DebugMon_Handler
-                0x0800e9ae        0xe CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
-                0x0800e9ae                DebugMon_Handler
+                0x0800e9c6        0xe CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
+                0x0800e9c6                DebugMon_Handler
  .text.PendSV_Handler
-                0x0800e9bc        0xe CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
-                0x0800e9bc                PendSV_Handler
+                0x0800e9d4        0xe CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
+                0x0800e9d4                PendSV_Handler
  .text.SysTick_Handler
-                0x0800e9ca        0xc CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
-                0x0800e9ca                SysTick_Handler
- *fill*         0x0800e9d6        0x2 
+                0x0800e9e2        0xc CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
+                0x0800e9e2                SysTick_Handler
+ *fill*         0x0800e9ee        0x2 
  .text.DMA1_Stream1_IRQHandler
-                0x0800e9d8       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
-                0x0800e9d8                DMA1_Stream1_IRQHandler
+                0x0800e9f0       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
+                0x0800e9f0                DMA1_Stream1_IRQHandler
  .text.DMA1_Stream5_IRQHandler
-                0x0800e9ec       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
-                0x0800e9ec                DMA1_Stream5_IRQHandler
+                0x0800ea04       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
+                0x0800ea04                DMA1_Stream5_IRQHandler
  .text.USART1_IRQHandler
-                0x0800ea00       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
-                0x0800ea00                USART1_IRQHandler
+                0x0800ea18       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
+                0x0800ea18                USART1_IRQHandler
  .text.USART2_IRQHandler
-                0x0800ea14       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
-                0x0800ea14                USART2_IRQHandler
+                0x0800ea2c       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
+                0x0800ea2c                USART2_IRQHandler
  .text.USART3_IRQHandler
-                0x0800ea28       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
-                0x0800ea28                USART3_IRQHandler
+                0x0800ea40       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
+                0x0800ea40                USART3_IRQHandler
  .text.TIM7_IRQHandler
-                0x0800ea3c       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
-                0x0800ea3c                TIM7_IRQHandler
+                0x0800ea54       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
+                0x0800ea54                TIM7_IRQHandler
  .text.DMA2_Stream2_IRQHandler
-                0x0800ea50       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
-                0x0800ea50                DMA2_Stream2_IRQHandler
+                0x0800ea68       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
+                0x0800ea68                DMA2_Stream2_IRQHandler
  .text.UART4_IRQHandler
-                0x0800ea64       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
-                0x0800ea64                UART4_IRQHandler
+                0x0800ea7c       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
+                0x0800ea7c                UART4_IRQHandler
  .text.DMA1_Stream2_IRQHandler
-                0x0800ea78       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
-                0x0800ea78                DMA1_Stream2_IRQHandler
+                0x0800ea90       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
+                0x0800ea90                DMA1_Stream2_IRQHandler
  .text.HAL_MspInit
-                0x0800ea8c       0x50 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_hal_msp.c.obj
-                0x0800ea8c                HAL_MspInit
- .text._sbrk    0x0800eadc       0x6c CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/sysmem.c.obj
-                0x0800eadc                _sbrk
- .text._getpid  0x0800eb48       0x10 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/syscalls.c.obj
-                0x0800eb48                _getpid
- .text._kill    0x0800eb58       0x20 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/syscalls.c.obj
-                0x0800eb58                _kill
- .text._exit    0x0800eb78       0x16 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/syscalls.c.obj
-                0x0800eb78                _exit
- .text._read    0x0800eb8e       0x3a CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/syscalls.c.obj
-                0x0800eb8e                _read
- .text._write   0x0800ebc8       0x38 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/syscalls.c.obj
-                0x0800ebc8                _write
- .text._close   0x0800ec00       0x18 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/syscalls.c.obj
-                0x0800ec00                _close
- .text._fstat   0x0800ec18       0x20 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/syscalls.c.obj
-                0x0800ec18                _fstat
- .text._isatty  0x0800ec38       0x16 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/syscalls.c.obj
-                0x0800ec38                _isatty
- .text._lseek   0x0800ec4e       0x1a CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/syscalls.c.obj
-                0x0800ec4e                _lseek
+                0x0800eaa4       0x50 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_hal_msp.c.obj
+                0x0800eaa4                HAL_MspInit
+ .text._sbrk    0x0800eaf4       0x6c CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/sysmem.c.obj
+                0x0800eaf4                _sbrk
+ .text._getpid  0x0800eb60       0x10 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/syscalls.c.obj
+                0x0800eb60                _getpid
+ .text._kill    0x0800eb70       0x20 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/syscalls.c.obj
+                0x0800eb70                _kill
+ .text._exit    0x0800eb90       0x16 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/syscalls.c.obj
+                0x0800eb90                _exit
+ .text._read    0x0800eba6       0x3a CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/syscalls.c.obj
+                0x0800eba6                _read
+ .text._write   0x0800ebe0       0x38 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/syscalls.c.obj
+                0x0800ebe0                _write
+ .text._close   0x0800ec18       0x18 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/syscalls.c.obj
+                0x0800ec18                _close
+ .text._fstat   0x0800ec30       0x20 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/syscalls.c.obj
+                0x0800ec30                _fstat
+ .text._isatty  0x0800ec50       0x16 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/syscalls.c.obj
+                0x0800ec50                _isatty
+ .text._lseek   0x0800ec66       0x1a CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/syscalls.c.obj
+                0x0800ec66                _lseek
  .text.Reset_Handler
-                0x0800ec68       0x50 CMakeFiles/7_AutomatedSortingRobot_26.dir/startup_stm32f407xx.s.obj
-                0x0800ec68                Reset_Handler
+                0x0800ec80       0x50 CMakeFiles/7_AutomatedSortingRobot_26.dir/startup_stm32f407xx.s.obj
+                0x0800ec80                Reset_Handler
  .text.Default_Handler
-                0x0800ecb8        0x2 CMakeFiles/7_AutomatedSortingRobot_26.dir/startup_stm32f407xx.s.obj
-                0x0800ecb8                RTC_Alarm_IRQHandler
-                0x0800ecb8                HASH_RNG_IRQHandler
-                0x0800ecb8                EXTI2_IRQHandler
-                0x0800ecb8                TIM8_CC_IRQHandler
-                0x0800ecb8                TIM1_CC_IRQHandler
-                0x0800ecb8                DMA2_Stream5_IRQHandler
-                0x0800ecb8                PVD_IRQHandler
-                0x0800ecb8                SDIO_IRQHandler
-                0x0800ecb8                TAMP_STAMP_IRQHandler
-                0x0800ecb8                CAN2_RX1_IRQHandler
-                0x0800ecb8                EXTI3_IRQHandler
-                0x0800ecb8                TIM8_TRG_COM_TIM14_IRQHandler
-                0x0800ecb8                TIM1_UP_TIM10_IRQHandler
-                0x0800ecb8                TIM8_UP_TIM13_IRQHandler
-                0x0800ecb8                I2C3_ER_IRQHandler
-                0x0800ecb8                EXTI0_IRQHandler
-                0x0800ecb8                I2C2_EV_IRQHandler
-                0x0800ecb8                CAN1_RX0_IRQHandler
-                0x0800ecb8                FPU_IRQHandler
-                0x0800ecb8                OTG_HS_WKUP_IRQHandler
-                0x0800ecb8                CAN2_SCE_IRQHandler
-                0x0800ecb8                SPI1_IRQHandler
-                0x0800ecb8                TIM6_DAC_IRQHandler
-                0x0800ecb8                TIM1_BRK_TIM9_IRQHandler
-                0x0800ecb8                DCMI_IRQHandler
-                0x0800ecb8                CAN2_RX0_IRQHandler
-                0x0800ecb8                DMA2_Stream3_IRQHandler
-                0x0800ecb8                USART6_IRQHandler
-                0x0800ecb8                CAN1_RX1_IRQHandler
-                0x0800ecb8                UART5_IRQHandler
-                0x0800ecb8                DMA2_Stream0_IRQHandler
-                0x0800ecb8                TIM4_IRQHandler
-                0x0800ecb8                I2C1_EV_IRQHandler
-                0x0800ecb8                DMA1_Stream6_IRQHandler
-                0x0800ecb8                TIM3_IRQHandler
-                0x0800ecb8                RCC_IRQHandler
-                0x0800ecb8                TIM8_BRK_TIM12_IRQHandler
-                0x0800ecb8                Default_Handler
-                0x0800ecb8                EXTI15_10_IRQHandler
-                0x0800ecb8                ADC_IRQHandler
-                0x0800ecb8                DMA1_Stream7_IRQHandler
-                0x0800ecb8                CAN2_TX_IRQHandler
-                0x0800ecb8                TIM5_IRQHandler
-                0x0800ecb8                DMA2_Stream7_IRQHandler
-                0x0800ecb8                I2C3_EV_IRQHandler
-                0x0800ecb8                EXTI9_5_IRQHandler
-                0x0800ecb8                RTC_WKUP_IRQHandler
-                0x0800ecb8                ETH_WKUP_IRQHandler
-                0x0800ecb8                SPI2_IRQHandler
-                0x0800ecb8                OTG_HS_EP1_IN_IRQHandler
-                0x0800ecb8                DMA1_Stream0_IRQHandler
-                0x0800ecb8                CAN1_TX_IRQHandler
-                0x0800ecb8                EXTI4_IRQHandler
-                0x0800ecb8                FSMC_IRQHandler
-                0x0800ecb8                ETH_IRQHandler
-                0x0800ecb8                OTG_HS_EP1_OUT_IRQHandler
-                0x0800ecb8                WWDG_IRQHandler
-                0x0800ecb8                TIM2_IRQHandler
-                0x0800ecb8                OTG_FS_WKUP_IRQHandler
-                0x0800ecb8                TIM1_TRG_COM_TIM11_IRQHandler
-                0x0800ecb8                OTG_HS_IRQHandler
-                0x0800ecb8                EXTI1_IRQHandler
-                0x0800ecb8                I2C2_ER_IRQHandler
-                0x0800ecb8                DMA2_Stream1_IRQHandler
-                0x0800ecb8                CAN1_SCE_IRQHandler
-                0x0800ecb8                FLASH_IRQHandler
-                0x0800ecb8                DMA2_Stream4_IRQHandler
-                0x0800ecb8                OTG_FS_IRQHandler
-                0x0800ecb8                SPI3_IRQHandler
-                0x0800ecb8                DMA1_Stream4_IRQHandler
-                0x0800ecb8                I2C1_ER_IRQHandler
-                0x0800ecb8                DMA2_Stream6_IRQHandler
-                0x0800ecb8                DMA1_Stream3_IRQHandler
- *fill*         0x0800ecba        0x2 
+                0x0800ecd0        0x2 CMakeFiles/7_AutomatedSortingRobot_26.dir/startup_stm32f407xx.s.obj
+                0x0800ecd0                RTC_Alarm_IRQHandler
+                0x0800ecd0                HASH_RNG_IRQHandler
+                0x0800ecd0                EXTI2_IRQHandler
+                0x0800ecd0                TIM8_CC_IRQHandler
+                0x0800ecd0                TIM1_CC_IRQHandler
+                0x0800ecd0                DMA2_Stream5_IRQHandler
+                0x0800ecd0                PVD_IRQHandler
+                0x0800ecd0                SDIO_IRQHandler
+                0x0800ecd0                TAMP_STAMP_IRQHandler
+                0x0800ecd0                CAN2_RX1_IRQHandler
+                0x0800ecd0                EXTI3_IRQHandler
+                0x0800ecd0                TIM8_TRG_COM_TIM14_IRQHandler
+                0x0800ecd0                TIM1_UP_TIM10_IRQHandler
+                0x0800ecd0                TIM8_UP_TIM13_IRQHandler
+                0x0800ecd0                I2C3_ER_IRQHandler
+                0x0800ecd0                EXTI0_IRQHandler
+                0x0800ecd0                I2C2_EV_IRQHandler
+                0x0800ecd0                CAN1_RX0_IRQHandler
+                0x0800ecd0                FPU_IRQHandler
+                0x0800ecd0                OTG_HS_WKUP_IRQHandler
+                0x0800ecd0                CAN2_SCE_IRQHandler
+                0x0800ecd0                SPI1_IRQHandler
+                0x0800ecd0                TIM6_DAC_IRQHandler
+                0x0800ecd0                TIM1_BRK_TIM9_IRQHandler
+                0x0800ecd0                DCMI_IRQHandler
+                0x0800ecd0                CAN2_RX0_IRQHandler
+                0x0800ecd0                DMA2_Stream3_IRQHandler
+                0x0800ecd0                USART6_IRQHandler
+                0x0800ecd0                CAN1_RX1_IRQHandler
+                0x0800ecd0                UART5_IRQHandler
+                0x0800ecd0                DMA2_Stream0_IRQHandler
+                0x0800ecd0                TIM4_IRQHandler
+                0x0800ecd0                I2C1_EV_IRQHandler
+                0x0800ecd0                DMA1_Stream6_IRQHandler
+                0x0800ecd0                TIM3_IRQHandler
+                0x0800ecd0                RCC_IRQHandler
+                0x0800ecd0                TIM8_BRK_TIM12_IRQHandler
+                0x0800ecd0                Default_Handler
+                0x0800ecd0                EXTI15_10_IRQHandler
+                0x0800ecd0                ADC_IRQHandler
+                0x0800ecd0                DMA1_Stream7_IRQHandler
+                0x0800ecd0                CAN2_TX_IRQHandler
+                0x0800ecd0                TIM5_IRQHandler
+                0x0800ecd0                DMA2_Stream7_IRQHandler
+                0x0800ecd0                I2C3_EV_IRQHandler
+                0x0800ecd0                EXTI9_5_IRQHandler
+                0x0800ecd0                RTC_WKUP_IRQHandler
+                0x0800ecd0                ETH_WKUP_IRQHandler
+                0x0800ecd0                SPI2_IRQHandler
+                0x0800ecd0                OTG_HS_EP1_IN_IRQHandler
+                0x0800ecd0                DMA1_Stream0_IRQHandler
+                0x0800ecd0                CAN1_TX_IRQHandler
+                0x0800ecd0                EXTI4_IRQHandler
+                0x0800ecd0                FSMC_IRQHandler
+                0x0800ecd0                ETH_IRQHandler
+                0x0800ecd0                OTG_HS_EP1_OUT_IRQHandler
+                0x0800ecd0                WWDG_IRQHandler
+                0x0800ecd0                TIM2_IRQHandler
+                0x0800ecd0                OTG_FS_WKUP_IRQHandler
+                0x0800ecd0                TIM1_TRG_COM_TIM11_IRQHandler
+                0x0800ecd0                OTG_HS_IRQHandler
+                0x0800ecd0                EXTI1_IRQHandler
+                0x0800ecd0                I2C2_ER_IRQHandler
+                0x0800ecd0                DMA2_Stream1_IRQHandler
+                0x0800ecd0                CAN1_SCE_IRQHandler
+                0x0800ecd0                FLASH_IRQHandler
+                0x0800ecd0                DMA2_Stream4_IRQHandler
+                0x0800ecd0                OTG_FS_IRQHandler
+                0x0800ecd0                SPI3_IRQHandler
+                0x0800ecd0                DMA1_Stream4_IRQHandler
+                0x0800ecd0                I2C1_ER_IRQHandler
+                0x0800ecd0                DMA2_Stream6_IRQHandler
+                0x0800ecd0                DMA1_Stream3_IRQHandler
+ *fill*         0x0800ecd2        0x2 
  .text.UART1_Printf
-                0x0800ecbc       0x68 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/uart.c.obj
-                0x0800ecbc                UART1_Printf
+                0x0800ecd4       0x68 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/uart.c.obj
+                0x0800ecd4                UART1_Printf
  .text.UART2_Printf
-                0x0800ed24       0x68 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/uart.c.obj
-                0x0800ed24                UART2_Printf
+                0x0800ed3c       0x68 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/uart.c.obj
+                0x0800ed3c                UART2_Printf
  .text.UART4_Printf
-                0x0800ed8c       0x68 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/uart.c.obj
-                0x0800ed8c                UART4_Printf
+                0x0800eda4       0x68 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/uart.c.obj
+                0x0800eda4                UART4_Printf
  .text.HAL_UART_RxCpltCallback
-                0x0800edf4       0xe4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/uart.c.obj
-                0x0800edf4                HAL_UART_RxCpltCallback
+                0x0800ee0c       0xe4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/uart.c.obj
+                0x0800ee0c                HAL_UART_RxCpltCallback
  .text.UART4_RxInit
-                0x0800eed8      0x108 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/uart.c.obj
-                0x0800eed8                UART4_RxInit
+                0x0800eef0      0x108 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/uart.c.obj
+                0x0800eef0                UART4_RxInit
  .text.HAL_UART_ErrorCallback
-                0x0800efe0      0x160 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/uart.c.obj
-                0x0800efe0                HAL_UART_ErrorCallback
+                0x0800eff8      0x160 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/uart.c.obj
+                0x0800eff8                HAL_UART_ErrorCallback
  .text.HAL_UARTEx_RxEventCallback
-                0x0800f140      0x168 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/uart.c.obj
-                0x0800f140                HAL_UARTEx_RxEventCallback
+                0x0800f158      0x168 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/uart.c.obj
+                0x0800f158                HAL_UARTEx_RxEventCallback
  .text.DWT_Init
-                0x0800f2a8       0x74 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/delay.c.obj
-                0x0800f2a8                DWT_Init
+                0x0800f2c0       0x74 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/delay.c.obj
+                0x0800f2c0                DWT_Init
  .text.ensure_dwt_initialized
-                0x0800f31c       0x4c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/delay.c.obj
+                0x0800f334       0x4c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/delay.c.obj
  .text.delay_us
-                0x0800f368       0x48 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/delay.c.obj
-                0x0800f368                delay_us
+                0x0800f380       0x48 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/delay.c.obj
+                0x0800f380                delay_us
  .text.delay_ms
-                0x0800f3b0       0x50 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/delay.c.obj
-                0x0800f3b0                delay_ms
- .text.KEY_ONE  0x0800f400       0x92 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/key.c.obj
-                0x0800f400                KEY_ONE
+                0x0800f3c8       0x50 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/delay.c.obj
+                0x0800f3c8                delay_ms
+ .text.KEY_ONE  0x0800f418       0x92 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/key.c.obj
+                0x0800f418                KEY_ONE
  .text.LASER_StableLevel
-                0x0800f492       0x6c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/laser.c.obj
+                0x0800f4aa       0x6c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/laser.c.obj
  .text.LASER_Barrier
-                0x0800f4fe       0x2a CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/laser.c.obj
-                0x0800f4fe                LASER_Barrier
+                0x0800f516       0x2a CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/laser.c.obj
+                0x0800f516                LASER_Barrier
  .text.GY53_GetDistance_PWM
-                0x0800f528       0x98 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/gy53.c.obj
-                0x0800f528                GY53_GetDistance_PWM
+                0x0800f540       0x98 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/gy53.c.obj
+                0x0800f540                GY53_GetDistance_PWM
  .text.LSC_SendArray
-                0x0800f5c0       0x28 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/lobot_servo.c.obj
+                0x0800f5d8       0x28 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/lobot_servo.c.obj
  .text.runActionGroup
-                0x0800f5e8       0x58 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/lobot_servo.c.obj
-                0x0800f5e8                runActionGroup
+                0x0800f600       0x58 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/lobot_servo.c.obj
+                0x0800f600                runActionGroup
  .text.stopActionGroup
-                0x0800f640       0x2c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/lobot_servo.c.obj
-                0x0800f640                stopActionGroup
+                0x0800f658       0x2c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/lobot_servo.c.obj
+                0x0800f658                stopActionGroup
  .text.TB6612_Control
-                0x0800f66c      0x178 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tb6612.c.obj
-                0x0800f66c                TB6612_Control
+                0x0800f684      0x178 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tb6612.c.obj
+                0x0800f684                TB6612_Control
  .text.ENCODER_GetPulse
-                0x0800f7e4       0x74 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/encoder.c.obj
-                0x0800f7e4                ENCODER_GetPulse
+                0x0800f7fc       0x74 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/encoder.c.obj
+                0x0800f7fc                ENCODER_GetPulse
  .text.CHASSIS_Init
-                0x0800f858      0x488 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
-                0x0800f858                CHASSIS_Init
+                0x0800f870      0x488 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
+                0x0800f870                CHASSIS_Init
  .text.clamp_speed
-                0x0800fce0       0x58 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
+                0x0800fcf8       0x58 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
  .text.CHASSIS_Mecanum
-                0x0800fd38      0x100 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
-                0x0800fd38                CHASSIS_Mecanum
+                0x0800fd50      0x100 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
+                0x0800fd50                CHASSIS_Mecanum
  .text.CHASSIS_Odom_Calculate
-                0x0800fe38      0x2a4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
-                0x0800fe38                CHASSIS_Odom_Calculate
- *fill*         0x080100dc        0x4 
+                0x0800fe50      0x2a4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
+                0x0800fe50                CHASSIS_Odom_Calculate
+ *fill*         0x080100f4        0x4 
  .text.CHASSIS_Start_Move
-                0x080100e0      0x200 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
-                0x080100e0                CHASSIS_Start_Move
+                0x080100f8      0x200 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
+                0x080100f8                CHASSIS_Start_Move
  .text.CHASSIS_Stop_Now
-                0x080102e0       0xdc CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
+                0x080102f8       0xdc CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
  .text.CHASSIS_SpeedLoop
-                0x080103bc      0x39c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
+                0x080103d4      0x39c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
  .text.CHASSIS_Control_Loop
-                0x08010758      0x69c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
-                0x08010758                CHASSIS_Control_Loop
+                0x08010770      0x69c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
+                0x08010770                CHASSIS_Control_Loop
  .text.SERIALPLOT_ChangeParam
-                0x08010df4      0xe40 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/serialplot.c.obj
-                0x08010df4                SERIALPLOT_ChangeParam
+                0x08010e0c      0xe40 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/serialplot.c.obj
+                0x08010e0c                SERIALPLOT_ChangeParam
  .text.SERIALPLOT_WheelActualPump
-                0x08011c34       0x9c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/serialplot.c.obj
-                0x08011c34                SERIALPLOT_WheelActualPump
+                0x08011c4c       0x9c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/serialplot.c.obj
+                0x08011c4c                SERIALPLOT_WheelActualPump
  .text.PID_Limit
-                0x08011cd0       0x54 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/pid.c.obj
+                0x08011ce8       0x54 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/pid.c.obj
  .text.PID_PosSpeedUpdate
-                0x08011d24      0x1ac CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/pid.c.obj
-                0x08011d24                PID_PosSpeedUpdate
+                0x08011d3c      0x1ac CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/pid.c.obj
+                0x08011d3c                PID_PosSpeedUpdate
  .text.PID_IncUpdate
-                0x08011ed0      0x1b8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/pid.c.obj
-                0x08011ed0                PID_IncUpdate
+                0x08011ee8      0x1b8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/pid.c.obj
+                0x08011ee8                PID_IncUpdate
  .text.PID_Angle
-                0x08012088      0x1dc CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/pid.c.obj
-                0x08012088                PID_Angle
+                0x080120a0      0x1dc CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/pid.c.obj
+                0x080120a0                PID_Angle
  .text.MYFLASH_ReadWord
-                0x08012264       0x18 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/myflash.c.obj
-                0x08012264                MYFLASH_ReadWord
+                0x0801227c       0x18 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/myflash.c.obj
+                0x0801227c                MYFLASH_ReadWord
  .text.MYFLASH_EraseSector
-                0x0801227c       0x64 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/myflash.c.obj
-                0x0801227c                MYFLASH_EraseSector
+                0x08012294       0x64 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/myflash.c.obj
+                0x08012294                MYFLASH_EraseSector
  .text.MYFLASH_ProgramWord
-                0x080122e0       0x2e CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/myflash.c.obj
-                0x080122e0                MYFLASH_ProgramWord
- *fill*         0x0801230e        0x2 
+                0x080122f8       0x2e CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/myflash.c.obj
+                0x080122f8                MYFLASH_ProgramWord
+ *fill*         0x08012326        0x2 
  .text.STORAGE_Init
-                0x08012310       0x98 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/storage.c.obj
-                0x08012310                STORAGE_Init
+                0x08012328       0x98 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/storage.c.obj
+                0x08012328                STORAGE_Init
  .text.STORAGE_Save
-                0x080123a8       0x4c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/storage.c.obj
-                0x080123a8                STORAGE_Save
- *fill*         0x080123f4        0x4 
+                0x080123c0       0x4c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/storage.c.obj
+                0x080123c0                STORAGE_Save
+ *fill*         0x0801240c        0x4 
  .text.calcTrapezoidalProfile
-                0x080123f8      0x78c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/velocityProfile.c.obj
-                0x080123f8                calcTrapezoidalProfile
- *fill*         0x08012b84        0x4 
+                0x08012410      0x78c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/velocityProfile.c.obj
+                0x08012410                calcTrapezoidalProfile
+ *fill*         0x08012b9c        0x4 
  .text.calcTrapezoidalVel
-                0x08012b88      0x118 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/velocityProfile.c.obj
-                0x08012b88                calcTrapezoidalVel
+                0x08012ba0      0x118 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/velocityProfile.c.obj
+                0x08012ba0                calcTrapezoidalVel
  .text.GW_Serial_ReadBits
-                0x08012ca0       0x78 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/gw_grayscale.c.obj
+                0x08012cb8       0x78 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/gw_grayscale.c.obj
  .text.GRAY3_Serial_Update
-                0x08012d18       0x54 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/gw_grayscale.c.obj
-                0x08012d18                GRAY3_Serial_Update
+                0x08012d30       0x54 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/gw_grayscale.c.obj
+                0x08012d30                GRAY3_Serial_Update
  .text.GRAY_Update
-                0x08012d6c        0xc CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/gw_grayscale.c.obj
-                0x08012d6c                GRAY_Update
+                0x08012d84        0xc CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/gw_grayscale.c.obj
+                0x08012d84                GRAY_Update
  .text.tcs_scl_hi
-                0x08012d78       0x18 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
- .text.tcs_scl_lo
                 0x08012d90       0x18 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
- .text.tcs_sda_hi
+ .text.tcs_scl_lo
                 0x08012da8       0x18 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
- .text.tcs_sda_lo
+ .text.tcs_sda_hi
                 0x08012dc0       0x18 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+ .text.tcs_sda_lo
+                0x08012dd8       0x18 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
  .text.tcs_sda_rd
-                0x08012dd8       0x20 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+                0x08012df0       0x20 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
  .text.tcs_scl_hi_wait
-                0x08012df8       0x4c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+                0x08012e10       0x4c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
  .text.tcs_i2c_start
-                0x08012e44       0x2a CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+                0x08012e5c       0x2a CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
  .text.tcs_i2c_stop
-                0x08012e6e       0x2a CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+                0x08012e86       0x2a CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
  .text.tcs_i2c_write_byte
-                0x08012e98       0x9c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+                0x08012eb0       0x9c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
  .text.tcs_i2c_read_byte
-                0x08012f34       0xa4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+                0x08012f4c       0xa4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
  .text.tcs_i2c_gpio_init
-                0x08012fd8       0x54 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+                0x08012ff0       0x54 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
  .text.tcs_read_regs
-                0x0801302c       0xa0 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+                0x08013044       0xa0 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
  .text.tcs_write_reg
-                0x080130cc       0x68 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+                0x080130e4       0x68 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
  .text.tcs_read16
-                0x08013134       0x40 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+                0x0801314c       0x40 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
  .text.rgb_to_hsv
-                0x08013174      0x1d8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+                0x0801318c      0x1d8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
  .text.TCS34725_SetIntegrationTime
-                0x0801334c       0x1c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
-                0x0801334c                TCS34725_SetIntegrationTime
+                0x08013364       0x1c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+                0x08013364                TCS34725_SetIntegrationTime
  .text.TCS34725_SetGain
-                0x08013368       0x22 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
-                0x08013368                TCS34725_SetGain
+                0x08013380       0x22 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+                0x08013380                TCS34725_SetGain
  .text.TCS34725_Enable
-                0x0801338a       0x36 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
-                0x0801338a                TCS34725_Enable
+                0x080133a2       0x36 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+                0x080133a2                TCS34725_Enable
  .text.TCS34725_GetID
-                0x080133c0       0x18 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
-                0x080133c0                TCS34725_GetID
+                0x080133d8       0x18 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+                0x080133d8                TCS34725_GetID
  .text.TCS34725_Init
-                0x080133d8       0x64 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
-                0x080133d8                TCS34725_Init
+                0x080133f0       0x64 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+                0x080133f0                TCS34725_Init
  .text.tcs_ensure_ready
-                0x0801343c       0x30 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+                0x08013454       0x30 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
  .text.TCS34725_GetRawData
-                0x0801346c      0x1e4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
-                0x0801346c                TCS34725_GetRawData
+                0x08013484      0x1e4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+                0x08013484                TCS34725_GetRawData
  .text.TCS34725_ClassifyColor
-                0x08013650       0x90 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
-                0x08013650                TCS34725_ClassifyColor
+                0x08013668       0x90 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+                0x08013668                TCS34725_ClassifyColor
  .text.TCS34725_ColorName
-                0x080136e0       0xa4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
-                0x080136e0                TCS34725_ColorName
+                0x080136f8       0xa4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+                0x080136f8                TCS34725_ColorName
  .text.HWT101CT_Init
-                0x08013784       0x80 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/hwt101ct.c.obj
-                0x08013784                HWT101CT_Init
+                0x0801379c       0x80 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/hwt101ct.c.obj
+                0x0801379c                HWT101CT_Init
  .text.HWT101CT_Update
-                0x08013804       0x6c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/hwt101ct.c.obj
-                0x08013804                HWT101CT_Update
+                0x0801381c       0x6c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/hwt101ct.c.obj
+                0x0801381c                HWT101CT_Update
  .text.ROBOT_Angle
-                0x08013870       0x68 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/robot.c.obj
-                0x08013870                ROBOT_Angle
+                0x08013888       0x68 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/robot.c.obj
+                0x08013888                ROBOT_Angle
  .text.ROBOT_Move
-                0x080138d8      0x190 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/robot.c.obj
-                0x080138d8                ROBOT_Move
+                0x080138f0      0x190 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/robot.c.obj
+                0x080138f0                ROBOT_Move
  .text.ROBOT_MoveSpeed
-                0x08013a68       0x70 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/robot.c.obj
-                0x08013a68                ROBOT_MoveSpeed
+                0x08013a80       0x70 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/robot.c.obj
+                0x08013a80                ROBOT_MoveSpeed
  .text.OLED_W_SCL
-                0x08013ad8       0x24 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
-                0x08013ad8                OLED_W_SCL
+                0x08013af0       0x24 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
+                0x08013af0                OLED_W_SCL
  .text.OLED_W_SDA
-                0x08013afc       0x24 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
-                0x08013afc                OLED_W_SDA
+                0x08013b14       0x24 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
+                0x08013b14                OLED_W_SDA
  .text.OLED_I2C_Start
-                0x08013b20       0x20 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
-                0x08013b20                OLED_I2C_Start
+                0x08013b38       0x20 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
+                0x08013b38                OLED_I2C_Start
  .text.OLED_I2C_Stop
-                0x08013b40       0x1a CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
-                0x08013b40                OLED_I2C_Stop
+                0x08013b58       0x1a CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
+                0x08013b58                OLED_I2C_Stop
  .text.OLED_I2C_SendByte
-                0x08013b5a       0x58 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
-                0x08013b5a                OLED_I2C_SendByte
+                0x08013b72       0x58 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
+                0x08013b72                OLED_I2C_SendByte
  .text.OLED_WriteCommand
-                0x08013bb2       0x2e CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
-                0x08013bb2                OLED_WriteCommand
+                0x08013bca       0x2e CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
+                0x08013bca                OLED_WriteCommand
  .text.OLED_SetColorMode
-                0x08013be0       0x20 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
-                0x08013be0                OLED_SetColorMode
+                0x08013bf8       0x20 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
+                0x08013bf8                OLED_SetColorMode
  .text.OLED_WriteData
-                0x08013c00       0x6c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
-                0x08013c00                OLED_WriteData
+                0x08013c18       0x6c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
+                0x08013c18                OLED_WriteData
  .text.OLED_GPIO_Init
-                0x08013c6c       0x90 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
-                0x08013c6c                OLED_GPIO_Init
+                0x08013c84       0x90 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
+                0x08013c84                OLED_GPIO_Init
  .text.OLED_SetCursor
-                0x08013cfc       0x46 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
-                0x08013cfc                OLED_SetCursor
+                0x08013d14       0x46 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
+                0x08013d14                OLED_SetCursor
  .text.OLED_Init
-                0x08013d42       0x9e CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
-                0x08013d42                OLED_Init
+                0x08013d5a       0x9e CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
+                0x08013d5a                OLED_Init
  .text.OLED_Update
-                0x08013de0       0x40 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
-                0x08013de0                OLED_Update
+                0x08013df8       0x40 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
+                0x08013df8                OLED_Update
  .text.OLED_Brightness
-                0x08013e20       0x3a CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
-                0x08013e20                OLED_Brightness
+                0x08013e38       0x3a CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
+                0x08013e38                OLED_Brightness
  .text.Encoder_Enable
-                0x08013e5a        0xe CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_driver.c.obj
-                0x08013e5a                Encoder_Enable
+                0x08013e72        0xe CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_driver.c.obj
+                0x08013e72                Encoder_Enable
  .text.Encoder_Disable
-                0x08013e68        0xe CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_driver.c.obj
-                0x08013e68                Encoder_Disable
+                0x08013e80        0xe CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_driver.c.obj
+                0x08013e80                Encoder_Disable
  .text.Encoder_Get
-                0x08013e76       0x10 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_driver.c.obj
-                0x08013e76                Encoder_Get
- *fill*         0x08013e86        0x2 
+                0x08013e8e       0x10 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_driver.c.obj
+                0x08013e8e                Encoder_Get
+ *fill*         0x08013e9e        0x2 
  .text.Show_R_ChuFa_x_Window
-                0x08013e88       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08013e88                Show_R_ChuFa_x_Window
+                0x08013ea0       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08013ea0                Show_R_ChuFa_x_Window
  .text.Show_R_ChuFa_y_Window
-                0x08013e9c       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08013e9c                Show_R_ChuFa_y_Window
+                0x08013eb4       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08013eb4                Show_R_ChuFa_y_Window
  .text.Show_B_ChuFa_x_Window
-                0x08013eb0       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08013eb0                Show_B_ChuFa_x_Window
+                0x08013ec8       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08013ec8                Show_B_ChuFa_x_Window
  .text.Show_B_ChuFa_y_Window
-                0x08013ec4       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08013ec4                Show_B_ChuFa_y_Window
+                0x08013edc       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08013edc                Show_B_ChuFa_y_Window
  .text.Show_R_YuanPan_y_Window
-                0x08013ed8       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08013ed8                Show_R_YuanPan_y_Window
+                0x08013ef0       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08013ef0                Show_R_YuanPan_y_Window
  .text.Show_B_YuanPan_y_Window
-                0x08013eec       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08013eec                Show_B_YuanPan_y_Window
+                0x08013f04       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08013f04                Show_B_YuanPan_y_Window
  .text.Show_C_GetTarget_y_Window
-                0x08013f00       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08013f00                Show_C_GetTarget_y_Window
+                0x08013f18       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08013f18                Show_C_GetTarget_y_Window
  .text.Show_C_GetTarget_x_Window
-                0x08013f14       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08013f14                Show_C_GetTarget_x_Window
+                0x08013f2c       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08013f2c                Show_C_GetTarget_x_Window
  .text.Show_C_JieTi_Left_x_Window
-                0x08013f28       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08013f28                Show_C_JieTi_Left_x_Window
+                0x08013f40       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08013f40                Show_C_JieTi_Left_x_Window
  .text.Show_C_Jieti_FwdTarget_y_Window
-                0x08013f3c       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08013f3c                Show_C_Jieti_FwdTarget_y_Window
+                0x08013f54       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08013f54                Show_C_Jieti_FwdTarget_y_Window
  .text.Show_C_JitTi_Step_x_Window
-                0x08013f50       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08013f50                Show_C_JitTi_Step_x_Window
+                0x08013f68       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08013f68                Show_C_JitTi_Step_x_Window
  .text.Show_C_Jieti_Cross_x_Window
-                0x08013f64       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08013f64                Show_C_Jieti_Cross_x_Window
+                0x08013f7c       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08013f7c                Show_C_Jieti_Cross_x_Window
  .text.Show_C_JieTi_JiaoZhun_x1_Window
-                0x08013f78       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08013f78                Show_C_JieTi_JiaoZhun_x1_Window
+                0x08013f90       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08013f90                Show_C_JieTi_JiaoZhun_x1_Window
  .text.Show_C_JieTi_JiaoZhun_x2_Window
-                0x08013f8c       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08013f8c                Show_C_JieTi_JiaoZhun_x2_Window
+                0x08013fa4       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08013fa4                Show_C_JieTi_JiaoZhun_x2_Window
  .text.Show_C_JieTi_JiaoZhun_y1_Window
-                0x08013fa0       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08013fa0                Show_C_JieTi_JiaoZhun_y1_Window
+                0x08013fb8       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08013fb8                Show_C_JieTi_JiaoZhun_y1_Window
  .text.Show_C_JieTi_JiaoZhun_y2_Window
-                0x08013fb4       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08013fb4                Show_C_JieTi_JiaoZhun_y2_Window
+                0x08013fcc       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08013fcc                Show_C_JieTi_JiaoZhun_y2_Window
  .text.Show_R_LiZhuang_Delay_x_Window
-                0x08013fc8       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08013fc8                Show_R_LiZhuang_Delay_x_Window
+                0x08013fe0       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08013fe0                Show_R_LiZhuang_Delay_x_Window
  .text.Show_B_LiZhuang_Delay_x_Window
-                0x08013fdc       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08013fdc                Show_B_LiZhuang_Delay_x_Window
+                0x08013ff4       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08013ff4                Show_B_LiZhuang_Delay_x_Window
  .text.Show_C_LiZhuang_Target_y_Window
-                0x08013ff0       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08013ff0                Show_C_LiZhuang_Target_y_Window
+                0x08014008       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08014008                Show_C_LiZhuang_Target_y_Window
  .text.Show_C_LiZhuang_Fwd_y_Window
-                0x08014004       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08014004                Show_C_LiZhuang_Fwd_y_Window
+                0x0801401c       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x0801401c                Show_C_LiZhuang_Fwd_y_Window
  .text.Show_R_LiZhuang_Back_y_Window
-                0x08014018       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08014018                Show_R_LiZhuang_Back_y_Window
+                0x08014030       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08014030                Show_R_LiZhuang_Back_y_Window
  .text.Show_B_LiZhuang_Back_y_Window
-                0x0801402c       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x0801402c                Show_B_LiZhuang_Back_y_Window
+                0x08014044       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08014044                Show_B_LiZhuang_Back_y_Window
  .text.Show_R_HuiJia_x_Window
-                0x08014040       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08014040                Show_R_HuiJia_x_Window
+                0x08014058       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08014058                Show_R_HuiJia_x_Window
  .text.Show_B_HuiJia_x_Window
-                0x08014054       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08014054                Show_B_HuiJia_x_Window
+                0x0801406c       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x0801406c                Show_B_HuiJia_x_Window
  .text.Show_C_HuiJia_y_Window
-                0x08014068       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
-                0x08014068                Show_C_HuiJia_y_Window
- .text.GetFPS   0x0801407c       0x48 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x0801407c                GetFPS
+                0x08014080       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+                0x08014080                Show_C_HuiJia_y_Window
+ .text.GetFPS   0x08014094       0x48 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08014094                GetFPS
  .text.OLED_UI_ShowFPS
-                0x080140c4       0x60 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x080140c4                OLED_UI_ShowFPS
+                0x080140dc       0x60 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x080140dc                OLED_UI_ShowFPS
  .text.GetOLED_Font
-                0x08014124       0xa8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08014124                GetOLED_Font
+                0x0801413c       0xa8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x0801413c                GetOLED_Font
  .text.ReverseCoordinate
-                0x080141cc      0x228 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x080141cc                ReverseCoordinate
+                0x080141e4      0x228 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x080141e4                ReverseCoordinate
  .text.OLED_UI_FadeOut_Masking
-                0x080143f4      0x1c8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x080143f4                OLED_UI_FadeOut_Masking
+                0x0801440c      0x1c8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x0801440c                OLED_UI_FadeOut_Masking
  .text.OLED_UI_FadeoutCurrentArea
-                0x080145bc       0x78 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x080145bc                OLED_UI_FadeoutCurrentArea
+                0x080145d4       0x78 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x080145d4                OLED_UI_FadeoutCurrentArea
  .text.OLED_UI_FadeoutAllArea
-                0x08014634       0x58 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08014634                OLED_UI_FadeoutAllArea
+                0x0801464c       0x58 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x0801464c                OLED_UI_FadeoutAllArea
  .text.GetMenuItemNum
-                0x0801468c       0x3e CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x0801468c                GetMenuItemNum
- *fill*         0x080146ca        0x6 
+                0x080146a4       0x3e CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x080146a4                GetMenuItemNum
+ *fill*         0x080146e2        0x6 
  .text.ChangeFloatNum
-                0x080146d0      0x2b8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x080146d0                ChangeFloatNum
+                0x080146e8      0x2b8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x080146e8                ChangeFloatNum
  .text.ChangeDistance
-                0x08014988       0x36 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08014988                ChangeDistance
+                0x080149a0       0x36 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x080149a0                ChangeDistance
  .text.ChangePoint
-                0x080149be       0x62 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x080149be                ChangePoint
+                0x080149d6       0x62 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x080149d6                ChangePoint
  .text.ChangeArea
-                0x08014a20       0xba CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08014a20                ChangeArea
- *fill*         0x08014ada        0x2 
+                0x08014a38       0xba CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08014a38                ChangeArea
+ *fill*         0x08014af2        0x2 
  .text.CurrentMenuPageInit
-                0x08014adc      0x1a4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08014adc                CurrentMenuPageInit
+                0x08014af4      0x1a4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08014af4                CurrentMenuPageInit
  .text.CurrentMenuPageBackUp
-                0x08014c80      0x128 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08014c80                CurrentMenuPageBackUp
+                0x08014c98      0x128 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08014c98                CurrentMenuPageBackUp
  .text.OLED_UI_Init
-                0x08014da8       0x24 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08014da8                OLED_UI_Init
+                0x08014dc0       0x24 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08014dc0                OLED_UI_Init
  .text.GetEnterFlag
-                0x08014dcc       0x24 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08014dcc                GetEnterFlag
+                0x08014de4       0x24 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08014de4                GetEnterFlag
  .text.GetFadeoutFlag
-                0x08014df0       0x24 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08014df0                GetFadeoutFlag
+                0x08014e08       0x24 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08014e08                GetFadeoutFlag
  .text.CalcStringWidth
-                0x08014e14       0x92 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08014e14                CalcStringWidth
+                0x08014e2c       0x92 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08014e2c                CalcStringWidth
  .text.GetWindowProbDataStyle
-                0x08014ea6       0x5c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08014ea6                GetWindowProbDataStyle
- *fill*         0x08014f02        0x2 
+                0x08014ebe       0x5c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08014ebe                GetWindowProbDataStyle
+ *fill*         0x08014f1a        0x2 
  .text.OLED_DrawWindow
-                0x08014f04      0xd88 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08014f04                OLED_DrawWindow
+                0x08014f1c      0xd88 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08014f1c                OLED_DrawWindow
  .text.MenuItemsMoveUp
-                0x08015c8c       0x44 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08015c8c                MenuItemsMoveUp
+                0x08015ca4       0x44 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08015ca4                MenuItemsMoveUp
  .text.MenuItemsMoveDown
-                0x08015cd0       0x44 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08015cd0                MenuItemsMoveDown
+                0x08015ce8       0x44 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08015ce8                MenuItemsMoveDown
  .text.MenuItemsMoveLeft
-                0x08015d14       0x44 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08015d14                MenuItemsMoveLeft
+                0x08015d2c       0x44 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08015d2c                MenuItemsMoveLeft
  .text.MenuItemsMoveRight
-                0x08015d58       0x44 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08015d58                MenuItemsMoveRight
+                0x08015d70       0x44 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08015d70                MenuItemsMoveRight
  .text.GetCurrentMenuPageMaxSlotNum
-                0x08015d9c       0x80 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08015d9c                GetCurrentMenuPageMaxSlotNum
+                0x08015db4       0x80 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08015db4                GetCurrentMenuPageMaxSlotNum
  .text.SetTargetCursor
-                0x08015e1c      0x328 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08015e1c                SetTargetCursor
+                0x08015e34      0x328 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08015e34                SetTargetCursor
  .text.SetTargetMenuFrame
-                0x08016144       0x40 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08016144                SetTargetMenuFrame
+                0x0801615c       0x40 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x0801615c                SetTargetMenuFrame
  .text.SetLineSplitZero
-                0x08016184       0x5c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08016184                SetLineSplitZero
+                0x0801619c       0x5c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x0801619c                SetLineSplitZero
  .text.SetTargetScrollBarHeight
-                0x080161e0       0xac CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x080161e0                SetTargetScrollBarHeight
+                0x080161f8       0xac CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x080161f8                SetTargetScrollBarHeight
  .text.SetTargetProbWidth
-                0x0801628c      0x230 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x0801628c                SetTargetProbWidth
+                0x080162a4      0x230 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x080162a4                SetTargetProbWidth
  .text.DrawLinePermix
-                0x080164bc      0x1c8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x080164bc                DrawLinePermix
+                0x080164d4      0x1c8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x080164d4                DrawLinePermix
  .text.PrintMenuElements
-                0x08016684      0xb4c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08016684                PrintMenuElements
+                0x0801669c      0xb4c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x0801669c                PrintMenuElements
  .text.OLED_KeyAndEncoderRecord
-                0x080171d0      0x290 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x080171d0                OLED_KeyAndEncoderRecord
+                0x080171e8      0x290 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x080171e8                OLED_KeyAndEncoderRecord
  .text.SetEnterFlag
-                0x08017460       0x18 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08017460                SetEnterFlag
- .text.ResetEnterFlag
                 0x08017478       0x18 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08017478                ResetEnterFlag
+                0x08017478                SetEnterFlag
+ .text.ResetEnterFlag
+                0x08017490       0x18 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08017490                ResetEnterFlag
  .text.SetFadeOutFlag
-                0x08017490       0x20 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08017490                SetFadeOutFlag
+                0x080174a8       0x20 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x080174a8                SetFadeOutFlag
  .text.ResetFadeOutFlag
-                0x080174b0       0x18 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x080174b0                ResetFadeOutFlag
+                0x080174c8       0x18 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x080174c8                ResetFadeOutFlag
  .text.EnterEventMenuItem
-                0x080174c8       0x98 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x080174c8                EnterEventMenuItem
+                0x080174e0       0x98 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x080174e0                EnterEventMenuItem
  .text.BackEventMenuItem
-                0x08017560       0x1c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08017560                BackEventMenuItem
+                0x08017578       0x1c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08017578                BackEventMenuItem
  .text.RunCurrentCallBackFunction
-                0x0801757c       0x40 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x0801757c                RunCurrentCallBackFunction
+                0x08017594       0x40 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08017594                RunCurrentCallBackFunction
  .text.SetCursorZero
-                0x080175bc       0x54 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x080175bc                SetCursorZero
+                0x080175d4       0x54 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x080175d4                SetCursorZero
  .text.OLED_UI_CreateWindow
-                0x08017610       0xb4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08017610                OLED_UI_CreateWindow
+                0x08017628       0xb4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08017628                OLED_UI_CreateWindow
  .text.RunFadeOut
-                0x080176c4      0x260 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x080176c4                RunFadeOut
+                0x080176dc      0x260 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x080176dc                RunFadeOut
  .text.OLED_WindowDataDispose
-                0x08017924      0x448 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08017924                OLED_WindowDataDispose
+                0x0801793c      0x448 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x0801793c                OLED_WindowDataDispose
  .text.MoveMenuElements
-                0x08017d6c       0xe0 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08017d6c                MoveMenuElements
+                0x08017d84       0xe0 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08017d84                MoveMenuElements
  .text.OLED_UI_MainLoop
-                0x08017e4c       0x20 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08017e4c                OLED_UI_MainLoop
+                0x08017e64       0x20 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08017e64                OLED_UI_MainLoop
  .text.OLED_UI_InterruptHandler
-                0x08017e6c      0x2f0 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
-                0x08017e6c                OLED_UI_InterruptHandler
- *fill*         0x0801815c        0x4 
+                0x08017e84      0x2f0 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+                0x08017e84                OLED_UI_InterruptHandler
+ *fill*         0x08018174        0x4 
  .text.OLED_IsInAngle
-                0x08018160       0xd4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
-                0x08018160                OLED_IsInAngle
+                0x08018178       0xd4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
+                0x08018178                OLED_IsInAngle
  .text.OLED_Clear
-                0x08018234       0x60 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
-                0x08018234                OLED_Clear
+                0x0801824c       0x60 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
+                0x0801824c                OLED_Clear
  .text.OLED_ClearArea
-                0x08018294      0x14c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
-                0x08018294                OLED_ClearArea
+                0x080182ac      0x14c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
+                0x080182ac                OLED_ClearArea
  .text.OLED_ReverseArea
-                0x080183e0      0x174 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
-                0x080183e0                OLED_ReverseArea
+                0x080183f8      0x174 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
+                0x080183f8                OLED_ReverseArea
  .text.OLED_ShowImage
-                0x08018554      0x2b0 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
-                0x08018554                OLED_ShowImage
+                0x0801856c      0x2b0 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
+                0x0801856c                OLED_ShowImage
  .text.OLED_ShowChar
-                0x08018804       0xdc CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
-                0x08018804                OLED_ShowChar
+                0x0801881c       0xdc CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
+                0x0801881c                OLED_ShowChar
  .text.OLED_ShowString
-                0x080188e0       0x60 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
-                0x080188e0                OLED_ShowString
+                0x080188f8       0x60 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
+                0x080188f8                OLED_ShowString
  .text.OLED_Printf
-                0x08018940       0x4a CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
-                0x08018940                OLED_Printf
- *fill*         0x0801898a        0x2 
+                0x08018958       0x4a CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
+                0x08018958                OLED_Printf
+ *fill*         0x080189a2        0x2 
  .text.OLED_ShowImageArea
-                0x0801898c      0x244 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
-                0x0801898c                OLED_ShowImageArea
+                0x080189a4      0x244 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
+                0x080189a4                OLED_ShowImageArea
  .text.OLED_ShowCharArea
-                0x08018bd0      0x14c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
-                0x08018bd0                OLED_ShowCharArea
+                0x08018be8      0x14c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
+                0x08018be8                OLED_ShowCharArea
  .text.OLED_ShowChineseArea
-                0x08018d1c      0x354 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
-                0x08018d1c                OLED_ShowChineseArea
+                0x08018d34      0x354 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
+                0x08018d34                OLED_ShowChineseArea
  .text.OLED_ShowMixStringArea
-                0x08019070       0xec CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
-                0x08019070                OLED_ShowMixStringArea
+                0x08019088       0xec CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
+                0x08019088                OLED_ShowMixStringArea
  .text.OLED_PrintfMixArea
-                0x0801915c       0x70 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
-                0x0801915c                OLED_PrintfMixArea
+                0x08019174       0x70 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
+                0x08019174                OLED_PrintfMixArea
  .text.OLED_DrawPoint
-                0x080191cc       0x98 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
-                0x080191cc                OLED_DrawPoint
+                0x080191e4       0x98 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
+                0x080191e4                OLED_DrawPoint
  .text.OLED_DrawLine
-                0x08019264      0x2b2 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
-                0x08019264                OLED_DrawLine
- *fill*         0x08019516        0x2 
+                0x0801927c      0x2b2 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
+                0x0801927c                OLED_DrawLine
+ *fill*         0x0801952e        0x2 
  .text.OLED_DrawRectangle
-                0x08019518      0x26c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
-                0x08019518                OLED_DrawRectangle
+                0x08019530      0x26c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
+                0x08019530                OLED_DrawRectangle
  .text.OLED_DrawArc
-                0x08019784      0x4c4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
-                0x08019784                OLED_DrawArc
+                0x0801979c      0x4c4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
+                0x0801979c                OLED_DrawArc
  .text.OLED_DrawRoundedRectangle
-                0x08019c48      0x290 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
-                0x08019c48                OLED_DrawRoundedRectangle
- .text.atan2    0x08019ed8        0x4 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-w_atan2.o)
-                0x08019ed8                atan2
- .text.sqrt     0x08019edc       0x68 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-w_sqrt.o)
-                0x08019edc                sqrt
- .text.sqrtf    0x08019f44       0x44 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-wf_sqrt.o)
-                0x08019f44                sqrtf
- .text.cosf     0x08019f88       0x70 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-sf_cos.o)
-                0x08019f88                cosf
- .text.sinf     0x08019ff8       0x74 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-sf_sin.o)
-                0x08019ff8                sinf
- .text.fmin     0x0801a06c       0x58 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-s_fmin.o)
-                0x0801a06c                fmin
+                0x08019c60      0x290 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
+                0x08019c60                OLED_DrawRoundedRectangle
+ .text.atan2    0x08019ef0        0x4 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-w_atan2.o)
+                0x08019ef0                atan2
+ .text.sqrt     0x08019ef4       0x68 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-w_sqrt.o)
+                0x08019ef4                sqrt
+ .text.sqrtf    0x08019f5c       0x44 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-wf_sqrt.o)
+                0x08019f5c                sqrtf
+ .text.cosf     0x08019fa0       0x70 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-sf_cos.o)
+                0x08019fa0                cosf
+ .text.sinf     0x0801a010       0x74 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-sf_sin.o)
+                0x0801a010                sinf
+ .text.fmin     0x0801a084       0x58 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-s_fmin.o)
+                0x0801a084                fmin
  .text.__fpclassifyd
-                0x0801a0c4       0x5c C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-s_fpclassify.o)
-                0x0801a0c4                __fpclassifyd
- .text.fmaxf    0x0801a120       0x50 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-sf_fmax.o)
-                0x0801a120                fmaxf
+                0x0801a0dc       0x5c C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-s_fpclassify.o)
+                0x0801a0dc                __fpclassifyd
+ .text.fmaxf    0x0801a138       0x50 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-sf_fmax.o)
+                0x0801a138                fmaxf
  .text.__fpclassifyf
-                0x0801a170       0x38 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-sf_fpclassify.o)
-                0x0801a170                __fpclassifyf
+                0x0801a188       0x38 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-sf_fpclassify.o)
+                0x0801a188                __fpclassifyf
  .text.__ieee754_sqrt
-                0x0801a1a8      0x1f0 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-e_sqrt.o)
-                0x0801a1a8                __ieee754_sqrt
+                0x0801a1c0      0x1f0 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-e_sqrt.o)
+                0x0801a1c0                __ieee754_sqrt
  .text.__ieee754_sqrtf
-                0x0801a398        0x8 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-ef_sqrt.o)
-                0x0801a398                __ieee754_sqrtf
- .text.ceil     0x0801a3a0      0x100 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-s_ceil.o)
-                0x0801a3a0                ceil
+                0x0801a3b0        0x8 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-ef_sqrt.o)
+                0x0801a3b0                __ieee754_sqrtf
+ .text.ceil     0x0801a3b8      0x100 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-s_ceil.o)
+                0x0801a3b8                ceil
  .text.__ieee754_atan2
-                0x0801a4a0      0x1ac C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-e_atan2.o)
-                0x0801a4a0                __ieee754_atan2
- *fill*         0x0801a64c        0x4 
- .text.atan     0x0801a650      0x358 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-s_atan.o)
-                0x0801a650                atan
- .text.fabs     0x0801a9a8       0x10 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-s_fabs.o)
-                0x0801a9a8                fabs
+                0x0801a4b8      0x1ac C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-e_atan2.o)
+                0x0801a4b8                __ieee754_atan2
+ *fill*         0x0801a664        0x4 
+ .text.atan     0x0801a668      0x358 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-s_atan.o)
+                0x0801a668                atan
+ .text.fabs     0x0801a9c0       0x10 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-s_fabs.o)
+                0x0801a9c0                fabs
  .text.__kernel_cosf
-                0x0801a9b8      0x104 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-kf_cos.o)
-                0x0801a9b8                __kernel_cosf
+                0x0801a9d0      0x104 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-kf_cos.o)
+                0x0801a9d0                __kernel_cosf
  .text.__kernel_sinf
-                0x0801aabc       0x90 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-kf_sin.o)
-                0x0801aabc                __kernel_sinf
+                0x0801aad4       0x90 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-kf_sin.o)
+                0x0801aad4                __kernel_sinf
  .text.__ieee754_rem_pio2f
-                0x0801ab4c      0x26c C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-ef_rem_pio2.o)
-                0x0801ab4c                __ieee754_rem_pio2f
- .text.fabsf    0x0801adb8       0x10 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-sf_fabs.o)
-                0x0801adb8                fabsf
+                0x0801ab64      0x26c C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-ef_rem_pio2.o)
+                0x0801ab64                __ieee754_rem_pio2f
+ .text.fabsf    0x0801add0       0x10 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-sf_fabs.o)
+                0x0801add0                fabsf
  .text.__kernel_rem_pio2f
-                0x0801adc8      0x68c C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-kf_rem_pio2.o)
-                0x0801adc8                __kernel_rem_pio2f
- .text.scalbnf  0x0801b454       0xdc C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-sf_scalbn.o)
-                0x0801b454                scalbnf
- .text.floorf   0x0801b530       0x94 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-sf_floor.o)
-                0x0801b530                floorf
- .text.sulp     0x0801b5c4       0x3c C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtod.o)
+                0x0801ade0      0x68c C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-kf_rem_pio2.o)
+                0x0801ade0                __kernel_rem_pio2f
+ .text.scalbnf  0x0801b46c       0xdc C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-sf_scalbn.o)
+                0x0801b46c                scalbnf
+ .text.floorf   0x0801b548       0x94 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-sf_floor.o)
+                0x0801b548                floorf
+ .text.sulp     0x0801b5dc       0x3c C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtod.o)
  .text._strtod_l
-                0x0801b600      0xbb8 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtod.o)
-                0x0801b600                _strtod_l
- .text.strtof   0x0801c1b8       0xc8 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtod.o)
-                0x0801c1b8                strtof
+                0x0801b618      0xbb8 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtod.o)
+                0x0801b618                _strtod_l
+ .text.strtof   0x0801c1d0       0xc8 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtod.o)
+                0x0801c1d0                strtof
  .text._strtol_l.isra.0
-                0x0801c280       0xf4 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtol.o)
- .text.strtol   0x0801c374       0x14 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtol.o)
-                0x0801c374                strtol
+                0x0801c298       0xf4 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtol.o)
+ .text.strtol   0x0801c38c       0x14 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtol.o)
+                0x0801c38c                strtol
  .text._vsnprintf_r
-                0x0801c388       0x5c C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-vsnprintf.o)
-                0x0801c388                _vsniprintf_r
-                0x0801c388                _vsnprintf_r
+                0x0801c3a0       0x5c C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-vsnprintf.o)
+                0x0801c3a0                _vsniprintf_r
+                0x0801c3a0                _vsnprintf_r
  .text.vsnprintf
-                0x0801c3e4       0x1c C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-vsnprintf.o)
-                0x0801c3e4                vsniprintf
-                0x0801c3e4                vsnprintf
+                0x0801c3fc       0x1c C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-vsnprintf.o)
+                0x0801c3fc                vsniprintf
+                0x0801c3fc                vsnprintf
  .text._vsprintf_r
-                0x0801c400       0x2c C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-vsprintf.o)
-                0x0801c400                _vsprintf_r
-                0x0801c400                _vsiprintf_r
+                0x0801c418       0x2c C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-vsprintf.o)
+                0x0801c418                _vsprintf_r
+                0x0801c418                _vsiprintf_r
  .text.vsprintf
-                0x0801c42c       0x14 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-vsprintf.o)
-                0x0801c42c                vsiprintf
-                0x0801c42c                vsprintf
- .text.strchr   0x0801c440       0x1a C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strchr.o)
-                0x0801c440                strchr
- .text.strncmp  0x0801c45a       0x24 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strncmp.o)
-                0x0801c45a                strncmp
- *fill*         0x0801c47e        0x2 
- .text.strtok   0x0801c480       0x7c C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtok.o)
-                0x0801c480                strtok
+                0x0801c444       0x14 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-vsprintf.o)
+                0x0801c444                vsiprintf
+                0x0801c444                vsprintf
+ .text.strchr   0x0801c458       0x1a C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strchr.o)
+                0x0801c458                strchr
+ .text.strncmp  0x0801c472       0x24 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strncmp.o)
+                0x0801c472                strncmp
+ *fill*         0x0801c496        0x2 
+ .text.strtok   0x0801c498       0x7c C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtok.o)
+                0x0801c498                strtok
  .text.__strtok_r
-                0x0801c4fc       0x50 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtok_r.o)
-                0x0801c4fc                __strtok_r
- .text.__errno  0x0801c54c        0xc C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-errno.o)
-                0x0801c54c                __errno
- .text.nan      0x0801c558       0x10 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libm_a-s_nan.o)
-                0x0801c558                nan
- .text.nanf     0x0801c568        0xc C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libm_a-sf_nan.o)
-                0x0801c568                nanf
- .text.rshift   0x0801c574       0xa4 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-gdtoa-gethex.o)
+                0x0801c514       0x50 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtok_r.o)
+                0x0801c514                __strtok_r
+ .text.__errno  0x0801c564        0xc C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-errno.o)
+                0x0801c564                __errno
+ .text.nan      0x0801c570       0x10 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libm_a-s_nan.o)
+                0x0801c570                nan
+ .text.nanf     0x0801c580        0xc C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libm_a-sf_nan.o)
+                0x0801c580                nanf
+ .text.rshift   0x0801c58c       0xa4 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-gdtoa-gethex.o)
  .text.__hexdig_fun
-                0x0801c618       0x2a C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-gdtoa-gethex.o)
-                0x0801c618                __hexdig_fun
- *fill*         0x0801c642        0x2 
+                0x0801c630       0x2a C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-gdtoa-gethex.o)
+                0x0801c630                __hexdig_fun
+ *fill*         0x0801c65a        0x2 
  .text.__gethex
-                0x0801c644      0x420 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-gdtoa-gethex.o)
-                0x0801c644                __gethex
- .text.L_shift  0x0801ca64       0x24 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-gdtoa-hexnan.o)
- .text.__match  0x0801ca88       0x28 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-gdtoa-hexnan.o)
-                0x0801ca88                __match
+                0x0801c65c      0x420 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-gdtoa-gethex.o)
+                0x0801c65c                __gethex
+ .text.L_shift  0x0801ca7c       0x24 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-gdtoa-hexnan.o)
+ .text.__match  0x0801caa0       0x28 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-gdtoa-hexnan.o)
+                0x0801caa0                __match
  .text.__hexnan
-                0x0801cab0      0x13a C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-gdtoa-hexnan.o)
-                0x0801cab0                __hexnan
+                0x0801cac8      0x13a C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-gdtoa-hexnan.o)
+                0x0801cac8                __hexnan
  .text.__ssputs_r
-                0x0801cbea       0xc0 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-nano-svfprintf.o)
-                0x0801cbea                __ssputs_r
- *fill*         0x0801ccaa        0x2 
+                0x0801cc02       0xc0 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-nano-svfprintf.o)
+                0x0801cc02                __ssputs_r
+ *fill*         0x0801ccc2        0x2 
  .text._svfprintf_r
-                0x0801ccac      0x1f0 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-nano-svfprintf.o)
-                0x0801ccac                _svfiprintf_r
-                0x0801ccac                _svfprintf_r
+                0x0801ccc4      0x1f0 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-nano-svfprintf.o)
+                0x0801ccc4                _svfiprintf_r
+                0x0801ccc4                _svfprintf_r
  *(.glue_7)
- .glue_7        0x0801ce9c        0x0 linker stubs
+ .glue_7        0x0801ceb4        0x0 linker stubs
  *(.glue_7t)
- .glue_7t       0x0801ce9c        0x0 linker stubs
+ .glue_7t       0x0801ceb4        0x0 linker stubs
  *(.eh_frame)
- .eh_frame      0x0801ce9c        0x0 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/thumb/v7e-m+fp/hard/crtbegin.o
+ .eh_frame      0x0801ceb4        0x0 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/thumb/v7e-m+fp/hard/crtbegin.o
  *(.init)
- .init          0x0801ce9c        0x4 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/thumb/v7e-m+fp/hard/crti.o
-                0x0801ce9c                _init
- .init          0x0801cea0        0x8 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/thumb/v7e-m+fp/hard/crtn.o
+ .init          0x0801ceb4        0x4 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/thumb/v7e-m+fp/hard/crti.o
+                0x0801ceb4                _init
+ .init          0x0801ceb8        0x8 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/thumb/v7e-m+fp/hard/crtn.o
  *(.fini)
- .fini          0x0801cea8        0x4 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/thumb/v7e-m+fp/hard/crti.o
-                0x0801cea8                _fini
- .fini          0x0801ceac        0x8 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/thumb/v7e-m+fp/hard/crtn.o
-                0x0801ceb4                        . = ALIGN (0x4)
-                0x0801ceb4                        _etext = .
+ .fini          0x0801cec0        0x4 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/thumb/v7e-m+fp/hard/crti.o
+                0x0801cec0                _fini
+ .fini          0x0801cec4        0x8 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/thumb/v7e-m+fp/hard/crtn.o
+                0x0801cecc                        . = ALIGN (0x4)
+                0x0801cecc                        _etext = .
 
-.vfp11_veneer   0x0801ceb4        0x0
- .vfp11_veneer  0x0801ceb4        0x0 linker stubs
+.vfp11_veneer   0x0801cecc        0x0
+ .vfp11_veneer  0x0801cecc        0x0 linker stubs
 
-.v4_bx          0x0801ceb4        0x0
- .v4_bx         0x0801ceb4        0x0 linker stubs
+.v4_bx          0x0801cecc        0x0
+ .v4_bx         0x0801cecc        0x0 linker stubs
 
-.iplt           0x0801ceb4        0x0
- .iplt          0x0801ceb4        0x0 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/thumb/v7e-m+fp/hard/crtbegin.o
+.iplt           0x0801cecc        0x0
+ .iplt          0x0801cecc        0x0 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/thumb/v7e-m+fp/hard/crtbegin.o
 
-.rodata         0x0801ceb8     0x6ea8
-                0x0801ceb8                        . = ALIGN (0x4)
+.rodata         0x0801ced0     0x6ea8
+                0x0801ced0                        . = ALIGN (0x4)
  *(.rodata)
- .rodata        0x0801ceb8     0x1a93 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
- *fill*         0x0801e94b        0x1 
- .rodata        0x0801e94c      0x33e CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/serialplot.c.obj
- *fill*         0x0801ec8a        0x2 
- .rodata        0x0801ec8c       0x55 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
- *fill*         0x0801ece1        0x3 
- .rodata        0x0801ece4        0x5 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/hwt101ct.c.obj
- *fill*         0x0801ece9        0x3 
- .rodata        0x0801ecec      0x2c6 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
- *fill*         0x0801efb2        0x2 
- .rodata        0x0801efb4       0x3c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+ .rodata        0x0801ced0     0x1a93 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+ *fill*         0x0801e963        0x1 
+ .rodata        0x0801e964      0x33e CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/serialplot.c.obj
+ *fill*         0x0801eca2        0x2 
+ .rodata        0x0801eca4       0x55 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+ *fill*         0x0801ecf9        0x3 
+ .rodata        0x0801ecfc        0x5 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/hwt101ct.c.obj
+ *fill*         0x0801ed01        0x3 
+ .rodata        0x0801ed04      0x2c6 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+ *fill*         0x0801efca        0x2 
+ .rodata        0x0801efcc       0x3c CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
  *(.rodata*)
  .rodata._printf_float.str1.1
-                0x0801eff0      0x22b C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-nano-vfprintf_float.o)
+                0x0801f008      0x22b C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-nano-vfprintf_float.o)
                                  0x12 (size before relaxing)
  .rodata._printf_i.str1.1
-                0x0801f21b       0x22 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-nano-vfprintf_i.o)
+                0x0801f233       0x22 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-nano-vfprintf_i.o)
  .rodata._dtoa_r.str1.1
-                0x0801f21b       0x8f C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-dtoa.o)
+                0x0801f233       0x8f C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-dtoa.o)
  .rodata._Balloc.str1.1
-                0x0801f21b       0x70 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-mprec.o)
+                0x0801f233       0x70 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-mprec.o)
  .rodata.__multadd.str1.1
-                0x0801f21b       0x11 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-mprec.o)
- *fill*         0x0801f21b        0x1 
- .rodata.p05.0  0x0801f21c        0xc C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-mprec.o)
+                0x0801f233       0x11 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-mprec.o)
+ *fill*         0x0801f233        0x1 
+ .rodata.p05.0  0x0801f234        0xc C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-mprec.o)
  .rodata.__mprec_bigtens
-                0x0801f228       0x28 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-mprec.o)
-                0x0801f228                __mprec_bigtens
+                0x0801f240       0x28 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-mprec.o)
+                0x0801f240                __mprec_bigtens
  .rodata.__mprec_tens
-                0x0801f250       0xc8 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-mprec.o)
-                0x0801f250                __mprec_tens
+                0x0801f268       0xc8 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-mprec.o)
+                0x0801f268                __mprec_tens
  .rodata._setlocale_r.str1.1
-                0x0801f318        0x9 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-locale.o)
+                0x0801f330        0x9 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-locale.o)
  .rodata.str1.1
-                0x0801f318        0x2 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-locale.o)
+                0x0801f330        0x2 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-locale.o)
  .rodata.__assert_func.str1.1
-                0x0801f318       0x3d C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-assert.o)
+                0x0801f330       0x3d C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-assert.o)
  .rodata._ctype_
-                0x0801f318      0x101 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-ctype_.o)
-                0x0801f318                _ctype_
+                0x0801f330      0x101 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-ctype_.o)
+                0x0801f330                _ctype_
  .rodata._vfprintf_r.str1.1
-                0x0801f419       0x11 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-nano-vfprintf.o)
- *fill*         0x0801f419        0x3 
+                0x0801f431       0x11 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-nano-vfprintf.o)
+ *fill*         0x0801f431        0x3 
  .rodata.AHBPrescTable
-                0x0801f41c       0x10 cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Core/Src/system_stm32f4xx.c.obj
-                0x0801f41c                AHBPrescTable
+                0x0801f434       0x10 cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Core/Src/system_stm32f4xx.c.obj
+                0x0801f434                AHBPrescTable
  .rodata.APBPrescTable
-                0x0801f42c        0x8 cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Core/Src/system_stm32f4xx.c.obj
-                0x0801f42c                APBPrescTable
+                0x0801f444        0x8 cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Core/Src/system_stm32f4xx.c.obj
+                0x0801f444                APBPrescTable
  .rodata.flagBitshiftOffset.0
-                0x0801f434        0x8 cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma.c.obj
+                0x0801f44c        0x8 cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma.c.obj
  .rodata.DBG_START_NAME
-                0x0801f43c       0x1c CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+                0x0801f454       0x1c CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
  .rodata.DBG_START_DESC
-                0x0801f458       0x1c CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+                0x0801f470       0x1c CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
  .rodata.ZM_SrchTab
-                0x0801f474       0x28 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+                0x0801f48c       0x28 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
  .rodata.SPEED_PID_DFT.3
-                0x0801f49c       0xf0 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
+                0x0801f4b4       0xf0 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
  .rodata.SPEED_POS_KP_DFT.2
-                0x0801f58c       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
+                0x0801f5a4       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
  .rodata.SPEED_POS_KI_DFT.1
-                0x0801f5a0       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
+                0x0801f5b8       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
  .rodata.SPEED_POS_KD_DFT.0
-                0x0801f5b4       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
+                0x0801f5cc       0x14 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
  .rodata.OLED_F10x20
-                0x0801f5c8      0xb22 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_fonts.c.obj
-                0x0801f5c8                OLED_F10x20
- *fill*         0x080200ea        0x2 
+                0x0801f5e0      0xb22 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_fonts.c.obj
+                0x0801f5e0                OLED_F10x20
+ *fill*         0x08020102        0x2 
  .rodata.OLED_F8x16
-                0x080200ec      0x5f0 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_fonts.c.obj
-                0x080200ec                OLED_F8x16
+                0x08020104      0x5f0 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_fonts.c.obj
+                0x08020104                OLED_F8x16
  .rodata.OLED_F7x12
-                0x080206dc      0x532 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_fonts.c.obj
-                0x080206dc                OLED_F7x12
- *fill*         0x08020c0e        0x2 
+                0x080206f4      0x532 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_fonts.c.obj
+                0x080206f4                OLED_F7x12
+ *fill*         0x08020c26        0x2 
  .rodata.OLED_F6x8
-                0x08020c10      0x23a CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_fonts.c.obj
-                0x08020c10                OLED_F6x8
- *fill*         0x08020e4a        0x2 
+                0x08020c28      0x23a CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_fonts.c.obj
+                0x08020c28                OLED_F6x8
+ *fill*         0x08020e62        0x2 
  .rodata.OLED_CF20x20
-                0x08020e4c      0xd00 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_fonts.c.obj
-                0x08020e4c                OLED_CF20x20
+                0x08020e64      0xd00 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_fonts.c.obj
+                0x08020e64                OLED_CF20x20
  .rodata.OLED_CF16x16
-                0x08021b4c      0xcf0 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_fonts.c.obj
-                0x08021b4c                OLED_CF16x16
+                0x08021b64      0xcf0 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_fonts.c.obj
+                0x08021b64                OLED_CF16x16
  .rodata.OLED_CF12x12
-                0x0802283c      0xb60 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_fonts.c.obj
-                0x0802283c                OLED_CF12x12
+                0x08022854      0xb60 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_fonts.c.obj
+                0x08022854                OLED_CF12x12
  .rodata.OLED_CF8x8
-                0x0802339c      0x288 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_fonts.c.obj
-                0x0802339c                OLED_CF8x8
- .rodata.Arrow  0x08023624        0x6 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_fonts.c.obj
-                0x08023624                Arrow
- *fill*         0x0802362a        0x2 
+                0x080233b4      0x288 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_fonts.c.obj
+                0x080233b4                OLED_CF8x8
+ .rodata.Arrow  0x0802363c        0x6 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_fonts.c.obj
+                0x0802363c                Arrow
+ *fill*         0x08023642        0x2 
  .rodata.UnKnown
-                0x0802362c      0x290 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_fonts.c.obj
-                0x0802362c                UnKnown
- *fill*         0x080238bc        0x4 
- .rodata.tiny   0x080238c0        0x8 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-e_sqrt.o)
- .rodata.one    0x080238c8        0x8 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-e_sqrt.o)
+                0x08023644      0x290 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_fonts.c.obj
+                0x08023644                UnKnown
+ *fill*         0x080238d4        0x4 
+ .rodata.tiny   0x080238d8        0x8 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-e_sqrt.o)
+ .rodata.one    0x080238e0        0x8 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-e_sqrt.o)
  .rodata.CSWTCH.9
-                0x080238d0       0x18 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-e_atan2.o)
- .rodata.CSWTCH.8
                 0x080238e8       0x18 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-e_atan2.o)
+ .rodata.CSWTCH.8
+                0x08023900       0x18 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-e_atan2.o)
  .rodata.atanlo
-                0x08023900       0x20 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-s_atan.o)
+                0x08023918       0x20 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-s_atan.o)
  .rodata.atanhi
-                0x08023920       0x20 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-s_atan.o)
+                0x08023938       0x20 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-s_atan.o)
  .rodata.npio2_hw
-                0x08023940       0x80 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-ef_rem_pio2.o)
+                0x08023958       0x80 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-ef_rem_pio2.o)
  .rodata.two_over_pi
-                0x080239c0      0x318 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-ef_rem_pio2.o)
- .rodata.PIo2   0x08023cd8       0x2c C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-kf_rem_pio2.o)
+                0x080239d8      0x318 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-ef_rem_pio2.o)
+ .rodata.PIo2   0x08023cf0       0x2c C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-kf_rem_pio2.o)
  .rodata.init_jk
-                0x08023d04        0xc C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-kf_rem_pio2.o)
+                0x08023d1c        0xc C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libm.a(libm_a-kf_rem_pio2.o)
  .rodata._strtod_l.str1.1
-                0x08023d10        0xf C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtod.o)
+                0x08023d28        0xf C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtod.o)
  .rodata.fpinan.0
-                0x08023d10       0x14 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtod.o)
- .rodata.fpi.1  0x08023d24       0x14 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtod.o)
+                0x08023d28       0x14 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtod.o)
+ .rodata.fpi.1  0x08023d3c       0x14 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtod.o)
  .rodata.tinytens
-                0x08023d38       0x28 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtod.o)
+                0x08023d50       0x28 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtod.o)
  .rodata.strtok.str1.1
-                0x08023d60       0x71 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtok.o)
+                0x08023d78       0x71 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtok.o)
  .rodata.__gethex.str1.1
-                0x08023d60       0x73 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-gdtoa-gethex.o)
+                0x08023d78       0x73 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-gdtoa-gethex.o)
  .rodata._svfprintf_r.str1.1
-                0x08023d60       0x11 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-nano-svfprintf.o)
-                0x08023dd4                        . = ALIGN (0x4)
+                0x08023d78       0x11 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-nano-svfprintf.o)
+                0x08023dec                        . = ALIGN (0x4)
 
-.ARM.extab      0x08023d60        0x0
-                0x08023d60                        . = ALIGN (0x4)
+.ARM.extab      0x08023d78        0x0
+                0x08023d78                        . = ALIGN (0x4)
  *(.ARM.extab* .gnu.linkonce.armextab.*)
-                0x08023d60                        . = ALIGN (0x4)
+                0x08023d78                        . = ALIGN (0x4)
 
-.ARM            0x08023d60        0x8
-                0x08023d60                        . = ALIGN (0x4)
-                0x08023d60                        __exidx_start = .
+.ARM            0x08023d78        0x8
+                0x08023d78                        . = ALIGN (0x4)
+                0x08023d78                        __exidx_start = .
  *(.ARM.exidx*)
- .ARM.exidx     0x08023d60        0x8 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-memchr.o)
- .ARM.exidx     0x08023d68        0x0 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-strlen.o)
+ .ARM.exidx     0x08023d78        0x8 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-memchr.o)
+ .ARM.exidx     0x08023d80        0x0 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-strlen.o)
                                   0x8 (size before relaxing)
- .ARM.exidx     0x08023d68        0x0 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-strcmp.o)
+ .ARM.exidx     0x08023d80        0x0 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-strcmp.o)
                                   0x8 (size before relaxing)
- .ARM.exidx     0x08023d68        0x0 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/thumb/v7e-m+fp/hard\libgcc.a(_udivmoddi4.o)
+ .ARM.exidx     0x08023d80        0x0 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/thumb/v7e-m+fp/hard\libgcc.a(_udivmoddi4.o)
                                   0x8 (size before relaxing)
-                0x08023d68                        __exidx_end = .
-                0x08023d68                        . = ALIGN (0x4)
+                0x08023d80                        __exidx_end = .
+                0x08023d80                        . = ALIGN (0x4)
 
-.preinit_array  0x08023d68        0x0
-                0x08023d68                        . = ALIGN (0x4)
-                0x08023d68                        PROVIDE (__preinit_array_start = .)
+.preinit_array  0x08023d80        0x0
+                0x08023d80                        . = ALIGN (0x4)
+                0x08023d80                        PROVIDE (__preinit_array_start = .)
  *(.preinit_array*)
-                0x08023d68                        PROVIDE (__preinit_array_end = .)
-                0x08023d68                        . = ALIGN (0x4)
+                0x08023d80                        PROVIDE (__preinit_array_end = .)
+                0x08023d80                        . = ALIGN (0x4)
 
-.init_array     0x08023d68        0x4
-                0x08023d68                        . = ALIGN (0x4)
-                0x08023d68                        PROVIDE (__init_array_start = .)
+.init_array     0x08023d80        0x4
+                0x08023d80                        . = ALIGN (0x4)
+                0x08023d80                        PROVIDE (__init_array_start = .)
  *(SORT_BY_NAME(.init_array.*))
  *(.init_array*)
- .init_array    0x08023d68        0x4 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/thumb/v7e-m+fp/hard/crtbegin.o
-                0x08023d6c                        PROVIDE (__init_array_end = .)
-                0x08023d6c                        . = ALIGN (0x4)
+ .init_array    0x08023d80        0x4 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/thumb/v7e-m+fp/hard/crtbegin.o
+                0x08023d84                        PROVIDE (__init_array_end = .)
+                0x08023d84                        . = ALIGN (0x4)
 
-.fini_array     0x08023d6c        0x4
-                0x08023d6c                        . = ALIGN (0x4)
+.fini_array     0x08023d84        0x4
+                0x08023d84                        . = ALIGN (0x4)
                 [!provide]                        PROVIDE (__fini_array_start = .)
  *(SORT_BY_NAME(.fini_array.*))
  *(.fini_array*)
- .fini_array    0x08023d6c        0x4 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/thumb/v7e-m+fp/hard/crtbegin.o
+ .fini_array    0x08023d84        0x4 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/thumb/v7e-m+fp/hard/crtbegin.o
                 [!provide]                        PROVIDE (__fini_array_end = .)
-                0x08023d70                        . = ALIGN (0x4)
-                0x08023d70                        _sidata = LOADADDR (.data)
+                0x08023d88                        . = ALIGN (0x4)
+                0x08023d88                        _sidata = LOADADDR (.data)
 
-.rel.dyn        0x08023d70        0x0
- .rel.iplt      0x08023d70        0x0 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/thumb/v7e-m+fp/hard/crtbegin.o
+.rel.dyn        0x08023d88        0x0
+ .rel.iplt      0x08023d88        0x0 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/thumb/v7e-m+fp/hard/crtbegin.o
 
-.data           0x20000000      0xfe4 load address 0x08023d70
+.data           0x20000000      0xfe4 load address 0x08023d88
                 0x20000000                        . = ALIGN (0x4)
                 0x20000000                        _sdata = .
  *(.data)
@@ -8419,12 +8419,12 @@ LOAD C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+s
  *(.RamFunc*)
                 0x20000fe4                        . = ALIGN (0x4)
                 0x20000fe4                        _edata = .
-                0x08024d54                        _siccmram = LOADADDR (.ccmram)
+                0x08024d6c                        _siccmram = LOADADDR (.ccmram)
 
-.igot.plt       0x20000fe4        0x0 load address 0x08024d54
+.igot.plt       0x20000fe4        0x0 load address 0x08024d6c
  .igot.plt      0x20000fe4        0x0 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/thumb/v7e-m+fp/hard/crtbegin.o
 
-.ccmram         0x10000000        0x0 load address 0x08024d54
+.ccmram         0x10000000        0x0 load address 0x08024d6c
                 0x10000000                        . = ALIGN (0x4)
                 0x10000000                        _sccmram = .
  *(.ccmram)
@@ -9816,7 +9816,7 @@ LOAD C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+s
  .debug_macro   0x00027454      0x334 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
  .debug_macro   0x00027788      0x311 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
 
-.debug_line     0x00000000    0x2ac50
+.debug_line     0x00000000    0x2ac55
  .debug_line    0x00000000      0x7ea cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Core/Src/system_stm32f4xx.c.obj
  .debug_line    0x000007ea      0xe75 cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c.obj
  .debug_line    0x0000165f      0xb0c cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash.c.obj
@@ -9828,54 +9828,54 @@ LOAD C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+s
  .debug_line    0x00005fb4     0x37e1 cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim.c.obj
  .debug_line    0x00009795     0x19c6 cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim_ex.c.obj
  .debug_line    0x0000b15b     0x25ae cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c.obj
- .debug_line    0x0000d709     0x3258 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
- .debug_line    0x00010961      0x809 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/gpio.c.obj
- .debug_line    0x0001116a      0x775 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/dma.c.obj
- .debug_line    0x000118df      0xbe4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/tim.c.obj
- .debug_line    0x000124c3      0xa54 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/usart.c.obj
- .debug_line    0x00012f17      0x8fb CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
- .debug_line    0x00013812      0x775 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_hal_msp.c.obj
- .debug_line    0x00013f87      0x3d1 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/sysmem.c.obj
- .debug_line    0x00014358      0x6f5 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/syscalls.c.obj
- .debug_line    0x00014a4d       0x7a CMakeFiles/7_AutomatedSortingRobot_26.dir/startup_stm32f407xx.s.obj
- .debug_line    0x00014ac7      0xa67 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/uart.c.obj
- .debug_line    0x0001552e      0x839 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/delay.c.obj
- .debug_line    0x00015d67      0x82e CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/key.c.obj
- .debug_line    0x00016595      0x7ea CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/laser.c.obj
- .debug_line    0x00016d7f      0x7b6 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/gy53.c.obj
- .debug_line    0x00017535      0x9c8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/lobot_servo.c.obj
- .debug_line    0x00017efd      0x7b7 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tb6612.c.obj
- .debug_line    0x000186b4      0x791 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/encoder.c.obj
- .debug_line    0x00018e45     0x1143 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
- .debug_line    0x00019f88     0x13ea CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/serialplot.c.obj
- .debug_line    0x0001b372      0xb4b CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/pid.c.obj
- .debug_line    0x0001bebd      0x835 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/myflash.c.obj
- .debug_line    0x0001c6f2      0x826 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/storage.c.obj
- .debug_line    0x0001cf18      0x733 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/velocityProfile.c.obj
- .debug_line    0x0001d64b      0xbcb CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/gw_grayscale.c.obj
- .debug_line    0x0001e216      0xe91 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
- .debug_line    0x0001f0a7      0x7e7 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/hwt101ct.c.obj
- .debug_line    0x0001f88e      0x962 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/robot.c.obj
- .debug_line    0x000201f0      0xac6 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
- .debug_line    0x00020cb6      0x31f CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_fonts.c.obj
- .debug_line    0x00020fd5      0x7b3 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_driver.c.obj
- .debug_line    0x00021788      0xcc6 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
- .debug_line    0x0002244e     0x2880 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
- .debug_line    0x00024cce     0x2156 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
- .debug_line    0x00026e24     0x13ed C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtod.o)
- .debug_line    0x00028211      0x4c8 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtol.o)
- .debug_line    0x000286d9      0x2ab C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-vsnprintf.o)
- .debug_line    0x00028984      0x256 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-vsprintf.o)
- .debug_line    0x00028bda      0x114 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strchr.o)
- .debug_line    0x00028cee      0x1a4 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strncmp.o)
- .debug_line    0x00028e92      0x293 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtok.o)
- .debug_line    0x00029125      0x1da C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtok_r.o)
- .debug_line    0x000292ff      0x185 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-errno.o)
- .debug_line    0x00029484       0xef C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libm_a-s_nan.o)
- .debug_line    0x00029573       0xee C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libm_a-sf_nan.o)
- .debug_line    0x00029661      0x9f8 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-gdtoa-gethex.o)
- .debug_line    0x0002a059      0x380 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-gdtoa-hexnan.o)
- .debug_line    0x0002a3d9      0x877 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-nano-svfprintf.o)
+ .debug_line    0x0000d709     0x325d CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj
+ .debug_line    0x00010966      0x809 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/gpio.c.obj
+ .debug_line    0x0001116f      0x775 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/dma.c.obj
+ .debug_line    0x000118e4      0xbe4 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/tim.c.obj
+ .debug_line    0x000124c8      0xa54 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/usart.c.obj
+ .debug_line    0x00012f1c      0x8fb CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_it.c.obj
+ .debug_line    0x00013817      0x775 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/stm32f4xx_hal_msp.c.obj
+ .debug_line    0x00013f8c      0x3d1 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/sysmem.c.obj
+ .debug_line    0x0001435d      0x6f5 CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/syscalls.c.obj
+ .debug_line    0x00014a52       0x7a CMakeFiles/7_AutomatedSortingRobot_26.dir/startup_stm32f407xx.s.obj
+ .debug_line    0x00014acc      0xa67 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/uart.c.obj
+ .debug_line    0x00015533      0x839 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/delay.c.obj
+ .debug_line    0x00015d6c      0x82e CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/key.c.obj
+ .debug_line    0x0001659a      0x7ea CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/laser.c.obj
+ .debug_line    0x00016d84      0x7b6 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/gy53.c.obj
+ .debug_line    0x0001753a      0x9c8 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/lobot_servo.c.obj
+ .debug_line    0x00017f02      0x7b7 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tb6612.c.obj
+ .debug_line    0x000186b9      0x791 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/encoder.c.obj
+ .debug_line    0x00018e4a     0x1143 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj
+ .debug_line    0x00019f8d     0x13ea CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/serialplot.c.obj
+ .debug_line    0x0001b377      0xb4b CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/pid.c.obj
+ .debug_line    0x0001bec2      0x835 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/myflash.c.obj
+ .debug_line    0x0001c6f7      0x826 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/storage.c.obj
+ .debug_line    0x0001cf1d      0x733 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/velocityProfile.c.obj
+ .debug_line    0x0001d650      0xbcb CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/gw_grayscale.c.obj
+ .debug_line    0x0001e21b      0xe91 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/tcs34725.c.obj
+ .debug_line    0x0001f0ac      0x7e7 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/hwt101ct.c.obj
+ .debug_line    0x0001f893      0x962 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/robot.c.obj
+ .debug_line    0x000201f5      0xac6 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_driver.c.obj
+ .debug_line    0x00020cbb      0x31f CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_fonts.c.obj
+ .debug_line    0x00020fda      0x7b3 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_driver.c.obj
+ .debug_line    0x0002178d      0xcc6 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj
+ .debug_line    0x00022453     0x2880 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui.c.obj
+ .debug_line    0x00024cd3     0x2156 CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled.c.obj
+ .debug_line    0x00026e29     0x13ed C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtod.o)
+ .debug_line    0x00028216      0x4c8 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtol.o)
+ .debug_line    0x000286de      0x2ab C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-vsnprintf.o)
+ .debug_line    0x00028989      0x256 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-vsprintf.o)
+ .debug_line    0x00028bdf      0x114 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strchr.o)
+ .debug_line    0x00028cf3      0x1a4 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strncmp.o)
+ .debug_line    0x00028e97      0x293 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtok.o)
+ .debug_line    0x0002912a      0x1da C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-strtok_r.o)
+ .debug_line    0x00029304      0x185 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-errno.o)
+ .debug_line    0x00029489       0xef C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libm_a-s_nan.o)
+ .debug_line    0x00029578       0xee C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libm_a-sf_nan.o)
+ .debug_line    0x00029666      0x9f8 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-gdtoa-gethex.o)
+ .debug_line    0x0002a05e      0x380 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-gdtoa-hexnan.o)
+ .debug_line    0x0002a3de      0x877 C:/Users/25469/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/../lib/gcc/arm-none-eabi/14.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libg_nano.a(libc_a-nano-svfprintf.o)
 
 .debug_str      0x00000000    0xd70a4
  .debug_str     0x00000000    0xd70a4 cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Core/Src/system_stm32f4xx.c.obj

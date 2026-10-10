@@ -794,8 +794,8 @@ static void YuanHuan_Adjust_Y(int Target_Y_Distance){
    ★被窗口挡掉会打一行 `PIC skip: x=.. out of [100,300]`，限速 LIZHU_X_REJ_MS(500ms) 一行，不刷屏。 */
 #define LIZHU_X_FILTER         1        //1=“旁边”按 x 窗口过滤(要 x∈[LIZHU_X_MIN,LIZHU_X_MAX] 才算数)
                                         //  0=不过滤(回到老行为：只要 cmd≠0 就算数)
-#define LIZHU_X_MIN            100U     //x 下限(含)：比它小 → 旁边不要
-#define LIZHU_X_MAX            300U     //x 上限(含)：比它大 → 旁边不要
+#define LIZHU_X_MIN            100U     //x 下限(含)：比它小 → 旁边不要，不要左边的1/3，防止开始时候误拍
+#define LIZHU_X_MAX            260U     //x 上限(含)：比它大 → 旁边不要，不要右边的1/5，防止字母没进全
 #define LIZHU_X_REJ_MS         500U     //“x 出窗口”提示行的限速(ms)：最快多久打一行(防 20帧/s 刷屏)
 #define LIZHU_VIS_HEAL_MS      100U     //串口2自愈+屏幕刷新的节拍(ms)
 
@@ -1023,6 +1023,10 @@ static void LiZhu_MiddleGrab(void){
   }
 
   /* ④ 退回原位 + 切回“识别旁边”(夹不夹都做)；回到原位后就由调用点接着绕圈 */
+  //后退前单独把1号抬起来
+  runActionGroup(153, 1); 
+  HAL_Delay(1000);
+  
   //蓝要退多1cm
   ROBOT_Move(0, mode_red ? STORAGE_Data.R_LiZhuang_Back_y : STORAGE_Data.B_LiZhuang_Back_y, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //★-8/-9 改成 Flash 参数(菜单可调)
   
@@ -3128,8 +3132,8 @@ LIZHU_START:
 
           HAL_Delay(1000);
 
-          runActionGroup(101, 1);//举起
-          HAL_Delay(2300);
+          runActionGroup(153, 1);//举起
+          HAL_Delay(1000);
 
           //转完一圈，纠正角度.车子前面朝右/朝左
           mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));
@@ -3288,6 +3292,9 @@ HUIJIA_START:
           //倒完方块转正再回家
           ROBOT_Angle(Yaw_Abs(0));
           //往后多走一点(★长距档 120/120)，必须保证前后在左右移动后能进入红/蓝区域
+          
+          //复位机械臂
+          runActionGroup(160, 1);
           //蓝退多点
           ROBOT_Move(mode_red ? 28 : -28, mode_red ? -228 : -240, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);//60，-240能进
 
