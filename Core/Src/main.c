@@ -151,6 +151,10 @@ static const char * const DBG_START_NAME[] = { "ALL ", "YPJ ", "ZM  ", "JT  ", "
 static const char * const DBG_START_DESC[] = { "full flow", "disc load", "front recog", "ladder run", "pillar run",
                                                "ring place", "go home" };
 
+//手动指定的目标字母相关变量
+uint8_t target_alpha[7] = {0x00, 0xAB, 0xAC, 0xAD, 0xBC, 0xBD, 0xCD};//目标字母组合（手动指定目标字母时使用）
+uint8_t target_alpha_idx = 0; //目标字母组合索引（手动指定目标字母时使用）
+
 
 /* USER CODE END PV */
 
@@ -968,6 +972,9 @@ static void LiZhu_VisionReopen(void){
 
   UART2_Printf("%c", LIZHU_VIS_HEAD);                      //再发 0xA4
   UART1_Printf("LZ TX 0xA4 -> V1(UART2) again (middle)\r\n");
+  HAL_Delay(300);
+  if(target_alpha_idx != 0) UART2_Printf("%c", target_alpha[target_alpha_idx]);//手动指定字母
+
   LiZhu_ShowComm();
 }
 #endif  /* LIZHU_MID_VIS */
@@ -1032,11 +1039,11 @@ static void LiZhu_MiddleGrab(void){
   
   //直接用测距退到145
   ROBOT_MoveSpeed(0.0f, -5.0f);
-  WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > 145,
+  WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > (mode_red?STORAGE_Data.R_LiZhuang_Cir_y:STORAGE_Data.B_LiZhuang_Cir_y),
              "LiZhu front distance -> 145mm");
           
   JieTi_HoldYaw_Begin();                          //★校准期间锁住此刻绝对角（同逐坑校准）
-  YuanHuan_Adjust_Y(145);  //★容差±3、连续3次合格才退出（和 JieTi_Adjust_Y 同一套写法）
+  YuanHuan_Adjust_Y((mode_red?STORAGE_Data.R_LiZhuang_Cir_y:STORAGE_Data.B_LiZhuang_Cir_y));  //★容差±3、连续3次合格才退出（和 JieTi_Adjust_Y 同一套写法）
   JieTi_HoldYaw_End();
 
 
@@ -1296,15 +1303,18 @@ static void LiZhu_Circle_Run(void)
          见 LiZhu_XOk：出窗口就接着绕、不拍；识别中间那一路不受它限制)；
          冷却 LIZHU_PIC_COOLDOWN_MS 内再来也不停(防同一目标连拍) */
       if(lizhu_pic_cmd != 0U && LiZhu_XOk() && (HAL_GetTick() - lizhu_pic_t) >= LIZHU_PIC_COOLDOWN_MS){
-        chassis.v_x = 0.0f;  chassis.v_y = 0.0f;  chassis.w = 0.0f;   //① 停车
-        HAL_Delay(100);                                               //   等速度环把车刹稳(≈5个控制周期)
+        
+        //2026.10.11决定不停车拍方块
+        //chassis.v_x = 0.0f;  chassis.v_y = 0.0f;  chassis.w = 0.0f;   //① 停车
+        //HAL_Delay(100);                                               //   等速度环把车刹稳(≈5个控制周期)
 
         runActionGroup(107, 1);                                       //② 拍：动作组 107
         HAL_Delay(LIZHU_PIC_MS);                                      //   等它跑完(按现场标定改 LIZHU_PIC_MS)
         //   ★若 107 跑完不自带回“识别状态”，放开这行: runActionGroup(104, 1); HAL_Delay(2600);
 
         LiZhu_FlushVision();                                          //③ 拍期间滞留的旧帧全清
-        yaw_last = HWT101CT_Data.yaw;                                 //   拍时车没走：这段陀螺仪抖动不算进“已绕角度”
+        //2026.10.11决定不停车拍方块
+        //yaw_last = HWT101CT_Data.yaw;                                 //   拍时车没走：这段陀螺仪抖动不算进“已绕角度”
         lizhu_pic_t = HAL_GetTick();
         lizhu_pic_cnt++;
         UART1_Printf("PIC #%u cmd=0x%02X x=%u y=%u yaw=%d\r\n",
@@ -1798,53 +1808,6 @@ static int CHASSIS_PwmOut(uint8_t wheel){
                                       : chassis.speed_pid[wheel].out);
 }
 
-/* ==================== ★2026.10.6 合并：比赛流程参数的“标称值” ====================
-   作用：往 STORAGE_Data 里填默认值（= 2026.10.2 之前 main.c 里硬编码的那些数，
-         和 storage.h 每一项后面的注释一一对应）。
-   ★必须在 STORAGE_Init() 之前调用：Flash 里没有数据（第一次烧这版固件、标志位对不上）时，
-     STORAGE_Init() 会把这份标称值整块写进 Flash；Flash 里有数据时它的读取会覆盖这份默认值。
-   ★调乱了想恢复出厂值：在 KEY0 菜单里 exit&save 前，把下面那句 ROBO_LoadDefaultParams();
-     的注释取消（见 main() 里“Saving...”分支），再 exit&save 一次即可。
-   ★第二部分(PID/编码器那些字段)这里故意不填：本工程 PID 全在 chassis.h，菜单里那两页只是显示。 */
-static void ROBO_LoadDefaultParams(void){
-  STORAGE_Data.flag = STORAGE_Flag;   //★标志位必须填：exit&save 的 STORAGE_Save() 会把整块(含标志位)写 Flash，
-                                      //  不填的话写进去是 0，下次上电会当成"没存过"而重新写默认值(调好的参数全丢)
-
-  /* 出发（红/蓝各自一套） */
-  STORAGE_Data.R_ChuFa_x = -88;   STORAGE_Data.R_ChuFa_y = 424;
-  STORAGE_Data.B_ChuFa_x =  50;   STORAGE_Data.B_ChuFa_y = 405;
-
-  /* 圆盘机（拍球前的后退距离） */
-  STORAGE_Data.R_YuanPan_y = -6;  STORAGE_Data.B_YuanPan_y = -6;
-
-  /* 正面识别：到目标字母位置的 x/y */
-  STORAGE_Data.C_GetTarget_y = 129;
-  STORAGE_Data.C_GetTarget_x = -42;
-
-  /* 阶梯：最左→第1坑、前测距目标、坑间距、换阶梯步长、校准容差 */
-  STORAGE_Data.C_JieTi_Left_x       =  7;
-  STORAGE_Data.C_Jieti_FwdTarget_y  = 55;
-  STORAGE_Data.C_JitTi_Step_x       = 16;
-  STORAGE_Data.C_Jieti_Cross_x      = 20;
-  STORAGE_Data.C_JieTi_JiaoZhun_x1  =  -5;
-  STORAGE_Data.C_JieTi_JiaoZhun_x2  =  18;
-  STORAGE_Data.C_JieTi_JiaoZhun_y1  =  -5;
-  STORAGE_Data.C_JieTi_JiaoZhun_y2  =   5;
-
-  /* 立柱：左右延时、前测距目标、前进距离、后退距离(菜单可调) */
-  STORAGE_Data.R_LiZhuang_Delay_x = 120;
-  STORAGE_Data.B_LiZhuang_Delay_x = 150;
-  STORAGE_Data.C_LiZhuang_Target_y = 175;
-  STORAGE_Data.C_LiZhuang_Fwd_y    =   6;
-  STORAGE_Data.R_LiZhuang_Back_y   =  -8;
-  STORAGE_Data.B_LiZhuang_Back_y   =  -9;
-
-  /* 回家：进红/蓝区再横走一段 + 前后微调 */
-  STORAGE_Data.R_HuiJia_x =  11;
-  STORAGE_Data.B_HuiJia_x = -33;
-  STORAGE_Data.C_HuiJia_y =  -6;
-}
-
 /**
   * @brief  The application entry point.
   * @retval int
@@ -1978,7 +1941,6 @@ int main(void)
         OLED_Clear();
         OLED_Printf(0, 0, OLED_8X16_HALF, "Saving...");
         OLED_Update();
-
         STORAGE_Save();              //把调好的参数保存到flash中
         OLED_Clear();
         OLED_Update();
@@ -2107,19 +2069,21 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(20,0); HAL_Delay(15);
     uint8_t HuiJia_Flag = 0; 
 
     uint8_t dbg_start = DBG_START_ALL;   //★KEY0 选好的调试起始阶段(取值见上方 DBG_START_xxx)
+
+
     //完整走
 
-    //红蓝方选择
+    //出发前选择
     while(1){
-      /* 菜单界面就能用全部串口指令（不用先按 KEY3 进流程）：解析/回显/执行都在 UART1_DebugCmd 里，
+      /* 菜单界面就能用全部串口指令：解析/回显/执行都在 UART1_DebugCmd 里，
                单键 w/s/a/d、日志 c/g/l/e/y/r、数值 3/5/7/9、SerialPlot 调参都在这里生效。 */
       UART1_DebugCmd();
       DBG_SensorLogPump();            /* 串口1单键传感器日志（非阻塞节流，见文件上方 DBG_ 块） */
       SERIALPLOT_WheelActualPump();   // 串口1实时发四轮实际值(菜单里也发)
       OLED_Printf(0, 0, OLED_8X16_HALF, "Start:%s", DBG_START_NAME[dbg_start]);//显示起点位置
-      OLED_Printf(0, 16, OLED_8X16_HALF, "Mode:%s", mode_red?"Red  ":"Blue");//显示红蓝方选择
-      OLED_Printf(0, 32, OLED_8X16_HALF, "K0:Select Start");//显示按键说明
-      OLED_Printf(0, 48, OLED_8X16_HALF, "K2:Red K3:Blue");//显示按键说明
+      OLED_Printf(0, 16, OLED_8X16_HALF, "alpha:%2X", target_alpha[target_alpha_idx]);//手动指定目标字母
+      OLED_Printf(0, 32, OLED_8X16_HALF, "Mode:%s", mode_red?"Red  ":"Blue");//显示红蓝方选择
+      OLED_Printf(0, 48, OLED_6X8_HALF, "K0-sta K1-alp K2-R K3-B");
       OLED_Update();
       if(KEY_ONE(KEY2_GPIO_Port, KEY2_Pin)){//按键2--红方出发
         mode_red = 1;
@@ -2154,31 +2118,21 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(20,0); HAL_Delay(15);
                         ★本起点从【放圆环结束之后】开始(不跑放圆环，那一段有单独的 5=RING 起点)：
                         往下直接 转正 → 后退走位到红/蓝区 → 找色 → 停进红蓝区。
                ★当前选择显示在第3/4行；选好后按 KEY3 才开始跑；真正的跳转代码在菜单 while 外面。 */
-      if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)){
+      if(KEY_ONE(KEY0_GPIO_Port, KEY0_Pin)){//按键0--从何处开始阶段
         dbg_start++;
         if(dbg_start > DBG_START_MAX) dbg_start = DBG_START_ALL;    //切到最后一个再按 → 回到"完整流程"
         UART1_Printf("DEBUG: KEY0 start stage = %u (%s) %s\r\n",
                      (unsigned)dbg_start, DBG_START_NAME[dbg_start], DBG_START_DESC[dbg_start]);
       }
-
-      //按键0/1专用于调试(按键0=选起始阶段；按键1=显示左后激光)
-
-        /* ---- 原来的按键0调试(手动把车开到阶梯对准位)已由上面跳转代替，保留备用 ----
-                ROBOT_Move(100,160,长距档) → 左移 SPD_AVG_V 等 LASER3(左后) 触发 → ROBOT_Move(-50,0,长距档) → 停车
-                （注释里那句是老写法：左后是 1、右边为 2、左前是 3） ---- */
-
-      if(KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){
-
-        OLED_Printf(0, 0, OLED_8X16_HALF, "barrier:%1d", LASER_Barrier(LASER1_GPIO_Port, LASER1_Pin));
-        OLED_Update();
-
-        /* ================= 旧代码（原来的按键1“倒球调试”，整段注释保留）=================
-                要恢复原来的倒球调试：把本行与“旧代码结束”那一行的注释符去掉，并把上面的等待接收测试删掉。
-                流程：打串口“3” → 后退到前测距 ≤90 → 打“4” → 左移到 LASER1(左后) 无遮挡 →
-                      ROBOT_Move(10,0,短距档) → runActionGroup(16,1) 倒球 → delay_ms(1700)
-                ================= 旧代码结束 ================= */
-
+      if(KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){//按键1--手动给视觉目标字母
+        target_alpha_idx++;
+        if(target_alpha_idx > 6) target_alpha_idx = 0;
       }
+
+    }
+    if(target_alpha_idx != 0){//手动指定目标字母--告知视觉信息
+
+      UART2_Printf("%c", target_alpha[target_alpha_idx]);
     }
 
 
@@ -2449,8 +2403,9 @@ YUANPANJI_START:;
             ★★ 冷却窗口＝一次“拍”到下一次“拍”的最短间隔，同时也是本机“拍球计数”的节拍 ★★
             ★为什么从 300 改成 650（比赛实测：记够10个却只拍了5个球就走了）：300ms 比“一个球在画面里停
               留的时间”还短 → 同一个球被拍了2次，10次计数其实只过了约5个球（667/300≈2.2拍/球）；
-              650≈667 时同一个球不会被拍两次，球流不断时基本“一球一拍”。 */
-    const uint32_t YPJ_HIT_COOLDOWN_MS = 650;   /* 冷却窗口：400 < 值 < 球间隔667 */
+              650≈667 时同一个球不会被拍两次，球流不断时基本"一球一拍"。 */
+              //2026.10.11把冷却时间从650改到550
+    const uint32_t YPJ_HIT_COOLDOWN_MS = 550;   /* 冷却窗口：400 < 值 < 球间隔667 */
     const uint16_t YPJ_RUN_GAP_MS = 100;       /* ★标定用：相邻两帧"有球"的间隔≥100ms 就认为上一个球已离开画面 */
     const uint8_t  YPJ_HIT_LOG = 1;            /* 1=开日志 0=关 */
     const uint8_t  YPJ_HIT_MAX = 10;           /* ★拍球次数上限：实拍够10个球就不再等视觉，强制退出圆盘机阶段 */
@@ -2534,6 +2489,7 @@ YUANPANJI_START:;
                                 所以球流不断就永远不会走到 9s 强制退出；球流一断，9s 后自动收摊。 */
               ypj_no_hit_ref_t = now;
               if(ypj_first_skipped == 0){      /* 识别到的第一个球：只跳过、不拍，从第二个球开始正常拍 */
+                HAL_Delay(100);  // 等待一段时间确保第一个球已经出了视野再把 ypj_first_skipped 置 1，否则连续两球间隔很短时可能第二个球还没出画面就被拍了
                 ypj_first_skipped = 1;
                 if(YPJ_HIT_LOG)
                   UART1_Printf("SKIP1 b=%u x=%u y=%u\r\n",
@@ -2686,6 +2642,7 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
 
         //右+前移动到阶梯附近:要往右多走点不然会撞；y160太远不利于视觉识别(★长距档 120/120)
         //要拆开两段走，否则会撞到：先走x后走y
+        ROBOT_Move(0, 6, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);//防止卡脚
         ROBOT_Move(80, 0, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
         ROBOT_Move(0, STORAGE_Data.C_GetTarget_y, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //★129 改成 Flash 参数(菜单可调)
 
@@ -2957,8 +2914,9 @@ JIETI_START:
                没有第2~8坑那种“走位+校准”的余量，等一下才不会把第1坑读成“不夹”。 */
         JieTi_FlushVision();
         UART2_Printf("%c", 0xA3);
+        HAL_Delay(300); 
+        if(target_alpha_idx != 0) UART2_Printf("%c", target_alpha[target_alpha_idx]);//手动指定字母
         HAL_Delay(300);
-
         /* ==================== 8 个坑循环 ====================
                     每坑：走固定距离(M3，第1坑不走位) → 逐坑校准(M2，先左右后前后，★第1~8坑都做) → 读这一坑“夹不夹”(M1.5)
                           → 计数/显示(M3.3) → 按需夹取(M5.2)
@@ -3114,18 +3072,18 @@ LIZHU_START:
           ROBOT_MoveSpeed(0.0f, 0.0f);                      //停车
 
           ROBOT_MoveSpeed(0.0f, 5.0f);                      //② 向前慢逼近到 200mm，180也太远
-          WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > STORAGE_Data.C_LiZhuang_Target_y,//175比170稍微远一点，防顶（175 改成 Flash 参数 C_LiZhuang_Target_y，菜单可调）
+          WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > (mode_red?STORAGE_Data.R_LiZhuang_Mid_y:STORAGE_Data.B_LiZhuang_Mid_y+30),//175比170稍微远一点，防顶（175 改成 Flash 参数 C_LiZhuang_Target_y，菜单可调）
                      "LiZhu front distance -> 175mm");
           
           JieTi_HoldYaw_Begin();                          //★校准期间锁住此刻绝对角（同逐坑校准）
-          YuanHuan_Adjust_Y(STORAGE_Data.C_LiZhuang_Target_y);  //★容差±3、连续3次合格才退出（和 JieTi_Adjust_Y 同一套写法）
+          YuanHuan_Adjust_Y(mode_red?STORAGE_Data.R_LiZhuang_Mid_y:STORAGE_Data.B_LiZhuang_Mid_y);  //★容差±3、连续3次合格才退出（和 JieTi_Adjust_Y 同一套写法）
           JieTi_HoldYaw_End();
 
           //双重保险：连续三次检测到测距符合条件(貌似有更好的保险如上)
           if(0){
             uint32_t lz_t0 = HAL_GetTick();  uint8_t lz_hit = 0;   //连续"看到"计数
             while(lz_hit < 3){
-              lz_hit = (GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) <= STORAGE_Data.C_LiZhuang_Target_y) ? (uint8_t)(lz_hit + 1) : 0;  //断一次就重新数
+              lz_hit = (GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) <= (mode_red?STORAGE_Data.R_LiZhuang_Mid_y:STORAGE_Data.B_LiZhuang_Mid_y)) ? (uint8_t)(lz_hit + 1) : 0;  //断一次就重新数
               if(lz_hit >= 3) break;
               HAL_Delay(200);                                       //每次检测间隔 200ms，因为发送间隔是200ms
             }
@@ -3205,7 +3163,10 @@ LIZHU_START:
           }
           
           ROBOT_MoveSpeed(0,0);
+
+          ROBOT_Move(0, 6, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);//防止卡脚
           ROBOT_Move(32, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+          ROBOT_Move(0, -6, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);//还原回去
 
           mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));//校准一下
           

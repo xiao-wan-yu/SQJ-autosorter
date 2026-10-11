@@ -440,16 +440,16 @@ MenuWindow B_LiZhuang_Delay_x_Window = {
 void Show_B_LiZhuang_Delay_x_Window(void){
 	OLED_UI_CreateWindow(&B_LiZhuang_Delay_x_Window);
 }
-MenuWindow C_LiZhuang_Target_y_Window = {
+MenuWindow R_LiZhuang_Mid_y_Window = {
 	.General_Width = 80,								//窗口宽度
 	.General_Height = 28, 							//窗口高度
-	.Text_String = "C_LiZhuang_Target_y",		//窗口标题
+	.Text_String = "R_Mid_y",		//窗口标题
 	.Text_FontSize = OLED_UI_FONT_12,				//字高
 	.Text_FontSideDistance = 4,							//字体距离左侧的距离
 	.Text_FontTopDistance = 3,							//字体距离顶部的距离
 	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
 	.General_ContinueTime = 4.0,						//窗口持续时间
-	.Prob_Data_Int_32 = &STORAGE_Data.C_LiZhuang_Target_y,				//显示的变量地址
+	.Prob_Data_Int_32 = &STORAGE_Data.R_LiZhuang_Mid_y,				//显示的变量地址
 	.Prob_DataStep = 1,								//步长
 	.Prob_MinData = 0,									//最小值
 	.Prob_MaxData = 300, 								//最大值
@@ -457,68 +457,68 @@ MenuWindow C_LiZhuang_Target_y_Window = {
 	.Prob_LineHeight = 8,								//进度条高度
 	.Prob_SideDistance = 4,
 };
-void Show_C_LiZhuang_Target_y_Window(void){
-	OLED_UI_CreateWindow(&C_LiZhuang_Target_y_Window);
+void Show_R_LiZhuang_Mid_y_Window(void){
+	OLED_UI_CreateWindow(&R_LiZhuang_Mid_y_Window);
 }
-MenuWindow C_LiZhuang_Fwd_y_Window = {
+MenuWindow B_LiZhuang_Mid_y_Window = {
 	.General_Width = 80,								//窗口宽度
 	.General_Height = 28, 							//窗口高度
-	.Text_String = "C_LiZhuang_Fwd_y",			//窗口标题
+	.Text_String = "B_LiZhuang_Mid_y",			//窗口标题
 	.Text_FontSize = OLED_UI_FONT_12,				//字高
 	.Text_FontSideDistance = 4,							//字体距离左侧的距离
 	.Text_FontTopDistance = 3,							//字体距离顶部的距离
 	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
 	.General_ContinueTime = 4.0,						//窗口持续时间
-	.Prob_Data_Int_32 = &STORAGE_Data.C_LiZhuang_Fwd_y,				//显示的变量地址
+	.Prob_Data_Int_32 = &STORAGE_Data.B_LiZhuang_Mid_y,				//显示的变量地址
 	.Prob_DataStep = 1,								//步长
-	.Prob_MinData = -60,									//最小值
-	.Prob_MaxData = 60, 								//最大值
+	.Prob_MinData = 0,									//最小值
+	.Prob_MaxData = 300, 								//最大值
 	.Prob_BottomDistance = 3,							//底部间距
 	.Prob_LineHeight = 8,								//进度条高度
 	.Prob_SideDistance = 4,
 };
-void Show_C_LiZhuang_Fwd_y_Window(void){
-	OLED_UI_CreateWindow(&C_LiZhuang_Fwd_y_Window);
+void Show_B_LiZhuang_Mid_y_Window(void){
+	OLED_UI_CreateWindow(&B_LiZhuang_Mid_y_Window);
 }
-MenuWindow R_LiZhuang_Back_y_Window = {
+MenuWindow R_LiZhuang_Cir_y_Window = {
 	.General_Width = 80,								//窗口宽度
 	.General_Height = 28, 							//窗口高度
-	.Text_String = "R_LiZhuang_Back_y",			//窗口标题
+	.Text_String = "R_Cir_y",			//窗口标题
 	.Text_FontSize = OLED_UI_FONT_12,				//字高
 	.Text_FontSideDistance = 4,							//字体距离左侧的距离
 	.Text_FontTopDistance = 3,							//字体距离顶部的距离
 	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
 	.General_ContinueTime = 4.0,						//窗口持续时间
-	.Prob_Data_Int_32 = &STORAGE_Data.R_LiZhuang_Back_y,				//显示的变量地址
+	.Prob_Data_Int_32 = &STORAGE_Data.R_LiZhuang_Cir_y,				//显示的变量地址
 	.Prob_DataStep = 1,								//步长
-	.Prob_MinData = -60,									//最小值
-	.Prob_MaxData = 60, 								//最大值
+	.Prob_MinData = 0,									//最小值
+	.Prob_MaxData = 300, 								//最大值
 	.Prob_BottomDistance = 3,							//底部间距
 	.Prob_LineHeight = 8,								//进度条高度
 	.Prob_SideDistance = 4,
 };
-void Show_R_LiZhuang_Back_y_Window(void){
-	OLED_UI_CreateWindow(&R_LiZhuang_Back_y_Window);
+void Show_R_LiZhuang_Cir_y_Window(void){
+	OLED_UI_CreateWindow(&R_LiZhuang_Cir_y_Window);
 }
-MenuWindow B_LiZhuang_Back_y_Window = {
+MenuWindow B_LiZhuang_Cir_y_Window = {
 	.General_Width = 80,								//窗口宽度
 	.General_Height = 28, 							//窗口高度
-	.Text_String = "B_LiZhuang_Back_y",			//窗口标题
+	.Text_String = "B_Cir_y",			//窗口标题
 	.Text_FontSize = OLED_UI_FONT_12,				//字高
 	.Text_FontSideDistance = 4,							//字体距离左侧的距离
 	.Text_FontTopDistance = 3,							//字体距离顶部的距离
 	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
 	.General_ContinueTime = 4.0,						//窗口持续时间
-	.Prob_Data_Int_32 = &STORAGE_Data.B_LiZhuang_Back_y,				//显示的变量地址
+	.Prob_Data_Int_32 = &STORAGE_Data.B_LiZhuang_Cir_y,				//显示的变量地址
 	.Prob_DataStep = 1,								//步长
-	.Prob_MinData = -60,									//最小值
-	.Prob_MaxData = 60, 								//最大值
+	.Prob_MinData = 0,									//最小值
+	.Prob_MaxData = 300, 								//最大值
 	.Prob_BottomDistance = 3,							//底部间距
 	.Prob_LineHeight = 8,								//进度条高度
 	.Prob_SideDistance = 4,
 };
-void Show_B_LiZhuang_Back_y_Window(void){
-	OLED_UI_CreateWindow(&B_LiZhuang_Back_y_Window);
+void Show_B_LiZhuang_Cir_y_Window(void){
+	OLED_UI_CreateWindow(&B_LiZhuang_Cir_y_Window);
 }
 
 
@@ -605,390 +605,6 @@ void Show_C_HuiJia_y_Window(void){
 
 
 
-/*上面为示例，下面依照示例创建自己的菜单项变量*/
-//主菜单的菜单项
-
-/* ==========================================================================================
-   ★★ 以下为本工程原有的 17 个参数窗口 + Show_* 函数（PID Param / Other Param 两个子菜单页用）★★
-   来自 2026.10.2 版本工程的 oled_ui_menudata.c，和队友新加的 R_ChuFa_x 等窗口共用同一个 oled_ui 库；
-   对应的菜单项数组/菜单页在本文件后半部分（PIDParamMenuItems / PIDParamMenuPage / OtherParamMenuPage）。
-   ========================================================================================== */
-MenuWindow line_kp_Window = {
-	.General_Width = 80,								//窗口宽度
-	.General_Height = 28, 							//窗口高度
-	.Text_String = "line_kp",					//窗口标题
-	.Text_FontSize = OLED_UI_FONT_12,				//字高
-	.Text_FontSideDistance = 4,							//字体距离左侧的距离
-	.Text_FontTopDistance = 3,							//字体距离顶部的距离
-	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
-	.General_ContinueTime = 4.0,						//窗口持续时间
-
-	.Prob_Data_Float = &STORAGE_Data.line_kp,				//显示的变量地址
-	.Prob_DataStep = 0.05,								//步长
-	.Prob_MinData = -5.0,									//最小值
-	.Prob_MaxData = 5.0, 								//最大值
-	.Prob_BottomDistance = 3,							//底部间距
-	.Prob_LineHeight = 8,								//进度条高度
-	.Prob_SideDistance = 4,	
-};
-/**
- * @brief 创建显示line_kp窗口
- */
-void Show_line_kp_Window(void){
-	OLED_UI_CreateWindow(&line_kp_Window);
-}
-
-MenuWindow line_ki_Window = {
-	.General_Width = 80,								//窗口宽度
-	.General_Height = 28, 							//窗口高度
-	.Text_String = "line_ki",					//窗口标题
-	.Text_FontSize = OLED_UI_FONT_12,				//字高
-	.Text_FontSideDistance = 4,							//字体距离左侧的距离
-	.Text_FontTopDistance = 3,							//字体距离顶部的距离
-	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
-	.General_ContinueTime = 4.0,						//窗口持续时间
-
-	.Prob_Data_Float = &STORAGE_Data.line_ki,				//显示的变量地址
-	.Prob_DataStep = 0.05,								//步长
-	.Prob_MinData = -5.0,									//最小值
-	.Prob_MaxData = 5.0, 								//最大值
-	.Prob_BottomDistance = 3,							//底部间距
-	.Prob_LineHeight = 8,								//进度条高度
-	.Prob_SideDistance = 4,	
-};
-/**
- * @brief 创建显示line_ki窗口
- */
-void Show_line_ki_Window(void){
-	OLED_UI_CreateWindow(&line_ki_Window);
-}
-
-MenuWindow line_kd_Window = {
-	.General_Width = 80,								//窗口宽度
-	.General_Height = 28, 							//窗口高度
-	.Text_String = "line_kd",					//窗口标题
-	.Text_FontSize = OLED_UI_FONT_12,				//字高
-	.Text_FontSideDistance = 4,							//字体距离左侧的距离
-	.Text_FontTopDistance = 3,							//字体距离顶部的距离
-	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
-	.General_ContinueTime = 4.0,						//窗口持续时间
-
-	.Prob_Data_Float = &STORAGE_Data.line_kd,				//显示的变量地址
-	.Prob_DataStep = 0.01,								//步长
-	.Prob_MinData = -5.0,									//最小值
-	.Prob_MaxData = 5.0, 								//最大值
-	.Prob_BottomDistance = 3,							//底部间距
-	.Prob_LineHeight = 8,								//进度条高度
-	.Prob_SideDistance = 4,	
-};
-/**
- * @brief 创建显示line_kd窗口
- */
-void Show_line_kd_Window(void){
-	OLED_UI_CreateWindow(&line_kd_Window);
-}
-
-MenuWindow angle_kp_Window = {
-	.General_Width = 80,								//窗口宽度
-	.General_Height = 28, 							//窗口高度
-	.Text_String = "angle_kp",					//窗口标题
-	.Text_FontSize = OLED_UI_FONT_12,				//字高
-	.Text_FontSideDistance = 4,							//字体距离左侧的距离
-	.Text_FontTopDistance = 3,							//字体距离顶部的距离
-	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
-	.General_ContinueTime = 4.0,						//窗口持续时间
-
-	.Prob_Data_Float = &STORAGE_Data.angle_kp,				//显示的变量地址
-	.Prob_DataStep = 0.05,								//步长
-	.Prob_MinData = -5.0,									//最小值
-	.Prob_MaxData = 5.0, 								//最大值
-	.Prob_BottomDistance = 3,							//底部间距
-	.Prob_LineHeight = 8,								//进度条高度
-	.Prob_SideDistance = 4,	
-};
-/**
- * @brief 创建显示angle_kp窗口
- */
-void Show_angle_kp_Window(void){
-	OLED_UI_CreateWindow(&angle_kp_Window);
-}
-
-MenuWindow angle_ki_Window = {
-	.General_Width = 80,								//窗口宽度
-	.General_Height = 28, 							//窗口高度
-	.Text_String = "angle_ki",					//窗口标题
-	.Text_FontSize = OLED_UI_FONT_12,				//字高
-	.Text_FontSideDistance = 4,							//字体距离左侧的距离
-	.Text_FontTopDistance = 3,							//字体距离顶部的距离
-	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
-	.General_ContinueTime = 4.0,						//窗口持续时间
-
-	.Prob_Data_Float = &STORAGE_Data.angle_ki,				//显示的变量地址
-	.Prob_DataStep = 0.05,								//步长
-	.Prob_MinData = -5.0,									//最小值
-	.Prob_MaxData = 5.0, 								//最大值
-	.Prob_BottomDistance = 3,							//底部间距
-	.Prob_LineHeight = 8,								//进度条高度
-	.Prob_SideDistance = 4,	
-};
-/**
- * @brief 创建显示angle_ki窗口
- */
-void Show_angle_ki_Window(void){
-	OLED_UI_CreateWindow(&angle_ki_Window);
-}
-
-MenuWindow angle_kd_Window = {
-	.General_Width = 80,								//窗口宽度
-	.General_Height = 28, 							//窗口高度
-	.Text_String = "angle_kd",					//窗口标题
-	.Text_FontSize = OLED_UI_FONT_12,				//字高
-	.Text_FontSideDistance = 4,							//字体距离左侧的距离
-	.Text_FontTopDistance = 3,							//字体距离顶部的距离
-	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
-	.General_ContinueTime = 4.0,						//窗口持续时间
-
-	.Prob_Data_Float = &STORAGE_Data.angle_kd,				//显示的变量地址
-	.Prob_DataStep = 0.01,								//步长
-	.Prob_MinData = -5.0,									//最小值
-	.Prob_MaxData = 5.0, 								//最大值
-	.Prob_BottomDistance = 3,							//底部间距
-	.Prob_LineHeight = 8,								//进度条高度
-	.Prob_SideDistance = 4,	
-};
-/**
- * @brief 创建显示angle_kd窗口
- */
-void Show_angle_kd_Window(void){
-	OLED_UI_CreateWindow(&angle_kd_Window);
-}
-
-MenuWindow speed_left_kp_Window = {
-	.General_Width = 80,								//窗口宽度
-	.General_Height = 28, 							//窗口高度
-	.Text_String = "speed_left_kp",					//窗口标题
-	.Text_FontSize = OLED_UI_FONT_12,				//字高
-	.Text_FontSideDistance = 4,							//字体距离左侧的距离
-	.Text_FontTopDistance = 3,							//字体距离顶部的距离
-	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
-	.General_ContinueTime = 4.0,						//窗口持续时间
-
-	.Prob_Data_Float = &STORAGE_Data.speed_left_kp,				//显示的变量地址
-	.Prob_DataStep = 0.05,								//步长
-	.Prob_MinData = -5.0,									//最小值
-	.Prob_MaxData = 5.0, 								//最大值
-	.Prob_BottomDistance = 3,							//底部间距
-	.Prob_LineHeight = 8,								//进度条高度
-	.Prob_SideDistance = 4,	
-};
-/**
- * @brief 创建显示speed_left_kp窗口
- */
-void Show_speed_left_kp_Window(void){
-	OLED_UI_CreateWindow(&speed_left_kp_Window);
-}
-
-MenuWindow speed_left_ki_Window = {
-	.General_Width = 80,								//窗口宽度
-	.General_Height = 28, 							//窗口高度
-	.Text_String = "speed_left_ki",					//窗口标题
-	.Text_FontSize = OLED_UI_FONT_12,				//字高
-	.Text_FontSideDistance = 4,							//字体距离左侧的距离
-	.Text_FontTopDistance = 3,							//字体距离顶部的距离
-	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
-	.General_ContinueTime = 4.0,						//窗口持续时间
-
-	.Prob_Data_Float = &STORAGE_Data.speed_left_ki,				//显示的变量地址
-	.Prob_DataStep = 0.01,								//步长
-	.Prob_MinData = -5.0,									//最小值
-	.Prob_MaxData = 5.0, 								//最大值
-	.Prob_BottomDistance = 3,							//底部间距
-	.Prob_LineHeight = 8,								//进度条高度
-	.Prob_SideDistance = 4,	
-};
-/**
- * @brief 创建显示speed_left_ki窗口
- */
-void Show_speed_left_ki_Window(void){
-	OLED_UI_CreateWindow(&speed_left_ki_Window);
-}
-
-MenuWindow speed_left_kd_Window = {
-	.General_Width = 80,								//窗口宽度
-	.General_Height = 28, 							//窗口高度
-	.Text_String = "speed_left_kd",					//窗口标题
-	.Text_FontSize = OLED_UI_FONT_12,				//字高
-	.Text_FontSideDistance = 4,							//字体距离左侧的距离
-	.Text_FontTopDistance = 3,							//字体距离顶部的距离
-	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
-	.General_ContinueTime = 4.0,						//窗口持续时间
-
-	.Prob_Data_Float = &STORAGE_Data.speed_left_kd,				//显示的变量地址
-	.Prob_DataStep = 0.05,								//步长
-	.Prob_MinData = -5.0,									//最小值
-	.Prob_MaxData = 5.0, 								//最大值
-	.Prob_BottomDistance = 3,							//底部间距
-	.Prob_LineHeight = 8,								//进度条高度
-	.Prob_SideDistance = 4,	
-};
-/**
- * @brief 创建显示speed_left_kd窗口
- */
-void Show_speed_left_kd_Window(void){
-	OLED_UI_CreateWindow(&speed_left_kd_Window);
-}
-
-MenuWindow speed_right_kp_Window = {
-	.General_Width = 80,								//窗口宽度
-	.General_Height = 28, 							//窗口高度
-	.Text_String = "speed_right_kp",					//窗口标题
-	.Text_FontSize = OLED_UI_FONT_12,				//字高
-	.Text_FontSideDistance = 4,							//字体距离左侧的距离
-	.Text_FontTopDistance = 3,							//字体距离顶部的距离
-	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
-	.General_ContinueTime = 4.0,						//窗口持续时间
-
-	.Prob_Data_Float = &STORAGE_Data.speed_right_kp,				//显示的变量地址
-	.Prob_DataStep = 0.05,								//步长
-	.Prob_MinData = -5.0,									//最小值
-	.Prob_MaxData = 5.0, 								//最大值
-	.Prob_BottomDistance = 3,							//底部间距
-	.Prob_LineHeight = 8,								//进度条高度
-	.Prob_SideDistance = 4,	
-};
-/**
- * @brief 创建显示speed_right_kp窗口
- */
-void Show_speed_right_kp_Window(void){
-	OLED_UI_CreateWindow(&speed_right_kp_Window);
-}
-
-MenuWindow speed_right_ki_Window = {
-	.General_Width = 80,								//窗口宽度
-	.General_Height = 28, 							//窗口高度
-	.Text_String = "speed_right_ki",					//窗口标题
-	.Text_FontSize = OLED_UI_FONT_12,				//字高
-	.Text_FontSideDistance = 4,							//字体距离左侧的距离
-	.Text_FontTopDistance = 3,							//字体距离顶部的距离
-	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
-	.General_ContinueTime = 4.0,						//窗口持续时间
-
-	.Prob_Data_Float = &STORAGE_Data.speed_right_ki,				//显示的变量地址
-	.Prob_DataStep = 0.01,								//步长
-	.Prob_MinData = -5.0,									//最小值
-	.Prob_MaxData = 5.0, 								//最大值
-	.Prob_BottomDistance = 3,							//底部间距
-	.Prob_LineHeight = 8,								//进度条高度
-	.Prob_SideDistance = 4,	
-};
-/**
- * @brief 创建显示speed_right_ki窗口
- */
-void Show_speed_right_ki_Window(void){
-	OLED_UI_CreateWindow(&speed_right_ki_Window);
-}
-
-MenuWindow speed_right_kd_Window = {
-	.General_Width = 80,								//窗口宽度
-	.General_Height = 28, 							//窗口高度
-	.Text_String = "speed_right_kd",					//窗口标题
-	.Text_FontSize = OLED_UI_FONT_12,				//字高
-	.Text_FontSideDistance = 4,							//字体距离左侧的距离
-	.Text_FontTopDistance = 3,							//字体距离顶部的距离
-	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
-	.General_ContinueTime = 4.0,						//窗口持续时间
-
-	.Prob_Data_Float = &STORAGE_Data.speed_right_kd,				//显示的变量地址
-	.Prob_DataStep = 0.05,								//步长
-	.Prob_MinData = -5.0,									//最小值
-	.Prob_MaxData = 5.0, 								//最大值
-	.Prob_BottomDistance = 3,							//底部间距
-	.Prob_LineHeight = 8,								//进度条高度
-	.Prob_SideDistance = 4,	
-};
-/**
- * @brief 创建显示speed_right_kd窗口
- */
-void Show_speed_right_kd_Window(void){
-	OLED_UI_CreateWindow(&speed_right_kd_Window);
-}
-
-MenuWindow angle_offset_Window = {
-	.General_Width = 80,								//窗口宽度
-	.General_Height = 28, 							//窗口高度
-	.Text_String = "angle_offset",					//窗口标题
-	.Text_FontSize = OLED_UI_FONT_12,				//字高
-	.Text_FontSideDistance = 4,							//字体距离左侧的距离
-	.Text_FontTopDistance = 3,							//字体距离顶部的距离
-	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
-	.General_ContinueTime = 4.0,						//窗口持续时间
-
-	.Prob_Data_Float = &STORAGE_Data.angle_offset,				//显示的变量地址
-	.Prob_DataStep = 0.02,								//步长
-	.Prob_MinData = -5.0,									//最小值
-	.Prob_MaxData = 5.0, 								//最大值
-	.Prob_BottomDistance = 3,							//底部间距
-	.Prob_LineHeight = 8,								//进度条高度
-	.Prob_SideDistance = 4,	
-};
-/**
- * @brief 创建显示angle_offset窗口
- */
-void Show_angle_offset_Window(void){
-	OLED_UI_CreateWindow(&angle_offset_Window);
-}
-
-MenuWindow encoder_cnt_odd_Window = {
-	.General_Width = 80,								//窗口宽度
-	.General_Height = 28, 							//窗口高度
-	.Text_String = "encoder_cnt_odd",					//窗口标题
-	.Text_FontSize = OLED_UI_FONT_12,				//字高
-	.Text_FontSideDistance = 4,							//字体距离左侧的距离
-	.Text_FontTopDistance = 3,							//字体距离顶部的距离
-	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
-	.General_ContinueTime = 4.0,						//窗口持续时间
-
-	.Prob_Data_Int_32 = &STORAGE_Data.encoder_cnt_odd,				//显示的变量地址
-	.Prob_DataStep = 5,								//步长
-	.Prob_MinData = 1500,									//最小值
-	.Prob_MaxData = 4500, 								//最大值
-	.Prob_BottomDistance = 3,							//底部间距
-	.Prob_LineHeight = 8,								//进度条高度
-	.Prob_SideDistance = 4,	
-};
-/**
- * @brief 创建显示encoder_cnt_odd窗口
- */
-void Show_encoder_cnt_odd_Window(void){
-	OLED_UI_CreateWindow(&encoder_cnt_odd_Window);
-}
-
-MenuWindow encoder_cnt_even_Window = {
-	.General_Width = 80,								//窗口宽度
-	.General_Height = 28, 							//窗口高度
-	.Text_String = "encoder_cnt_even",					//窗口标题
-	.Text_FontSize = OLED_UI_FONT_12,				//字高
-	.Text_FontSideDistance = 4,							//字体距离左侧的距离
-	.Text_FontTopDistance = 3,							//字体距离顶部的距离
-	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
-	.General_ContinueTime = 4.0,						//窗口持续时间
-
-	.Prob_Data_Int_32 = &STORAGE_Data.encoder_cnt_even,				//显示的变量地址
-	.Prob_DataStep = 5,								//步长
-	.Prob_MinData = 1500,									//最小值
-	.Prob_MaxData = 4500, 								//最大值
-	.Prob_BottomDistance = 3,							//底部间距
-	.Prob_LineHeight = 8,								//进度条高度
-	.Prob_SideDistance = 4,	
-};
-/**
- * @brief 创建显示encoder_cnt_even窗口
- */
-void Show_encoder_cnt_even_Window(void){
-	OLED_UI_CreateWindow(&encoder_cnt_even_Window);
-}
-
-
 
 MenuItem MainMenuItems[] = {
 	{.General_item_text = "Param",.General_callback = NULL,.General_SubMenuPage = &ParamMenuPage,.List_BoolRadioBox = NULL},
@@ -1032,24 +648,24 @@ MenuItem Param_GetTargetMenuItems[] = {
 	{.General_item_text = NULL},/*最后一项的General_item_text置为NULL，表示该项为分割线*/
 };
 MenuItem Param_JieTiMenuItems[] = {
-	{.General_item_text = "C_JieTi_Left_x",.General_callback = Show_C_JieTi_Left_x_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "C_Jieti_FwdTarget_y",.General_callback = Show_C_Jieti_FwdTarget_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "C_JitTi_Step_x",.General_callback = Show_C_JitTi_Step_x_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "C_Jieti_Cross_x",.General_callback = Show_C_Jieti_Cross_x_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "C_JieTi_JiaoZhun_x1",.General_callback = Show_C_JieTi_JiaoZhun_x1_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "C_JieTi_JiaoZhun_x2",.General_callback = Show_C_JieTi_JiaoZhun_x2_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "C_JieTi_JiaoZhun_y1",.General_callback = Show_C_JieTi_JiaoZhun_y1_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "C_JieTi_JiaoZhun_y2",.General_callback = Show_C_JieTi_JiaoZhun_y2_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
+	{.General_item_text = "C_Left_x",.General_callback = Show_C_JieTi_Left_x_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
+	{.General_item_text = "C_FwdTarget_y",.General_callback = Show_C_Jieti_FwdTarget_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
+	{.General_item_text = "C_Step_x",.General_callback = Show_C_JitTi_Step_x_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
+	{.General_item_text = "C_Cross_x",.General_callback = Show_C_Jieti_Cross_x_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
+	{.General_item_text = "C_JiaoZhun_x1",.General_callback = Show_C_JieTi_JiaoZhun_x1_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
+	{.General_item_text = "C_JiaoZhun_x2",.General_callback = Show_C_JieTi_JiaoZhun_x2_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
+	{.General_item_text = "C_JiaoZhun_y1",.General_callback = Show_C_JieTi_JiaoZhun_y1_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
+	{.General_item_text = "C_JiaoZhun_y2",.General_callback = Show_C_JieTi_JiaoZhun_y2_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = "exit&save",.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = &oled_ui_exit_save},
 	{.General_item_text = NULL},/*最后一项的General_item_text置为NULL，表示该项为分割线*/
 };
 MenuItem Param_LiZhuangMenuItems[] = {
-	{.General_item_text = "R_LiZhuang_Delay_x",.General_callback = Show_R_LiZhuang_Delay_x_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "B_LiZhuang_Delay_x",.General_callback = Show_B_LiZhuang_Delay_x_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "C_LiZhuang_Target_y",.General_callback = Show_C_LiZhuang_Target_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "C_LiZhuang_Fwd_y",.General_callback = Show_C_LiZhuang_Fwd_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "R_LiZhuang_Back_y",.General_callback = Show_R_LiZhuang_Back_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = "B_LiZhuang_Back_y",.General_callback = Show_B_LiZhuang_Back_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
+	{.General_item_text = "R_Delay_x",.General_callback = Show_R_LiZhuang_Delay_x_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
+	{.General_item_text = "B_Delay_x",.General_callback = Show_B_LiZhuang_Delay_x_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
+	{.General_item_text = "R_Mid_y",.General_callback = Show_R_LiZhuang_Mid_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
+	{.General_item_text = "B_Mid_y",.General_callback = Show_B_LiZhuang_Mid_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
+	{.General_item_text = "R_Cir_y",.General_callback = Show_R_LiZhuang_Cir_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
+	{.General_item_text = "B_Cir_y",.General_callback = Show_B_LiZhuang_Cir_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = "exit&save",.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = &oled_ui_exit_save},
 	{.General_item_text = NULL},/*最后一项的General_item_text置为NULL，表示该项为分割线*/
 };

@@ -625,9 +625,15 @@ void CHASSIS_Control_Loop(void){
     }else{
       chassis.yaw_stage_cnt = 0;                   // 误差出死区 / 有轮子又动了 → 重新计数
     }
-    /* 进死区后开始计时（出死区清零）：超时兜底 —— 在死区边缘来回蹭时"四轮都停"永远不成立
-       （航向环微动 + 惯性反复越过死区），没有它 ROBOT_Angle 会死等。 */
-    if(in_dz){
+    /* 超时兜底计时（★2026-10-11 再次放开：原为"进死区后开始计时、出死区清零"）。
+       ★ 为什么要放开：误差卡在死区外时（例如 1.2°~3° —— bias 给的那点 w 推不动四轮静摩擦，
+         轮子不转 ⇒ 误差不减小 ⇒ 自锁），in_dz 恒假 ⇒ cnt 和本计时器双双恒 0 ⇒ stop_ok 永不
+         成立 ⇒ ROBOT_Angle 的 while 无限循环，连超时兜底自己也失效（现场表现：调角度卡住不动）。
+       ★ 现在按"无平移(no_move)"计时：ROBOT_Angle 是原地旋转，no_move 从第一拍就为真 ⇒ 从它
+         清零那一刻起最多 YAW_STOP_TIMEOUT_MS 一定放行，**不要求先进入死区**。
+       ★ 有平移时仍然清零 —— 长距离移动途中不能让计时器累加到 8s，否则 yaw_stage 会被提前
+         置成停止档。w 输出不受影响：yaw_stage 只喂 ROBOT_Angle 的 while 判据（robot.c:52）。 */
+    if(no_move){
       if(chassis.yaw_stage_dz_ms < 60000) chassis.yaw_stage_dz_ms += (uint16_t)(ENCODER_TIME_S * 1000.0f);
     }else{
       chassis.yaw_stage_dz_ms = 0;

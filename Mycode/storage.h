@@ -40,36 +40,14 @@ typedef struct{
 
   int32_t R_LiZhuang_Delay_x;  //红方-立柱-x延迟时间  120
   int32_t B_LiZhuang_Delay_x;  //蓝方-立柱-x延迟时间  150
-  int32_t C_LiZhuang_Target_y;  //共同-立柱-目标y距离  175
-  int32_t C_LiZhuang_Fwd_y;  //共同-立柱-y前进距离  6
-  int32_t R_LiZhuang_Back_y;  //红方-立柱-y后退距离  -8（LiZhu_MiddleGrab ④ 退回量，菜单可调）
-  int32_t B_LiZhuang_Back_y;  //蓝方-立柱-y后退距离  -9（LiZhu_MiddleGrab ④ 退回量，菜单可调）
+  int32_t R_LiZhuang_Mid_y;  //红方-立柱-抓中间方块目标y距离  175
+  int32_t B_LiZhuang_Mid_y;  //蓝方-立柱-抓中间方块目标y距离  175
+  int32_t R_LiZhuang_Cir_y;  //红方-立柱-绕圈目标y距离  145
+  int32_t B_LiZhuang_Cir_y;  //蓝方-立柱-绕圈目标y距离  145
 
   int32_t R_HuiJia_x;  //红方-回家-x移动距离  11
   int32_t B_HuiJia_x;  //蓝方-回家-x移动距离  -33
   int32_t C_HuiJia_y;  //共同-回家-y移动距离  -6
-
-  /* ==================== 第二部分：PID/编码器参数（旧版页面的“遗留字段”，本工程不使用） ====================
-     ★本工程的 PID 全部在 chassis.h/chassis.c（每轮一套 × 每速度段一组 + 航向环三档），
-       下面这些 line_kp、angle_kp、speed_left_kp 之类的字段只被 OLED 的 PID Param / Other Param
-       两页显示，改了不会影响控制（这两页是库里带的示例页，想删就把 oled_ui_menudata.c 里对应项去掉）。
-     ★上电首次初始化时它们会被写成 0（ROBO_LoadDefaultParams() 不填这一部分），属于正常现象。 */
-  float line_kp;  //循迹环参数
-  float line_ki;
-  float line_kd;
-  float angle_kp;  //角度环参数
-  float angle_ki;
-  float angle_kd;
-  float speed_left_kp;  //左轮速度环参数
-  float speed_left_ki;
-  float speed_left_kd;
-  float speed_right_kp;  //右轮速度环参数
-  float speed_right_ki;
-  float speed_right_kd;
-
-  float angle_offset; //偏移角度
-  int32_t encoder_cnt_odd; //奇数次的编码器计数值
-  int32_t encoder_cnt_even; //偶数次的编码器计数值
 
 }STORAGE_TYPE;//SRAM结构体类型
 

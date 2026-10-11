@@ -98,3 +98,14 @@
 780	1247	8134099686784080	7_AutomatedSortingRobot_26.elf	77d06da0a41d4520
 5	840	8134106247223843	CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj	f2855c5c8ba30b76
 843	1335	8134106255564201	7_AutomatedSortingRobot_26.elf	77d06da0a41d4520
+305	1256	8134322253689773	CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/storage.c.obj	720c98ba016d126c
+318	1257	8134322253830481	CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/oled_ui/oled_ui_menudata.c.obj	21ae3f1acaa56272
+71	1280	8134322251361935	CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj	f2855c5c8ba30b76
+1281	3942	8134322263448313	7_AutomatedSortingRobot_26.elf	77d06da0a41d4520
+82	417	8134334278740591	CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/robot.c.obj	7ee0dd72b2cc444f
+58	427	8134334278497094	CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/chassis.c.obj	175327e4ecb32c7
+67	452	8134334278586795	CMakeFiles/7_AutomatedSortingRobot_26.dir/Mycode/serialplot.c.obj	ae96978131a3ddce
+43	628	8134334278349506	CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj	f2855c5c8ba30b76
+628	993	8134334284202069	7_AutomatedSortingRobot_26.elf	77d06da0a41d4520
+44	613	8134354033657049	CMakeFiles/7_AutomatedSortingRobot_26.dir/Core/Src/main.c.obj	f2855c5c8ba30b76
+614	1003	8134354039355107	7_AutomatedSortingRobot_26.elf	77d06da0a41d4520
