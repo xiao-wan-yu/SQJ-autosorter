@@ -819,7 +819,7 @@ static void YuanHuan_Adjust_Y(int Target_Y_Distance){
 #define LIZHU_MID_VIS_MS    1000U       //“中间要不要夹”等一帧包的总时限(ms)：超时/没帧=不夹
 #define LIZHU_MID_ACT_MS    1900U       //动作组110(识别中间)的等待时间(ms)=动作组110总时长1400ms+500ms
 #define LIZHU_MID_GRAB_MS   2000U       //动作组113(夹取中间)的等待时间(ms)=动作组113总时长3000ms，但是故意执行一半后退松爪子
-#define LIZHU_MID_BACK_MS   2600U       //动作组104(切回“识别旁边”)的等待时间(ms)=动作组104总时长2100ms+500ms
+#define LIZHU_MID_BACK_MS   1900U       //动作组104(切回“识别旁边”)的等待时间(ms)=动作组104总时长1400ms+500ms
 
 static uint32_t lizhu_vis_cnt = 0;      //本阶段累计收帧数
 static uint32_t lizhu_pic_cnt = 0;      //本阶段停下来拍了几次
@@ -1005,8 +1005,8 @@ static uint8_t LiZhu_NeedGrab(uint32_t wait_ms){
         → 动作组104 切回“识别旁边” → 等 LIZHU_MID_BACK_MS(2600ms)。
    串口1 每次打一行 “LZ middle need=0/1”。要改时长/时限就改上面那几个 LIZHU_MID_* 常量。 */
 static void LiZhu_MiddleGrab(void){
-  /* ① 往前走一小段到柱子中间，动作组110 摆到“识别中间”位 */
-  ROBOT_Move(0, STORAGE_Data.C_LiZhuang_Fwd_y, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //★前进 6 改成 Flash 参数 C_LiZhuang_Fwd_y(菜单可调)
+  /* ① 往前走一小段到柱子中间，动作组110 摆到“识别中间”位 *///可能不用了，现在直接用测距校准
+  //ROBOT_Move(0, STORAGE_Data.C_LiZhuang_Fwd_y, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //★前进 6 改成 Flash 参数 C_LiZhuang_Fwd_y(菜单可调)
   runActionGroup(110, 1);                                 //识别中间动作
   HAL_Delay(LIZHU_MID_ACT_MS);
 
@@ -1028,8 +1028,18 @@ static void LiZhu_MiddleGrab(void){
   HAL_Delay(1000);
   
   //蓝要退多1cm
-  ROBOT_Move(0, mode_red ? STORAGE_Data.R_LiZhuang_Back_y : STORAGE_Data.B_LiZhuang_Back_y, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //★-8/-9 改成 Flash 参数(菜单可调)
+  //ROBOT_Move(0, mode_red ? STORAGE_Data.R_LiZhuang_Back_y : STORAGE_Data.B_LiZhuang_Back_y, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //★-8/-9 改成 Flash 参数(菜单可调)
   
+  //直接用测距退到145
+  ROBOT_MoveSpeed(0.0f, -5.0f);
+  WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > 145,
+             "LiZhu front distance -> 145mm");
+          
+  JieTi_HoldYaw_Begin();                          //★校准期间锁住此刻绝对角（同逐坑校准）
+  YuanHuan_Adjust_Y(145);  //★容差±3、连续3次合格才退出（和 JieTi_Adjust_Y 同一套写法）
+  JieTi_HoldYaw_End();
+
+
   runActionGroup(104, 1);                                 //识别旁边(识别状态)
   HAL_Delay(LIZHU_MID_BACK_MS);
 }
@@ -1066,6 +1076,7 @@ static void LiZhu_VisionStop(void){
 
 static void LiZhu_Circle_Run(void)
 {
+  
   if(!flag.chassis){                          // 前置条件：底盘控制循环在跑，否则车不会动、while 会一直空转
     UART1_Printf("no chassis!\r\n");
     return;
@@ -1107,7 +1118,7 @@ static void LiZhu_Circle_Run(void)
   const float    RAD_JUMP_CM  = 4.0f;       // 单步跳变上限 cm：一步(≈100ms)真距离最多变 0.3cm(V_RAD/10)，跳 >4cm 必是杂散
   const uint8_t  RAD_BAD_N    = 3;          // 连续几次“奇怪读数”就关掉测距校准
   const uint8_t  RAD_OK_N     = 2;          // 连续几次正常读数就自动恢复
-  const uint32_t LOST_STOP_MS = 5000U;      // 真·丢目标(出窗口)连续多久才保护停车 ms；0 = 不保护(一直开环绕)
+  const uint32_t LOST_STOP_MS = 0U;      // 真·丢目标(出窗口)连续多久才保护停车 ms；0 = 不保护(一直开环绕)
 
   /* ★靠柱那对前轮天生很慢(0.18×V_TAN)：绕圈几何决定，不是故障；V_TAN<8 才真推不动 */
   float v_tan  = V_TAN;                                         // 切向速度 cm/s（= 旋钮值，不做任何隐藏修改）
@@ -1131,7 +1142,7 @@ static void LiZhu_Circle_Run(void)
   if(n < 3){                                    // 有效采样太少
     if(FB_DIST){                                // 测距反馈开着 → 没有半径参考，绝不乱转
       UART1_Printf("no pipe! (dist fb needs it)\r\n");
-      return;
+      return;                                   //采样到有效值次数小于3的话，说明没有管子，直接退出绕圈（退出绕圈）
     }
     UART1_Printf("no pipe; open-loop anyway\r\n");   // 纯开环不需要测距，照跑（e 只作显示）
     d_ok[0] = 180; n = 1;                       // 显示用名义值 180mm(e 的零点随便，看趋势)
@@ -2596,7 +2607,7 @@ YUANPANJI_START:;
       runActionGroup(160, 1);  // 收起机械臂
       //不需要延时，和跑图一起
       //向左平行到仓库(★长距档 120/120)
-      ROBOT_Move(mode_red ? -190 : 195,0,SPD_SHORT_V,SPD_SHORT_V,SPD_SHORT_A,SPD_SHORT_A);//蓝要多走一点
+      ROBOT_Move(mode_red ? -190 : 195,0,SPD_LONG_V,SPD_LONG_V,SPD_LONG_A,SPD_LONG_A);//蓝要多走一点
       //转身(ROBOT_Move 已阻塞到车停稳，不用再补 HAL_Delay(100))
       //★绝对角一律过 Yaw_Abs()：全流程 shift=0 原样(红90/蓝270)；单独测圆盘机(shift=270)时
       //  红方 Yaw_Abs(90)=180、蓝方 Yaw_Abs(270)=180 = 从“圆盘机那一拍朝向”转半圈进仓库，
@@ -2675,7 +2686,7 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
 
         //右+前移动到阶梯附近:要往右多走点不然会撞；y160太远不利于视觉识别(★长距档 120/120)
         //要拆开两段走，否则会撞到：先走x后走y
-        ROBOT_Move(80, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+        ROBOT_Move(80, 0, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
         ROBOT_Move(0, STORAGE_Data.C_GetTarget_y, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //★129 改成 Flash 参数(菜单可调)
 
         //向左慢走，直到前面的两个光电都感应到障碍物(右2坏了/左4拆了，复用立柱的)，4左2右
@@ -3042,7 +3053,9 @@ JIETI_START:
         ROBOT_MoveSpeed(0, 0);
        
         //单独的机械臂抬起
-        runActionGroup(151, 1);
+        //runActionGroup(151, 1);
+        //HAL_Delay(1200);
+        runActionGroup(160, 1);//复位
         HAL_Delay(1200);
         
         JieTi_Flag = 0;                     //M6.3 阶梯结束
@@ -3057,8 +3070,9 @@ JIETI_START:
         if(LiZhu_Flag == 1)//立柱开始
         {
           
-          runActionGroup(160, 1);//复位
-          ROBOT_Move(20, -150, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+          //runActionGroup(160, 1);//复位,在这里执行不完
+          ROBOT_Move(20, -150, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
+
 
           //更换新跑图逻辑
           // （原“阶梯→立柱”的走位/转向测试行已删：-45,-35 走位 + ROBOT_Angle(Yaw_Abs(270)) / 180）
@@ -3102,6 +3116,21 @@ LIZHU_START:
           ROBOT_MoveSpeed(0.0f, 5.0f);                      //② 向前慢逼近到 200mm，180也太远
           WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > STORAGE_Data.C_LiZhuang_Target_y,//175比170稍微远一点，防顶（175 改成 Flash 参数 C_LiZhuang_Target_y，菜单可调）
                      "LiZhu front distance -> 175mm");
+          
+          JieTi_HoldYaw_Begin();                          //★校准期间锁住此刻绝对角（同逐坑校准）
+          YuanHuan_Adjust_Y(STORAGE_Data.C_LiZhuang_Target_y);  //★容差±3、连续3次合格才退出（和 JieTi_Adjust_Y 同一套写法）
+          JieTi_HoldYaw_End();
+
+          //双重保险：连续三次检测到测距符合条件(貌似有更好的保险如上)
+          if(0){
+            uint32_t lz_t0 = HAL_GetTick();  uint8_t lz_hit = 0;   //连续"看到"计数
+            while(lz_hit < 3){
+              lz_hit = (GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) <= STORAGE_Data.C_LiZhuang_Target_y) ? (uint8_t)(lz_hit + 1) : 0;  //断一次就重新数
+              if(lz_hit >= 3) break;
+              HAL_Delay(200);                                       //每次检测间隔 200ms，因为发送间隔是200ms
+            }
+          }
+          
           ROBOT_MoveSpeed(0.0f, 0.0f);                      //停车，准备往前走识别中间方块
 
           /* ==================== ★★ 立柱段：识别中间 + 夹取中间（★在绕圈【之前】做）★★ ====================
@@ -3312,7 +3341,7 @@ HUIJIA_START:
           */
     //如果为黑色，匀速往右走，直到传感器进入红/蓝区域，红往右走，蓝往左走
     //去抖：连续3次(约150ms)都读到红/蓝才确认，交界处"红黑红黑"抖动不会误停
-    mode_red ? ROBOT_MoveSpeed(5, 0) : ROBOT_MoveSpeed(-5, 0);   //★匀速靠近：SPD_AVG_V,10太大了
+    mode_red ? ROBOT_MoveSpeed(SPD_AVG_V, 0) : ROBOT_MoveSpeed(-SPD_AVG_V, 0);   //★匀速靠近：SPD_AVG_V,10太大了
     {
       uint8_t stable = 0;
       while(1){
