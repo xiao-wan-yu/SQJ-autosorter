@@ -798,8 +798,8 @@ static void YuanHuan_Adjust_Y(int Target_Y_Distance){
    ★被窗口挡掉会打一行 `PIC skip: x=.. out of [100,300]`，限速 LIZHU_X_REJ_MS(500ms) 一行，不刷屏。 */
 #define LIZHU_X_FILTER         1        //1=“旁边”按 x 窗口过滤(要 x∈[LIZHU_X_MIN,LIZHU_X_MAX] 才算数)
                                         //  0=不过滤(回到老行为：只要 cmd≠0 就算数)
-#define LIZHU_X_MIN            100U     //x 下限(含)：比它小 → 旁边不要，不要左边的1/3，防止开始时候误拍
-#define LIZHU_X_MAX            260U     //x 上限(含)：比它大 → 旁边不要，不要右边的1/5，防止字母没进全
+#define LIZHU_X_MIN            110U     //x 下限(含)：比它小 → 旁边不要，不要左边的1/3，防止开始时候误拍，100还会拍左边的东西
+#define LIZHU_X_MAX            230U     //x 上限(含)：比它大 → 旁边不要，不要右边的1/5，防止字母没进全，-60不够，因为D会看成C，现在给-90
 #define LIZHU_X_REJ_MS         500U     //“x 出窗口”提示行的限速(ms)：最快多久打一行(防 20帧/s 刷屏)
 #define LIZHU_VIS_HEAL_MS      100U     //串口2自愈+屏幕刷新的节拍(ms)
 
@@ -1093,7 +1093,7 @@ static void LiZhu_Circle_Run(void)
   /* ===== ① 三个可调参数（开环基本圆 + 反馈强度都在这三行）===== */
   const float V_TAN  = 10.0f;               // 切向速度 cm/s(>0 逆时针 <0 顺时针)
   const float W_TURN = 16.4f;               // 车头摆速 °/s(只填正的，大小由上面公式算)
-  const float V_RAD  = 3.0f;                // 径向速度 cm/s(仅 FB_DIST=1 有效：路线像椭圆→加；一冲一停→减)
+  const float V_RAD  = 3.7f;                // 径向速度 cm/s(仅 FB_DIST=1 有效：路线像椭圆→加；一冲一停→减)
   /* ★W_TURN = V_TAN/r×57.3，r 由几何定死(见函数头) */
   /* r 由几何定死：车心到柱轴 = 前测距(立柱校准停在 170mm) + 传感器到车心 14 + 柱半径 4 = 35cm */
 
@@ -3165,8 +3165,11 @@ LIZHU_START:
           ROBOT_MoveSpeed(0,0);
 
           ROBOT_Move(0, 6, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);//防止卡脚
-          ROBOT_Move(32, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+
+          ROBOT_Move(24, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
+
           ROBOT_Move(0, -6, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);//还原回去
+
 
           mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));//校准一下
           
@@ -3248,7 +3251,8 @@ YUANHUAN_START:
             }
           }
           
-          HAL_Delay(440);
+          //放圆环延时，让他出去点对齐
+          mode_red ? HAL_Delay(440) : HAL_Delay(320);
 
           ROBOT_MoveSpeed(0.0f, 0.0f);                    //激光到位，停车（速度环主动反接刹车）
 
@@ -3288,7 +3292,7 @@ HUIJIA_START:
           //复位机械臂
           runActionGroup(160, 1);
           //蓝退多点
-          ROBOT_Move(mode_red ? 28 : -28, mode_red ? -215 : -240, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);//60，-240能进
+          ROBOT_Move(mode_red ? 28 : -28, mode_red ? -215 : -230, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);//60，-240能进
 
           //走固定距离回家
           //ROBOT_Move(mode_red ? 43 : -43, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
