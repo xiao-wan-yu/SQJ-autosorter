@@ -316,7 +316,7 @@ static void ZM_ShowComm(int rx4, int rx2){
                                        //  (第1坑守着“进阶梯到位”点，等帧前没有走位+校准那段余量，一轮 200ms 太紧)
 /* ---- “这一帧有没有目标”：没目标时视觉也发帧、坐标填0，只看 cx 会被当成“目标在最左” ---- */
 #define JIETI_X_BAD_MAX      1000U    //★原始x>它=无效帧(0xFFFF)；x=0 也算没检测到
-#define JIETI_XFIX_MAX_MS    3000U    //★单坑左右校准时限(ms)：坐标一直不满足容差就收手
+#define JIETI_XFIX_MAX_MS    5000U    //★单坑左右校准时限(ms)：坐标一直不满足容差就收手，10.12从3000增加到5000
                                       //  (0=不限时)
 /* ---- ★左右校准的“退出条件”：连续这么多帧都落在容差内才算对准(2026-10-06 加) ----
    视觉是“一帧给一个坐标”，单帧会被图像抖动/物块边缘跳动带偏；
@@ -788,8 +788,8 @@ static void YuanHuan_Adjust_Y(int Target_Y_Distance){
 #define LIZHU_VIS_END          0xA9     //我→视觉：立柱结束
 #define LIZHU_ACCEPT_A3        1        //1=也认阶梯的 0xA3 包(实测视觉还发A3)；
                                         //  0=只认 A4 包
-#define LIZHU_PIC_MS            900U    //跑完动作组107后等它做完的时间(ms)=动作组107总时长400ms+500ms
-#define LIZHU_PIC_COOLDOWN_MS  1000U    //两次"停拍"的最短间隔(ms)：防同一目标连拍；0=不防
+#define LIZHU_PIC_MS            2600U    //跑完动作组107后等它做完的时间(ms)=动作组107总时长2100ms+500ms
+#define LIZHU_PIC_COOLDOWN_MS  1740U    //两次"停拍"的最短间隔(ms)：防同一目标连拍；0=不防，10.12冷却时间增加，这就是等动作组执行完
 /* ★★ 2026-10-02：立柱阶段“坐标窗口”（只给【旁边】用）★★
    绕圈边绕边拍的那个钩子里(拍“旁边”)，视觉报的目标 x 不在 [LIZHU_X_MIN, LIZHU_X_MAX] 内 → 这一帧不算数，
    不停车、不跑 107(判据实现在 LiZhu_XOk()，只被 LiZhu_Circle_Run 的钩子调用)。
@@ -821,7 +821,7 @@ static void YuanHuan_Adjust_Y(int Target_Y_Distance){
 #define LIZHU_MID_IN_CMD7    1          //1=菜单里单独发指令7(测绕圈)时也先跑一遍“识别中间+夹取”
                                         //  0=只绕圈(纯调绕圈参数时省掉前面这十几秒)
 #define LIZHU_MID_VIS_MS    1000U       //“中间要不要夹”等一帧包的总时限(ms)：超时/没帧=不夹
-#define LIZHU_MID_ACT_MS    1900U       //动作组110(识别中间)的等待时间(ms)=动作组110总时长1400ms+500ms
+#define LIZHU_MID_ACT_MS    2100U       //动作组110(识别中间)的等待时间(ms)=动作组110总时长1600ms+500ms
 #define LIZHU_MID_GRAB_MS   2000U       //动作组113(夹取中间)的等待时间(ms)=动作组113总时长3000ms，但是故意执行一半后退松爪子
 #define LIZHU_MID_BACK_MS   1900U       //动作组104(切回“识别旁边”)的等待时间(ms)=动作组104总时长1400ms+500ms
 
@@ -1297,24 +1297,31 @@ static void LiZhu_Circle_Run(void)
       t_prt = HAL_GetTick();
     }
 
+    //uint8_t lizhu_num = 0;
+
     /* ===== 识别钩子：边绕边收包 → cmd≠0 且 x 在坐标窗口内就停车拍一张(够不够格当包由 LiZhu_VisionPoll 判)===== */
     if(LiZhu_VisionPoll()){
+      
+      //计数，两帧都要才拍
+      
       /* 判据就这一行：cmd≠0=要拍 + ★x 必须在 [LIZHU_X_MIN,LIZHU_X_MAX] 里(2026-10-02 加的“旁边”坐标窗口，
          见 LiZhu_XOk：出窗口就接着绕、不拍；识别中间那一路不受它限制)；
          冷却 LIZHU_PIC_COOLDOWN_MS 内再来也不停(防同一目标连拍) */
       if(lizhu_pic_cmd != 0U && LiZhu_XOk() && (HAL_GetTick() - lizhu_pic_t) >= LIZHU_PIC_COOLDOWN_MS){
+        //lizhu_num++;
         
         //2026.10.11决定不停车拍方块
-        //chassis.v_x = 0.0f;  chassis.v_y = 0.0f;  chassis.w = 0.0f;   //① 停车
-        //HAL_Delay(100);                                               //   等速度环把车刹稳(≈5个控制周期)
-
+        chassis.v_x = 0.0f;  chassis.v_y = 0.0f;  chassis.w = 0.0f;   //① 停车
+        HAL_Delay(300);                                               //   等速度环把车刹稳(≈5个控制周期)
+        //if(lizhu_num >= 2){
+          //lizhu_num = 0;
         runActionGroup(107, 1);                                       //② 拍：动作组 107
-        HAL_Delay(LIZHU_PIC_MS);                                      //   等它跑完(按现场标定改 LIZHU_PIC_MS)
         //   ★若 107 跑完不自带回“识别状态”，放开这行: runActionGroup(104, 1); HAL_Delay(2600);
+        //}
 
         LiZhu_FlushVision();                                          //③ 拍期间滞留的旧帧全清
         //2026.10.11决定不停车拍方块
-        //yaw_last = HWT101CT_Data.yaw;                                 //   拍时车没走：这段陀螺仪抖动不算进“已绕角度”
+        yaw_last = HWT101CT_Data.yaw;                                 //   拍时车没走：这段陀螺仪抖动不算进“已绕角度”
         lizhu_pic_t = HAL_GetTick();
         lizhu_pic_cnt++;
         UART1_Printf("PIC #%u cmd=0x%02X x=%u y=%u yaw=%d\r\n",
@@ -1975,6 +1982,7 @@ int main(void)
     }
   }
 
+  HAL_Delay(100);
   HWT101CT_Init();//陀螺仪初始化
   HAL_UARTEx_ReceiveToIdle_DMA(&huart3, UART3_RxBuf, UART3_RxLength);//陀螺仪串口
   __HAL_DMA_DISABLE_IT(&hdma_usart3_rx, DMA_IT_HT);
@@ -2249,7 +2257,17 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(20,0); HAL_Delay(15);
     ROBOT_Move(mode_red ? STORAGE_Data.R_ChuFa_x : STORAGE_Data.B_ChuFa_x, mode_red ? STORAGE_Data.R_ChuFa_y : STORAGE_Data.B_ChuFa_y, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);//58太靠右  ★出发距离改成 Flash 参数(菜单可调)
     /* ★2026-09-20 新底盘：ROBOT_Move / ROBOT_Angle 都是阻塞式，且 ROBOT_Angle 会等到
            “航向到位 且 四轮真正停稳”才返回 —— 后面不用再补 HAL_Delay(100) 提高稳定性了 */
+    chassis.yaw_pid.out_max = 6.0;
+    chassis.yaw_pid.out_min = -6.0;
+    chassis.yaw_dz_turn = 2.2;
+    /* ★2026-10-13 抢黄球提速：本次转向开启 kp 倍率 —— 误差 >40° 时 kp ×2（阈值/倍率见
+       chassis.h 的 YAW_KP_BOOST_TH / YAW_KP_BOOST_GAIN），转完立刻关掉，只影响这一次。 */
+    chassis.yaw_kp_boost = 1;
     mode_red ? ROBOT_Angle(270) : ROBOT_Angle(90);
+    chassis.yaw_kp_boost = 0;
+    chassis.yaw_pid.out_max     = YAW_PID_OUT_MAX;
+    chassis.yaw_pid.out_min     = YAW_PID_OUT_MIN;
+    chassis.yaw_dz_turn = YAW_DEAD_ZONE_TURN;
 
     
     /* ★★调试入口(KEY0选成YPJ+KEY3开始)：goto 跳到下面 YUANPANJI_START —— 就是圆盘机“转完角度”的下一步。
@@ -2350,7 +2368,8 @@ YUANPANJI_START:;
           · 单独测圆盘机 SetYawShift(270)(红) → yaw_shift_deg=270 → Yaw_Abs(270)=0(蓝 Yaw_Abs(90)=0)：
             车本来就是按这个朝向摆好的，这句只剩“把白线逼近时攒下的几度掰回 0°”(原意就是校准)，
             不会再整体按 270° 转过去。 */
-    mode_red ? ROBOT_Angle(Yaw_Abs(270)) : ROBOT_Angle(Yaw_Abs(90));
+            //10.12去掉
+            // mode_red ? ROBOT_Angle(Yaw_Abs(270)) : ROBOT_Angle(Yaw_Abs(90));
 
     /* ★落点测量(STOP)：把“触发 → 停车 → 原地转正校准”整段的车头前向位移打出来，用来核对拍球落点
             (原地转正那一下麦轮会蹭掉一点位移，属正常)。
@@ -2369,7 +2388,7 @@ YUANPANJI_START:;
 
     //走到位后，放到识别状态
     runActionGroup(4, 1);
-    delay_ms(1200);
+    delay_ms(200);//200ms可能卡太死了，动作组可能没执行完（动作组刚好200ms）
     UART2_Printf("%c", 0xA1);//发0xA1告诉主视觉进入圆盘机识别
 
     /******************** 圆盘机视觉处理代码 ********************/
@@ -2404,8 +2423,9 @@ YUANPANJI_START:;
             ★为什么从 300 改成 650（比赛实测：记够10个却只拍了5个球就走了）：300ms 比“一个球在画面里停
               留的时间”还短 → 同一个球被拍了2次，10次计数其实只过了约5个球（667/300≈2.2拍/球）；
               650≈667 时同一个球不会被拍两次，球流不断时基本"一球一拍"。 */
-              //2026.10.11把冷却时间从650改到550
-    const uint32_t YPJ_HIT_COOLDOWN_MS = 550;   /* 冷却窗口：400 < 值 < 球间隔667 */
+              /*2026.10.11把冷却时间从650改到550，550好像导致分流板出问题，确实是了，550不行，650可以，但是有点慢，第一个球是中间拍球
+              第二个就变成边缘拍了，冷却600也不行，只能是650*/
+    const uint32_t YPJ_HIT_COOLDOWN_MS = 600;   /* 冷却窗口：400 < 值 < 球间隔667 */
     const uint16_t YPJ_RUN_GAP_MS = 100;       /* ★标定用：相邻两帧"有球"的间隔≥100ms 就认为上一个球已离开画面 */
     const uint8_t  YPJ_HIT_LOG = 1;            /* 1=开日志 0=关 */
     const uint8_t  YPJ_HIT_MAX = 10;           /* ★拍球次数上限：实拍够10个球就不再等视觉，强制退出圆盘机阶段 */
@@ -2488,7 +2508,10 @@ YUANPANJI_START:;
                                 不管是下面“第一个球只跳过不拍”还是真发了动作组，都算“触发过拍球”，
                                 所以球流不断就永远不会走到 9s 强制退出；球流一断，9s 后自动收摊。 */
               ypj_no_hit_ref_t = now;
-              if(ypj_first_skipped == 0){      /* 识别到的第一个球：只跳过、不拍，从第二个球开始正常拍 */
+              //如果第一个球在屏幕右边1/3，此时触发拍球不会拍掉下一个，可以正常拍
+              //如果是第一个球，而且已经过了1/3的适合拍球窗口，才跳过
+              //100太宽了
+              if(ypj_first_skipped == 0 && cam_x >= 50){      /* 识别到的第一个球：只跳过、不拍，从第二个球开始正常拍 */
                 HAL_Delay(100);  // 等待一段时间确保第一个球已经出了视野再把 ypj_first_skipped 置 1，否则连续两球间隔很短时可能第二个球还没出画面就被拍了
                 ypj_first_skipped = 1;
                 if(YPJ_HIT_LOG)
@@ -3228,12 +3251,12 @@ YUANHUAN_START:
           mode_red ? ROBOT_Angle(Yaw_Abs(270)) : ROBOT_Angle(Yaw_Abs(90));   //① 正面朝左(红)/朝右(蓝)
 
           ROBOT_MoveSpeed(0.0f, SPD_AVG_V);                    //② 5cm/s 往前(★同“立柱往前逼近175mm”那套)
-          WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > 55,
+          WAIT_WHILE(GY53_GetDistance_PWM(GY53_2_GPIO_Port, GY53_2_Pin) > (mode_red?STORAGE_Data.R_YuanHuan_Target_y:STORAGE_Data.B_YuanHuan_Target_y),
                      "RING front -> 55mm");               //前测距到 55mm 就收手
           ROBOT_MoveSpeed(0.0f, 0.0f);                    //先停车，再做前后校准
           JieTi_HoldYaw_Begin();                          //★校准期间锁住此刻绝对角（同逐坑校准）
           //实测69，配合新放圆环动作
-          YuanHuan_Adjust_Y(55);                          //★前后校准到50mm：容差±3、连续3次合格才退出（和 JieTi_Adjust_Y 同一套写法）
+          YuanHuan_Adjust_Y(mode_red?STORAGE_Data.R_YuanHuan_Target_y:STORAGE_Data.B_YuanHuan_Target_y);                          //★前后校准到50mm：容差±3、连续3次合格才退出（和 JieTi_Adjust_Y 同一套写法）
           JieTi_HoldYaw_End();                            //★校准结束：下面 ROBOT_Angle 自己设目标角
 
           //补一个角度校准
@@ -3252,7 +3275,7 @@ YUANHUAN_START:
           }
           
           //放圆环延时，让他出去点对齐
-          mode_red ? HAL_Delay(440) : HAL_Delay(320);
+          mode_red ? HAL_Delay(STORAGE_Data.R_YuanHuan_Delay_x) : HAL_Delay(STORAGE_Data.B_YuanHuan_Delay_x);
 
           ROBOT_MoveSpeed(0.0f, 0.0f);                    //激光到位，停车（速度环主动反接刹车）
 
@@ -3289,8 +3312,8 @@ HUIJIA_START:
           ROBOT_Angle(Yaw_Abs(0));
           //往后多走一点(★长距档 120/120)，必须保证前后在左右移动后能进入红/蓝区域
           
-          //复位机械臂
-          runActionGroup(160, 1);
+          //用回家专属复位动作组
+          runActionGroup(161, 1);
           //蓝退多点
           ROBOT_Move(mode_red ? 28 : -28, mode_red ? -215 : -230, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);//60，-240能进
 
@@ -3359,6 +3382,16 @@ HUIJIA_START:
     //  仍在起转阈值边缘 ⇒ 若现场发现这条走不动，把它第5/6个参数(a)单独加大到 200，峰值就有 24cm/s）
     ROBOT_Move(0, STORAGE_Data.C_HuiJia_y, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //★-6 改成 Flash 参数(菜单可调)
     ROBOT_MoveSpeed(0, 0);
+
+
+    /*角度有1/10的概率出现较大偏移 回家之后打印目标角度和实际角度*/
+    OLED_Clear();
+    while(1){
+      OLED_Printf(0, 0, OLED_8X16_HALF, "Tar:%+07.2f", chassis.target_yaw);
+      OLED_Printf(0, 16, OLED_8X16_HALF, "Act:%+07.2f", HWT101CT_Data.yaw);
+      OLED_Update();
+    }
+
         
 }//if(0)的尾括号
   

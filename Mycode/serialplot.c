@@ -19,9 +19,9 @@
    故相关 include 与 10 个参数项已整块删除，参数表只留本工程实际用得到的 9 项。 */
 #define PARAM_Number 9              //参数个数（航向环 + 整车速度 + 规划：kp/ki/kd/target/vx/vy/w/mv/mvacc）
 #define YAW_Loop  chassis.yaw_pid   //要调参的pid环：整车航向环
-/* 死区无需在线调：控制循环按是否平移自动切换 —— 静止旋转 YAW_DEAD_ZONE_TURN 防来回飘，
-   走直线(有平移) YAW_DEAD_ZONE_MOVE 让1°内偏航也被纠正（平移档低/高速共用这一套）。
-   ★ 值以 chassis.h 的宏为准（实测反复微调过），不在这里写死数字。 */
+/* 死区（2026-10-12 起可在串口在线调）：控制循环按是否平移自动切换 —— 静止旋转 chassis.yaw_dz_turn
+   防来回飘，走直线(有平移) chassis.yaw_dz_move 让1°内偏航也被纠正（平移档低/高速共用这一套）。
+   串口改：ydz1 f 值 / ydz2 f 值（上电初值 = chassis.h 的 YAW_DEAD_ZONE_TURN / YAW_DEAD_ZONE_MOVE）。 */
 
 typedef struct{
   void *p;        //某一个参数变量的地址
@@ -305,6 +305,19 @@ void SERIALPLOT_ChangeParam(char *string){
     }
   }
 
+  /* ★ 航向环死区在线调（2026-10-12 加：原为编译期宏 YAW_DEAD_ZONE_TURN/_MOVE，改一次要重烧一次）
+       ydz1 f 1.2    旋转死区（°）—— 静止旋转(无平移)工况用这个，原 YAW_DEAD_ZONE_TURN
+       ydz2 f 0.05   平移死区（°）—— 走直线(有平移)工况用这个，原 YAW_DEAD_ZONE_MOVE
+     用法与 ykp1/2/3 一致：参数名 + 档号，类型 f/i 都读同一个 val，例如 ydz1 f 0.8
+     ★ 档号只有 1/2，不是 1/2/3 —— 死区只按"有无平移"分两套，跟 kp/ki/kd/bias 的三档不是一回事
+       （低速平移档和高速平移档共用同一个平移死区）。
+     ★ 这个死区同时是 ROBOT_Angle 的"到位"判据（进死区 且 四轮停稳 连续 200ms 才返回）：
+       调小 = 要求车纠得更准，但小误差下 w 只剩几 cm/s，靠增量式速度环慢慢累积分才推得动，
+       可能一直进不去 ⇒ ROBOT_Angle 频繁等满 YAW_STOP_TIMEOUT_MS 才放行。
+     调完请填回 chassis.h 的 YAW_DEAD_ZONE_* 两个宏（内存值，复位/重烧即丢）。 */
+  if(strcmp(str_name, "ydz1") == 0){ chassis.yaw_dz_turn = val; return; }
+  if(strcmp(str_name, "ydz2") == 0){ chassis.yaw_dz_move = val; return; }
+
   /* 参数查询（2026-09-18 加）：发 "pq i 0" → 串口打印当前参数。
      内容（★2026-09-27 起"两套速度环参数分开打"，认字母前缀即可）：
        W1~W4  = **增量式**速度环（speed_seg 表，改它的是 skp/ski/skd 与 kp1~4/ki1~4/kd1~4）
@@ -340,6 +353,8 @@ void SERIALPLOT_ChangeParam(char *string){
                    chassis.yaw_param[st].kp, chassis.yaw_param[st].ki,
                    chassis.yaw_param[st].kd, chassis.yaw_param[st].bias);
     }
+    /* 航向环死区（2026-10-12 加），改它的是 ydz1 / ydz2 */
+    UART1_Printf("YAW_DZ turn%f move%f\r\n", chassis.yaw_dz_turn, chassis.yaw_dz_move);
     /* 校准微调三个旋钮（2026-10-07 加）：nspd/ncrl/nbrk 改完用它确认
        （★都是内存值，复位/重烧回默认宏 NUDGE_*_DFT，调好记得填回 chassis.h） */
     UART1_Printf("NUD spd%f crl%f brk%f\r\n",

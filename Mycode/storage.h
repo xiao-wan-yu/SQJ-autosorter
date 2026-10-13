@@ -45,8 +45,13 @@ typedef struct{
   int32_t R_LiZhuang_Cir_y;  //红方-立柱-绕圈目标y距离  145
   int32_t B_LiZhuang_Cir_y;  //蓝方-立柱-绕圈目标y距离  145
 
-  int32_t R_HuiJia_x;  //红方-回家-x移动距离  11
-  int32_t B_HuiJia_x;  //蓝方-回家-x移动距离  -33
+  int32_t R_YuanHuan_Delay_x;  //红方-圆环-x延迟时间  440
+  int32_t B_YuanHuan_Delay_x;  //蓝方-圆环-x延迟时间  320
+  int32_t R_YuanHuan_Target_y;  //红方-圆环-目标y距离  55
+  int32_t B_YuanHuan_Target_y;  //蓝方-圆环-目标y距离  55
+
+  int32_t R_HuiJia_x;  //红方-回家-x移动距离  12
+  int32_t B_HuiJia_x;  //蓝方-回家-x移动距离  -31
   int32_t C_HuiJia_y;  //共同-回家-y移动距离  -6
 
 }STORAGE_TYPE;//SRAM结构体类型

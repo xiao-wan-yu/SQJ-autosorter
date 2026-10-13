@@ -524,6 +524,91 @@ void Show_B_LiZhuang_Cir_y_Window(void){
 
 
 
+/*圆环相关*/
+MenuWindow R_YuanHuan_Delay_x_Window = {
+	.General_Width = 80,								//窗口宽度
+	.General_Height = 28, 							//窗口高度
+	.Text_String = "R_Delay_x",					//窗口标题
+	.Text_FontSize = OLED_UI_FONT_12,				//字高
+	.Text_FontSideDistance = 4,							//字体距离左侧的距离
+	.Text_FontTopDistance = 3,							//字体距离顶部的距离
+	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
+	.General_ContinueTime = 4.0,						//窗口持续时间
+	.Prob_Data_Int_32 = &STORAGE_Data.R_YuanHuan_Delay_x,				//显示的变量地址
+	.Prob_DataStep = 5,								//步长
+	.Prob_MinData = 0,									//最小值
+	.Prob_MaxData = 1000, 								//最大值
+	.Prob_BottomDistance = 3,							//底部间距
+	.Prob_LineHeight = 8,								//进度条高度
+	.Prob_SideDistance = 4,
+};
+void Show_R_YuanHuan_Delay_x_Window(void){
+	OLED_UI_CreateWindow(&R_YuanHuan_Delay_x_Window);
+}
+MenuWindow B_YuanHuan_Delay_x_Window = {
+	.General_Width = 80,								//窗口宽度
+	.General_Height = 28, 							//窗口高度
+	.Text_String = "B_Delay_x",					//窗口标题
+	.Text_FontSize = OLED_UI_FONT_12,				//字高
+	.Text_FontSideDistance = 4,							//字体距离左侧的距离
+	.Text_FontTopDistance = 3,							//字体距离顶部的距离
+	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
+	.General_ContinueTime = 4.0,						//窗口持续时间
+	.Prob_Data_Int_32 = &STORAGE_Data.B_YuanHuan_Delay_x,				//显示的变量地址
+	.Prob_DataStep = 5,								//步长
+	.Prob_MinData = 0,									//最小值
+	.Prob_MaxData = 1000, 								//最大值
+	.Prob_BottomDistance = 3,							//底部间距
+	.Prob_LineHeight = 8,								//进度条高度
+	.Prob_SideDistance = 4,
+};
+void Show_B_YuanHuan_Delay_x_Window(void){
+	OLED_UI_CreateWindow(&B_YuanHuan_Delay_x_Window);
+}
+MenuWindow R_YuanHuan_Target_y_Window = {
+	.General_Width = 80,								//窗口宽度
+	.General_Height = 28, 							//窗口高度
+	.Text_String = "R_Target_y",					//窗口标题
+	.Text_FontSize = OLED_UI_FONT_12,				//字高
+	.Text_FontSideDistance = 4,							//字体距离左侧的距离
+	.Text_FontTopDistance = 3,							//字体距离顶部的距离
+	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
+	.General_ContinueTime = 4.0,						//窗口持续时间
+	.Prob_Data_Int_32 = &STORAGE_Data.R_YuanHuan_Target_y,				//显示的变量地址
+	.Prob_DataStep = 1,								//步长
+	.Prob_MinData = 0,									//最小值
+	.Prob_MaxData = 300, 								//最大值
+	.Prob_BottomDistance = 3,							//底部间距
+	.Prob_LineHeight = 8,								//进度条高度
+	.Prob_SideDistance = 4,
+};
+void Show_R_YuanHuan_Target_y_Window(void){
+	OLED_UI_CreateWindow(&R_YuanHuan_Target_y_Window);
+}
+MenuWindow B_YuanHuan_Target_y_Window = {
+	.General_Width = 80,								//窗口宽度
+	.General_Height = 28, 							//窗口高度
+	.Text_String = "B_Target_y",					//窗口标题
+	.Text_FontSize = OLED_UI_FONT_12,				//字高
+	.Text_FontSideDistance = 4,							//字体距离左侧的距离
+	.Text_FontTopDistance = 3,							//字体距离顶部的距离
+	.General_WindowType = WINDOW_ROUNDRECTANGLE, 	//窗口类型
+	.General_ContinueTime = 4.0,						//窗口持续时间
+	.Prob_Data_Int_32 = &STORAGE_Data.B_YuanHuan_Target_y,				//显示的变量地址
+	.Prob_DataStep = 1,								//步长
+	.Prob_MinData = 0,									//最小值
+	.Prob_MaxData = 300, 								//最大值
+	.Prob_BottomDistance = 3,							//底部间距
+	.Prob_LineHeight = 8,								//进度条高度
+	.Prob_SideDistance = 4,
+};
+void Show_B_YuanHuan_Target_y_Window(void){
+	OLED_UI_CreateWindow(&B_YuanHuan_Target_y_Window);
+}
+
+
+
+
 /*回家相关*/
 MenuWindow R_HuiJia_x_Window = {
 	.General_Width = 80,								//窗口宽度
@@ -620,6 +705,7 @@ MenuItem ParamMenuItems[] = {
 	{.General_item_text = "GetTarget",.General_callback = NULL,.General_SubMenuPage = &Param_GetTargetMenuPage,.List_BoolRadioBox = NULL},
 	{.General_item_text = "JieTi",.General_callback = NULL,.General_SubMenuPage = &Param_JieTiMenuPage,.List_BoolRadioBox = NULL},
 	{.General_item_text = "LiZhuang",.General_callback = NULL,.General_SubMenuPage = &Param_LiZhuangMenuPage,.List_BoolRadioBox = NULL},
+	{.General_item_text = "YuanHuan",.General_callback = NULL,.General_SubMenuPage = &Param_YuanHuanMenuPage,.List_BoolRadioBox = NULL},
 	{.General_item_text = "HuiJia",.General_callback = NULL,.General_SubMenuPage = &Param_HuiJiaMenuPage,.List_BoolRadioBox = NULL},
 	{.General_item_text = "exitcancel",.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = &oled_ui_exit_cancel},
 	{.General_item_text = NULL},/*最后一项的General_item_text置为NULL，表示该项为分割线*/
@@ -666,6 +752,14 @@ MenuItem Param_LiZhuangMenuItems[] = {
 	{.General_item_text = "B_Mid_y",.General_callback = Show_B_LiZhuang_Mid_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = "R_Cir_y",.General_callback = Show_R_LiZhuang_Cir_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = "B_Cir_y",.General_callback = Show_B_LiZhuang_Cir_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
+	{.General_item_text = "exit&save",.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = &oled_ui_exit_save},
+	{.General_item_text = NULL},/*最后一项的General_item_text置为NULL，表示该项为分割线*/
+};
+MenuItem Param_YuanHuanMenuItems[] = {
+	{.General_item_text = "R_Delay_x",.General_callback = Show_R_YuanHuan_Delay_x_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
+	{.General_item_text = "B_Delay_x",.General_callback = Show_B_YuanHuan_Delay_x_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
+	{.General_item_text = "R_Target_y",.General_callback = Show_R_YuanHuan_Target_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
+	{.General_item_text = "B_Target_y",.General_callback = Show_B_YuanHuan_Target_y_Window,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = "exit&save",.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = &oled_ui_exit_save},
 	{.General_item_text = NULL},/*最后一项的General_item_text置为NULL，表示该项为分割线*/
 };
@@ -871,6 +965,25 @@ MenuPage Param_HuiJiaMenuPage = {
 	.General_MovingSpeed = SPEED,					//动画移动速度(此值根据实际效果调整)
 	.General_ShowAuxiliaryFunction = NULL,		 //显示辅助函数
 	.General_MenuItems = Param_HuiJiaMenuItems,		 //菜单项内容数组
+
+	//特殊属性，根据.General_MenuType的类型选择
+	.List_MenuArea = {0, 0, 128, 64},			 //列表显示区域
+	.List_IfDrawFrame = true,					 //是否显示边框
+	.List_IfDrawLinePerfix = true,				 //是否显示行前缀
+	.List_StartPointX = 4,                        //列表起始点X坐标
+	.List_StartPointY = 2,                        //列表起始点Y坐标
+};
+MenuPage Param_YuanHuanMenuPage = {
+	//通用属性，必填
+	.General_MenuType = MENU_TYPE_LIST,  		 //菜单类型为列表类型
+	.General_CursorStyle = REVERSE_ROUNDRECTANGLE,	 //光标类型为圆角矩形
+	.General_FontSize = OLED_UI_FONT_12,			//字高
+	.General_ParentMenuPage = &ParamMenuPage,		 //父菜单
+	.General_LineSpace = 6,						//行间距 单位：像素
+	.General_MoveStyle = UNLINEAR,				//移动方式为非线性曲线动画
+	.General_MovingSpeed = SPEED,					//动画移动速度(此值根据实际效果调整)
+	.General_ShowAuxiliaryFunction = NULL,		 //显示辅助函数
+	.General_MenuItems = Param_YuanHuanMenuItems,		 //菜单项内容数组
 
 	//特殊属性，根据.General_MenuType的类型选择
 	.List_MenuArea = {0, 0, 128, 64},			 //列表显示区域

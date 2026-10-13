@@ -23,11 +23,12 @@ AboutOLED_UIMenuPage,MoreMenuPage,Font8MenuPage,Font12MenuPage,Font16MenuPage
 extern MenuItem MainMenuItems[], ParamMenuItems[], DebugMenuItems[], 
 SensorMenuItems[], Param_ChuFaMenuItems[], Param_YuanPanMenuItems[], 
 Param_GetTargetMenuItems[], Param_JieTiMenuItems[], Param_LiZhuangMenuItems[],
- Param_HuiJiaMenuItems[];
+ Param_HuiJiaMenuItems[], Param_YuanHuanMenuItems[];
 
 extern MenuPage MainMenuPage, ParamMenuPage,
 Param_ChuFaMenuPage, Param_YuanPanMenuPage, Param_GetTargetMenuPage,
-Param_JieTiMenuPage, Param_LiZhuangMenuPage, Param_HuiJiaMenuPage;
+Param_JieTiMenuPage, Param_LiZhuangMenuPage, Param_HuiJiaMenuPage,
+Param_YuanHuanMenuPage;
 extern bool oled_ui_exit_save, oled_ui_exit_cancel, sensor_data_show;
 
 
