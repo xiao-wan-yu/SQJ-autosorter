@@ -71,8 +71,6 @@ void CHASSIS_Init(void){
      上电初值仍取那两个宏，之后运行期只认这两个字段，串口 ydz1 / ydz2 在线改 */
   chassis.yaw_dz_turn = YAW_DEAD_ZONE_TURN;
   chassis.yaw_dz_move = YAW_DEAD_ZONE_MOVE;
-  /* 加速转向开关（2026-10-13 加）：上电默认关，只有 main.c 圆盘机那次转向成对置 1/0 */
-  chassis.yaw_kp_boost = 0;
   chassis.yaw_pid.kp          = YAW_TURN_KP;   // 打底值（每周期被控制循环按档覆盖）
   chassis.yaw_pid.ki          = YAW_TURN_KI;
   chassis.yaw_pid.kd          = YAW_TURN_KD;
@@ -585,13 +583,6 @@ void CHASSIS_Control_Loop(void){
     chassis.yaw_pid.kp = yaw_on ? yp->kp : 0.0f;   // 不介入 → 三项全 0，PID 输出恒 0
     chassis.yaw_pid.ki = yaw_on ? yp->ki : 0.0f;
     chassis.yaw_pid.kd = yaw_on ? yp->kd : 0.0f;
-    /* 加速转向（2026-10-13 加，见 chassis.h 的 YAW_KP_BOOST_*）：开关打开且误差还很大时
-       kp 翻倍，让大角度段转得更快；误差掉进阈值以内自动回落正常 kp，末端不冲头。
-       error0 此刻读到的还是上一周期的值（PID_Angle 内部才更新），20ms 的滞后对大角度转向无感。
-       开关为 0 时这里只是一次判断，不改变任何行为。 */
-    if(chassis.yaw_kp_boost && fabsf(chassis.yaw_pid.error0) > YAW_KP_BOOST_TH){
-      chassis.yaw_pid.kp *= YAW_KP_BOOST_GAIN;
-    }
     PID_Angle(&chassis.yaw_pid);                   // 输出 w（rad/s，逆时针为正）；error0 已做最短路径归一化(±180)
     /* 输出偏置（静摩擦补偿，每档一个，见 chassis.h）：误差只剩零点几度时 P 项输出的 w
        经麦轮解算只剩几 cm/s，推不动轮子 ⇒ 叠一个与误差同向的固定偏置，保证任何非零误差

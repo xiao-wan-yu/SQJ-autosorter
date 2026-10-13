@@ -147,21 +147,11 @@ typedef enum {
 
 #define YAW_PID_OUT_MAX  2.8f    // w 输出上限 rad/s
 #define YAW_PID_OUT_MIN  (-2.8f) // w 输出下限 rad/s
-
-/* ---- 加速转向（2026-10-13 加，给圆盘机抢黄球那次 90° 转向提速用） ----
-   用途：原地大角度转向时初段太慢 —— 误差 90° 下 kp 只有 -0.0136，w 太小。
-   由 chassis.yaw_kp_boost 开关控制（main.c 在 ROBOT_Angle 前后成对置 1/0）：
-   开关打开期间，误差绝对值超过 YAW_KP_BOOST_TH 时把 kp 乘上 YAW_KP_BOOST_GAIN，
-   误差掉回阈值以内自动回落正常 kp（末端仍按原参数收，不冲头）。
-   ★ 阈值/倍率都在这里改，不要在 main.c 里写死数字。 */
-#define YAW_KP_BOOST_TH    20.0f   // 加速转向阈值（°）：|误差| 超过它才翻倍
-#define YAW_KP_BOOST_GAIN  2.2f    // 加速转向倍率：kp = kp × 该值
 #define YAW_DEAD_ZONE_TURN  1.20f   // 静止旋转死区（°）：误差进入该范围 → w 归零（只归零 w，不停速度环）
                                     // 防小w输出累加到增量式速度环PWM、克服静摩擦猛动造成来回飘动（实测有效）
                                     // 2026-09-19 用户定 0.92（1.0 → 0.65 → 0.75 → 0.92，实测微调）
                                     // ★ 只是上电初值：运行期取 chassis.yaw_dz_turn（2026-10-12 由宏改成变量，
-                                    //    串口 ydz1 在线调），控制循环不再读本宏；其他文件一律引用
-                                    // 字段、不写死数字
+                                    //    串口 ydz1 在线调），控制循环不再读本宏；其他文件一律引用字段、不写死数字
                                     // ★ 死区同时是"到位"判据（ROBOT_Angle 靠它返回）：改小就是要求车多纠
                                     //   那点角度，而小误差下 w 只等效几 cm/s、靠增量式速度环慢慢累积分
                                     //   才推得动，可能推不进去。若 ROBOT_Angle 开始频繁等满
@@ -308,13 +298,6 @@ typedef struct {
          跟 ykp1/2/3 一个道理：宏改一次就要重烧一次。 */
     float    yaw_dz_turn;        // 静止旋转(无平移)死区：误差进入该范围 → w 归零（只归零 w，不停速度环）
     float    yaw_dz_move;        // 走直线(有平移)死区：更小，让1°内偏航也被纠正；低速/高速平移共用这一个
-    /* 加速转向开关（2026-10-13 加，见 chassis.h 的 YAW_KP_BOOST_*）：
-       0=关（上电默认，全工程除下面那一处外都是 0）
-       1=开 ⇒ 控制循环里 |error0| > YAW_KP_BOOST_TH 时把本档 kp 乘 YAW_KP_BOOST_GAIN
-       ★ 为什么用开关而不是直接改 yaw_pid.kp 或 yaw_param[].kp：控制循环每周期都会用
-         yaw_param[档].kp 覆盖 yaw_pid.kp（改前者下一拍就被冲掉），改后者又会让所有旋转
-         永久翻倍。只有让控制循环自己判开关，才能做到"只给某一次转向提速"。 */
-    uint8_t  yaw_kp_boost;
     /* 航向环档位状态（见 YAW_STAGE_*）：控制循环每周期刷新，ROBOT_Angle 靠它判断到位且停稳 */
     uint8_t  yaw_stage;          // 当前档位（YAW_STAGE_TURN/MOVE_LO/MOVE_HI/STOP）
     uint8_t  yaw_gear;           // ★档位编码（仅供串口观察，不参与控制）：0旋转 1不介入 2低速 3高速

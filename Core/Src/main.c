@@ -2260,11 +2260,7 @@ for(uint8_t i=0;i<5;i++){ ROBOT_MoveSpeed(20,0); HAL_Delay(15);
     chassis.yaw_pid.out_max = 6.0;
     chassis.yaw_pid.out_min = -6.0;
     chassis.yaw_dz_turn = 2.2;
-    /* ★2026-10-13 抢黄球提速：本次转向开启 kp 倍率 —— 误差 >40° 时 kp ×2（阈值/倍率见
-       chassis.h 的 YAW_KP_BOOST_TH / YAW_KP_BOOST_GAIN），转完立刻关掉，只影响这一次。 */
-    chassis.yaw_kp_boost = 1;
     mode_red ? ROBOT_Angle(270) : ROBOT_Angle(90);
-    chassis.yaw_kp_boost = 0;
     chassis.yaw_pid.out_max     = YAW_PID_OUT_MAX;
     chassis.yaw_pid.out_min     = YAW_PID_OUT_MIN;
     chassis.yaw_dz_turn = YAW_DEAD_ZONE_TURN;
@@ -2305,7 +2301,8 @@ YUANPANJI_START:;
     ROBOT_MoveSpeed(0, SPD_AVG_V);  /* ★匀速靠近：SPD_AVG_V */
     //探头2太往后，但是不稍微往前一点，后撤步撤不出来，故现在用第三个探头（3稍微远了很多，到时候也可以考虑2）
     //3太往前了
-    while(GRAY_Data[GRAY3][2] == 0)//探头3为0(黑)继续走，读到1(白)即停
+    //10.13第一个灯直接停，不再后退
+    while(GRAY_Data[GRAY3][0] == 0)//探头3为0(黑)继续走，读到1(白)即停
     {
       GRAY_Update();
       if((HAL_GetTick() - line_t0) > LINE_MAX_MS){    /* ★兜底：一直没白线也别无限走 */
@@ -2382,13 +2379,13 @@ YUANPANJI_START:;
                    (unsigned long)(HAL_GetTick() - line_t0));
 
     //往后走一点点(★短距 2cm；往前会拍不到球)
-    ROBOT_Move(0, mode_red ? STORAGE_Data.R_YuanPan_y : STORAGE_Data.B_YuanPan_y, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //★-6 改成 Flash 参数(菜单可调)
+    //ROBOT_Move(0, mode_red ? STORAGE_Data.R_YuanPan_y : STORAGE_Data.B_YuanPan_y, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //★-6 改成 Flash 参数(菜单可调)
 
     //(不需要后退了，直接灰度校准更准确)
 
     //走到位后，放到识别状态
     runActionGroup(4, 1);
-    delay_ms(200);//200ms可能卡太死了，动作组可能没执行完（动作组刚好200ms）
+    delay_ms(200);
     UART2_Printf("%c", 0xA1);//发0xA1告诉主视觉进入圆盘机识别
 
     /******************** 圆盘机视觉处理代码 ********************/
@@ -2423,9 +2420,8 @@ YUANPANJI_START:;
             ★为什么从 300 改成 650（比赛实测：记够10个却只拍了5个球就走了）：300ms 比“一个球在画面里停
               留的时间”还短 → 同一个球被拍了2次，10次计数其实只过了约5个球（667/300≈2.2拍/球）；
               650≈667 时同一个球不会被拍两次，球流不断时基本"一球一拍"。 */
-              /*2026.10.11把冷却时间从650改到550，550好像导致分流板出问题，确实是了，550不行，650可以，但是有点慢，第一个球是中间拍球
-              第二个就变成边缘拍了，冷却600也不行，只能是650*/
-    const uint32_t YPJ_HIT_COOLDOWN_MS = 600;   /* 冷却窗口：400 < 值 < 球间隔667 */
+              //2026.10.11把冷却时间从650改到550，550和600都不行，必须是650
+    const uint32_t YPJ_HIT_COOLDOWN_MS = 650;   /* 冷却窗口：400 < 值 < 球间隔667 */
     const uint16_t YPJ_RUN_GAP_MS = 100;       /* ★标定用：相邻两帧"有球"的间隔≥100ms 就认为上一个球已离开画面 */
     const uint8_t  YPJ_HIT_LOG = 1;            /* 1=开日志 0=关 */
     const uint8_t  YPJ_HIT_MAX = 10;           /* ★拍球次数上限：实拍够10个球就不再等视觉，强制退出圆盘机阶段 */
@@ -2508,10 +2504,8 @@ YUANPANJI_START:;
                                 不管是下面“第一个球只跳过不拍”还是真发了动作组，都算“触发过拍球”，
                                 所以球流不断就永远不会走到 9s 强制退出；球流一断，9s 后自动收摊。 */
               ypj_no_hit_ref_t = now;
-              //如果第一个球在屏幕右边1/3，此时触发拍球不会拍掉下一个，可以正常拍
-              //如果是第一个球，而且已经过了1/3的适合拍球窗口，才跳过
-              //100太宽了
-              if(ypj_first_skipped == 0 && cam_x >= 50){      /* 识别到的第一个球：只跳过、不拍，从第二个球开始正常拍 */
+              //第一个球能拍就拍
+              if(ypj_first_skipped == 0 && cam_x >= 40){      /* 识别到的第一个球：只跳过、不拍，从第二个球开始正常拍 */
                 HAL_Delay(100);  // 等待一段时间确保第一个球已经出了视野再把 ypj_first_skipped 置 1，否则连续两球间隔很短时可能第二个球还没出画面就被拍了
                 ypj_first_skipped = 1;
                 if(YPJ_HIT_LOG)
@@ -2956,6 +2950,16 @@ JIETI_START:
             /* 换阶梯那一步(第2→3个、第6→7个，就是动作组 57/60/63 切换处)隔得远，走 JIETI_STEP_CROSS_CM；
                             同一个阶梯里相邻坑走 JIETI_STEP_CM */
             int32_t step_cm = (idx == 3 || idx == 7) ? STORAGE_Data.C_Jieti_Cross_x : STORAGE_Data.C_JitTi_Step_x;
+            //矮阶梯第二个坑可能卡
+            if(idx == 2){
+              runActionGroup(69,1);
+              HAL_Delay(200);
+            }
+            if(idx == 3){
+              runActionGroup(69,1);
+              HAL_Delay(200);
+            }
+
             ROBOT_Move(step_cm, 0, JIETI_STEP_SPEED, 0, JIETI_STEP_ACC, 0);
             HAL_Delay(750);                       //停稳再校准
             mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));
@@ -3312,7 +3316,7 @@ HUIJIA_START:
           ROBOT_Angle(Yaw_Abs(0));
           //往后多走一点(★长距档 120/120)，必须保证前后在左右移动后能进入红/蓝区域
           
-          //用回家专属复位动作组
+          //回家专属
           runActionGroup(161, 1);
           //蓝退多点
           ROBOT_Move(mode_red ? 28 : -28, mode_red ? -215 : -230, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);//60，-240能进
