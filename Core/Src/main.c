@@ -1982,6 +1982,23 @@ int main(void)
     }
   }
 
+  if(!KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){
+    TCS34725_RGBC rgbc;
+    while(1){
+      TCS34725_GetRawData(&rgbc);
+      UART1_Printf("COL C=%5u R=%5u G=%5u B=%5u H=%6.1f S=%.3f V=%.3f -> %s\r\n",
+                  (unsigned)rgbc.c, (unsigned)rgbc.r, (unsigned)rgbc.g, (unsigned)rgbc.b,
+                  (double)rgbc.h, (double)rgbc.s, (double)rgbc.v,
+                  TCS34725_ColorName(TCS34725_ClassifyColor(&rgbc)));
+      OLED_Printf(0, 0, OLED_8X16_HALF, "C=%5u R=%5u", (unsigned)rgbc.c, (unsigned)rgbc.r);
+      OLED_Printf(0, 16, OLED_8X16_HALF, "G=%5u B=%5u", (unsigned)rgbc.g, (unsigned)rgbc.b);
+      OLED_Printf(0, 32, OLED_8X16_HALF, "H=%6.1f S=%.3f", (unsigned)rgbc.h, (unsigned)rgbc.s);
+      OLED_Printf(0, 48, OLED_8X16_HALF, "V=%.3f -> %s", (double)rgbc.v,
+      TCS34725_ColorName(TCS34725_ClassifyColor(&rgbc)));
+      OLED_Update();
+    }
+  }
+
   HAL_Delay(100);
   HWT101CT_Init();//陀螺仪初始化
   HAL_UARTEx_ReceiveToIdle_DMA(&huart3, UART3_RxBuf, UART3_RxLength);//陀螺仪串口
@@ -2580,7 +2597,7 @@ YUANPANJI_START:;
       runActionGroup(160, 1);  // 收起机械臂
       //不需要延时，和跑图一起
       //向左平行到仓库(★长距档 120/120)
-      ROBOT_Move(mode_red ? -190 : 195,0,SPD_LONG_V,SPD_LONG_V,SPD_LONG_A,SPD_LONG_A);//蓝要多走一点
+      ROBOT_Move(mode_red ? -190 : 200,0,SPD_LONG_V,SPD_LONG_V,SPD_LONG_A,SPD_LONG_A);//蓝要多走一点
       //转身(ROBOT_Move 已阻塞到车停稳，不用再补 HAL_Delay(100))
       //★绝对角一律过 Yaw_Abs()：全流程 shift=0 原样(红90/蓝270)；单独测圆盘机(shift=270)时
       //  红方 Yaw_Abs(90)=180、蓝方 Yaw_Abs(270)=180 = 从“圆盘机那一拍朝向”转半圈进仓库，
@@ -3366,7 +3383,7 @@ HUIJIA_START:
         HAL_Delay(50);
       }
     }
-    
+
     //颜色传感器校准前后：如果为黑色，匀速往后走，直到进入红/蓝区域（连续3次确认）
     ROBOT_MoveSpeed(0, -SPD_AVG_V);   //★匀速靠近：SPD_AVG_V
     {
