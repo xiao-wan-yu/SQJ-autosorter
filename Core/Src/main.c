@@ -1093,7 +1093,7 @@ static void LiZhu_Circle_Run(void)
   /* ===== ① 三个可调参数（开环基本圆 + 反馈强度都在这三行）===== */
   const float V_TAN  = 10.0f;               // 切向速度 cm/s(>0 逆时针 <0 顺时针)
   const float W_TURN = 16.4f;               // 车头摆速 °/s(只填正的，大小由上面公式算)
-  const float V_RAD  = 3.7f;                // 径向速度 cm/s(仅 FB_DIST=1 有效：路线像椭圆→加；一冲一停→减)
+  const float V_RAD  = 3.0f;                // 径向速度 cm/s(仅 FB_DIST=1 有效：路线像椭圆→加；一冲一停→减)，3.0和2.6好像都还行
   /* ★W_TURN = V_TAN/r×57.3，r 由几何定死(见函数头) */
   /* r 由几何定死：车心到柱轴 = 前测距(立柱校准停在 170mm) + 传感器到车心 14 + 柱半径 4 = 35cm */
 
@@ -1102,9 +1102,9 @@ static void LiZhu_Circle_Run(void)
   const uint8_t FB_LASER = 1;               // 双激光反馈：一个有一个没有→横向偏了(调 w)
 
   /* ===== ③ 激光反馈参数（仅 FB_LASER=1 用）===== */
-  const float LAS_YAW = 4.0f;               // 偏了时额外加的车头摆速 °/s（纠偏主力；方向反了取负）
-  const float LAS_TAN = -2.0f;               // 额外切向速度 cm/s(默认不用；想试改成 1~3，别超 V_TAN 一半)
-
+  const float LAS_YAW = 4.0f;               // 偏了时额外加的车头摆速 °/s（纠偏主力；方向反了取负）//10.15前是4.0，好像是偏了旋转向内太多了
+  const float LAS_TAN = -2.0f;               // 额外切向速度 cm/s(默认不用；想试改成 1~3，别超 V_TAN 一半)//10.15前是-2.0
+                                            // 确实应该是负，因为偏了需要减速，让车头转进来
   /* ===== DEFAULT：定死常数（不用调，理由都写在这）===== */
   const float RAD_FULL_CM = 3.0f;           // 测距反馈满幅误差：≥3cm 都按满幅算（斜率=V_RAD/3cm，写死）
   const float RAD_DEAD_CM = 0.3f;           // 测距反馈死区 ±3mm
@@ -1982,7 +1982,7 @@ int main(void)
     }
   }
 
-  if(!KEY_ONE(KEY1_GPIO_Port, KEY1_Pin)){
+  if(!HAL_GPIO_ReadPin(KEY1_GPIO_Port, KEY1_Pin)){
     TCS34725_RGBC rgbc;
     while(1){
       TCS34725_GetRawData(&rgbc);
@@ -2319,7 +2319,8 @@ YUANPANJI_START:;
     //探头2太往后，但是不稍微往前一点，后撤步撤不出来，故现在用第三个探头（3稍微远了很多，到时候也可以考虑2）
     //3太往前了
     //10.13第一个灯直接停，不再后退
-    while(GRAY_Data[GRAY3][0] == 0)//探头3为0(黑)继续走，读到1(白)即停
+    //10.15后退
+    while(mode_red ? (GRAY_Data[GRAY3][3] == 0) : (GRAY_Data[GRAY3][2] == 0))//探头3为0(黑)继续走，读到1(白)即停
     {
       GRAY_Update();
       if((HAL_GetTick() - line_t0) > LINE_MAX_MS){    /* ★兜底：一直没白线也别无限走 */
@@ -2396,7 +2397,7 @@ YUANPANJI_START:;
                    (unsigned long)(HAL_GetTick() - line_t0));
 
     //往后走一点点(★短距 2cm；往前会拍不到球)
-    //ROBOT_Move(0, mode_red ? STORAGE_Data.R_YuanPan_y : STORAGE_Data.B_YuanPan_y, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //★-6 改成 Flash 参数(菜单可调)
+    ROBOT_Move(0, mode_red ? STORAGE_Data.R_YuanPan_y : STORAGE_Data.B_YuanPan_y, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //★-6 改成 Flash 参数(菜单可调)
 
     //(不需要后退了，直接灰度校准更准确)
 
@@ -2597,7 +2598,7 @@ YUANPANJI_START:;
       runActionGroup(160, 1);  // 收起机械臂
       //不需要延时，和跑图一起
       //向左平行到仓库(★长距档 120/120)
-      ROBOT_Move(mode_red ? -190 : 200,0,SPD_LONG_V,SPD_LONG_V,SPD_LONG_A,SPD_LONG_A);//蓝要多走一点
+      ROBOT_Move(mode_red ? -190 : 200,0,SPD_SHORT_V,0,SPD_SHORT_A,0);//蓝要多走一点
       //转身(ROBOT_Move 已阻塞到车停稳，不用再补 HAL_Delay(100))
       //★绝对角一律过 Yaw_Abs()：全流程 shift=0 原样(红90/蓝270)；单独测圆盘机(shift=270)时
       //  红方 Yaw_Abs(90)=180、蓝方 Yaw_Abs(270)=180 = 从“圆盘机那一拍朝向”转半圈进仓库，
@@ -3034,14 +3035,16 @@ JIETI_START:
             runActionGroup(act, 1);
             delay_ms((act == 60) ? 5500 : ((act == 57) ? 3500 : 4300));                          //★等待=动作组总时长+500ms：57矮=3000+500 / 60高=5000+500 / 63中=3800+500
             runActionGroup(66, 1);                   //夹完回到识别状态
-            delay_ms(1900);                          //66回识别=动作组总时长1400ms+500ms
+            delay_ms(2600);                          //66回识别=动作组总时长2100ms+500ms
             JieTi_FlushVision();                     //清掉夹取期间滞留的旧帧
           }
 
           /* ---- M5.3 夹圆环(视觉 cmd=0x02)：结构同上面夹方块，只换一套动作组 ----
                      ★分档与方块一致：第1~2坑=矮(80) / 第3~6坑=高(83) / 第7~8坑=中(86)；
                      ★等待=该动作组总时长(各帧 runTime 累加)+500ms，改了动作文件要同步改这个数。 */
-          if(need_ring){
+          
+            //if(need_ring){
+            if(0){//10.15不做圆环了
             uint8_t act = (idx <= 2) ? 80 : ((idx <= 6) ? 83 : 86);   //80矮 / 83高 / 86中阶梯夹圆环
             runActionGroup(act, 1);
             delay_ms((act == 83) ? 6100 : ((act == 80) ? 5400 : 5900));   //★等待=动作组总时长+500ms：80矮=4900+500 / 83高=5600+500 / 86中=5400+500
@@ -3312,9 +3315,9 @@ YUANHUAN_START:
           //补一个角度校准
           mode_red ? ROBOT_Angle(Yaw_Abs(270)) : ROBOT_Angle(Yaw_Abs(90));   //正面朝左(红)/朝右(蓝)
 
-          runActionGroup(92, 1);                          //④ 原地放圆环
-          //HAL_Delay(11400);                               //92放圆环=动作组总时长10900ms+500ms
-          HAL_Delay(8500);                               //新放圆环更快更稳7300+500=7800ms
+          //10.15不做圆环
+          //runActionGroup(92, 1);                          //④ 原地放圆环
+          //HAL_Delay(8500);                               //新放圆环更快更稳7300+500=7800ms
 
           //往右一点，后退，然后再转角度
           ROBOT_Move(15, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
