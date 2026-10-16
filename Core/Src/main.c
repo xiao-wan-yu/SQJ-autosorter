@@ -592,6 +592,66 @@ static void JieTi_Nudge_Y(int32_t err_mm){
                (int)((fabsf(chassis.dist_acc_y) - step_cm) * 10.0f));
   HAL_Delay(JIETI_NUDGE_SETTLE_MS);      //等 GY53 出新一帧再判（一定要等：不然拿的是挪车前的旧值）
 }
+/* 阶梯横向步进(X)：照搬 JieTi_Nudge_Y 的走法（速度阶跃起转 → 按剩余距离降速 → 断速反接 → 编码器判停），换成横向。
+   cmd_mm = 编码器该走的横向距离(mm)，语义同原 ROBOT_Move(step_cm, 0, ...)，所以菜单里那套补偿值不用重标。
+   旋钮：nspd 起转速度 / ncrl 收尾爬行下限 / nbrk 断速余量附加量。 */
+static void JieTi_Nudge_X(int32_t cmd_mm){
+  float sign = (cmd_mm >= 0) ? 1.0f : -1.0f;
+  float cmd  = fabsf((float)cmd_mm) / 10.0f;
+  if(cmd > 30.0f) cmd = 30.0f;
+  if(cmd < JIETI_NUDGE_MIN_CM) return;
+  float v_max = chassis.nudge_speed;
+  float v_min = chassis.nudge_crawl;
+  if(v_min > v_max) v_min = v_max;
+  float lim   = cmd - JIETI_NUDGE_MIN_LIM_CM;
+  float brake = v_min * v_min / (2.0f * JIETI_NUDGE_BRK_DEC)
+              + v_min * ENCODER_TIME_S + chassis.nudge_brake_cm;
+  if(brake < 0.0f) brake = 0.0f;
+  if(brake > lim)  brake = lim;
+  chassis.dist_acc_x = 0.0f;                    //自己清零：ROBOT_MoveSpeed 不动 dist_acc
+  JieTi_MoveSpeed(sign * v_max, 0.0f);          //① 起转：当拍写进速度环，越过起转死区
+  uint32_t t0 = HAL_GetTick(), t_up = t0, t_enc = t0;
+  float done_last = 0.0f;
+  while(1){
+    float done = fabsf(chassis.dist_acc_x);
+    uint32_t now = HAL_GetTick();
+    if(fabsf(done - done_last) > 0.005f){ done_last = done; t_enc = now; }
+    if(done >= cmd - brake) break;              //到断速线 → 去反接刹车
+    if((now - t0) > (uint32_t)((float)JIETI_NUDGE_TMO_MS + cmd * 100.0f)) break;
+    if(done >= JIETI_NUDGE_KICK_CM){            //② 收尾段
+      if((now - t_enc) > JIETI_NUDGE_STALL_MS && v_min < v_max){
+        v_min = v_max;                          //降速后推不动 → 剩下恢复全速
+        brake = v_max * v_max / (2.0f * JIETI_NUDGE_BRK_DEC)
+              + v_max * ENCODER_TIME_S + chassis.nudge_brake_cm;
+        if(brake < 0.0f) brake = 0.0f;
+        if(brake > lim)  brake = lim;
+      }
+      if((now - t_up) >= JIETI_NUDGE_UPD_MS){
+        t_up = now;
+        float v = JIETI_NUDGE_APP_KP * (cmd - brake - done);
+        if(v < v_min) v = v_min;
+        if(v > v_max) v = v_max;
+        JieTi_MoveSpeed(sign * v, 0.0f);
+      }
+    }
+    SERIALPLOT_WheelActualPump();
+    HAL_Delay(2);
+  }
+  JieTi_MoveSpeed(0.0f, 0.0f);                  //③ 断速 + 等停
+  t0 = HAL_GetTick();
+  uint8_t stop_cnt = 0;
+  while((HAL_GetTick() - t0) < JIETI_NUDGE_STOP_MS){
+    if(fabsf(chassis.now_v_x) < JIETI_NUDGE_STOP_TH && fabsf(chassis.now_v_y) < JIETI_NUDGE_STOP_TH){
+      if(++stop_cnt >= 3U) break;
+    }else{
+      stop_cnt = 0;
+    }
+    SERIALPLOT_WheelActualPump();
+    HAL_Delay(2);
+  }
+}
+
+
 
 /*前后测距校准(JieTi_Adjust_Y)：容差取 Flash 参数 C_JieTi_JiaoZhun_y1/y2(KEY0 菜单可调)
   ★退出条件：必须**连续 JIETI_Y_OK_CNT(默认3) 次读数**都在容差内才退出；中途任何一次超差就清零重数。
@@ -2524,7 +2584,8 @@ YUANPANJI_START:;
                                 所以球流不断就永远不会走到 9s 强制退出；球流一断，9s 后自动收摊。 */
               ypj_no_hit_ref_t = now;
               //第一个球能拍就拍
-              if(ypj_first_skipped == 0 && cam_x >= 40){      /* 识别到的第一个球：只跳过、不拍，从第二个球开始正常拍 */
+              //if(ypj_first_skipped == 0 && cam_x >= 40){      /* 识别到的第一个球：只跳过、不拍，从第二个球开始正常拍 */
+              if(ypj_first_skipped == 0){      /* 识别到的第一个球：只跳过、不拍，从第二个球开始正常拍 */
                 HAL_Delay(100);  // 等待一段时间确保第一个球已经出了视野再把 ypj_first_skipped 置 1，否则连续两球间隔很短时可能第二个球还没出画面就被拍了
                 ypj_first_skipped = 1;
                 if(YPJ_HIT_LOG)
@@ -2599,7 +2660,7 @@ YUANPANJI_START:;
       runActionGroup(160, 1);  // 收起机械臂
       //不需要延时，和跑图一起
       //向左平行到仓库(★长距档 120/120)
-      ROBOT_Move(mode_red ? -190 : 200,0,SPD_SHORT_V,0,SPD_SHORT_A,0);//蓝要多走一点
+      ROBOT_Move(mode_red ? -190 : 205,0,SPD_SHORT_V,0,SPD_SHORT_A,0);//蓝要多走一点
       //转身(ROBOT_Move 已阻塞到车停稳，不用再补 HAL_Delay(100))
       //★绝对角一律过 Yaw_Abs()：全流程 shift=0 原样(红90/蓝270)；单独测圆盘机(shift=270)时
       //  红方 Yaw_Abs(90)=180、蓝方 Yaw_Abs(270)=180 = 从“圆盘机那一拍朝向”转半圈进仓库，
@@ -2679,7 +2740,7 @@ ZHENGMIAN_START:            //★调试入口(KEY0选成ZM+KEY3开始)：goto �
         //右+前移动到阶梯附近:要往右多走点不然会撞；y160太远不利于视觉识别(★长距档 120/120)
         //要拆开两段走，否则会撞到：先走x后走y
         ROBOT_Move(0, 6, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);//防止卡脚
-        ROBOT_Move(80, 0, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
+        ROBOT_Move(80, 0, SPD_SHORT_V, 0, SPD_SHORT_A, 0);   //★横移 80cm：120 档峰值 98cm/s 超抓地极限打滑 → 只降 x 档
         ROBOT_Move(0, STORAGE_Data.C_GetTarget_y, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);   //★129 改成 Flash 参数(菜单可调)
 
         //向左慢走，直到前面的两个光电都感应到障碍物(右2坏了/左4拆了，复用立柱的)，4左2右
@@ -2979,8 +3040,9 @@ JIETI_START:
               HAL_Delay(200);
             }
 
-            for(uint8_t i = 1; i <= 4; i++) chassis.speed_pid_pos[i].kp = 14.0f;
-            ROBOT_Move(step_cm, 0, JIETI_STEP_SPEED, 0, JIETI_STEP_ACC, 0);
+            for(uint8_t i = 1; i <= 4; i++) chassis.speed_pid_pos[i].kp = 16.0f;   //14→16：收尾 8cm/s 也推得动
+            //ROBOT_Move(step_cm, 0, JIETI_STEP_SPEED, 0, JIETI_STEP_ACC, 0);       //原：纯时间开环梯形，短距必偏短
+            JieTi_Nudge_X(step_cm * 10);           //编码器判停的短距步进（见 JieTi_Nudge_X 注释）
             for(uint8_t i = 1; i <= 4; i++) chassis.speed_pid_pos[i].kp = 10.0f;
 
             HAL_Delay(750);                       //停稳再校准
@@ -3100,7 +3162,7 @@ JIETI_START:
         {
           
           //runActionGroup(160, 1);//复位,在这里执行不完
-          ROBOT_Move(20, -150, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
+          ROBOT_Move(20, -150, SPD_SHORT_V, SPD_LONG_V, SPD_SHORT_A, SPD_LONG_A);   //★只降 x 档（横移 20cm 打滑）
 
 
           //更换新跑图逻辑
@@ -3115,7 +3177,8 @@ JIETI_START:
 LIZHU_START:
 
           runActionGroup(101, 1);//机械臂抬起
-
+          //往左走一点，现在靠激光校准移动太多了
+          ROBOT_Move(-35, 0, SPD_SHORT_V, 0, SPD_SHORT_A, 0);   
           /* ====== 立柱前校准（2026-09-21 简化：只有两步）======
                        前提(现场保证)：车在立柱右边一点。
                        ① 往左慢走(5cm/s)，直到“左激光(LASER4)连续 3 次(每次间隔30ms)看到障碍物” → 已经左右正对柱面
@@ -3235,11 +3298,9 @@ LIZHU_START:
           
           ROBOT_MoveSpeed(0,0);
 
-          ROBOT_Move(0, 6, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);//防止卡脚
-
-          ROBOT_Move(24, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
-
-          ROBOT_Move(0, -6, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);//还原回去
+          ROBOT_Move(0, 6, 0, SPD_SHORT_V, 0, SPD_SHORT_A);//防止卡脚
+          ROBOT_Move(27, 0, SPD_SHORT_V, 0, SPD_SHORT_A, 0);
+          ROBOT_Move(0, -12, 0, SPD_SHORT_V, 0, SPD_SHORT_A);//还原回去
 
 
           mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));//校准一下
@@ -3285,7 +3346,7 @@ YUANHUAN_START:
           //往前走确保转方向不卡脚（★短距 15cm：20/30）
           ROBOT_Move(0, 17, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A); 
           
-          if(1){
+          if(0){//圆环不做，省时间
           //再往右边走一点，不要靠激光走那么远
           ROBOT_Move(15, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A); 
           /* ============ ★2026-10-06 圆环：放圆环（倒方块 → 往前走一小段之后，回家之前）============
@@ -3367,11 +3428,13 @@ HUIJIA_START:
           runActionGroup(161, 1);
           //蓝退多点
           
-          if(1){//这是做圆环的走位
+          //圆环不做省时间
+          if(0){//这是做圆环的走位
           ROBOT_Move(mode_red ? 28 : -28, mode_red ? -215 : -230, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);//60，-240能进
           }
 
-          //ROBOT_Move(mode_red ? 28 : -28, mode_red ? -225 : -215, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
+          //给多点，确保颜色传感器进入颜色区域
+          ROBOT_Move(mode_red ? 28 : -28, mode_red ? -225 : -235, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
 
           //走固定距离回家
           //ROBOT_Move(mode_red ? 43 : -43, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
