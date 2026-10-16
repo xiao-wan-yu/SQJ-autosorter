@@ -2507,7 +2507,8 @@ YUANPANJI_START:;
 
           //右半边的球才拍，如果在左边那边触发拍球容易拍到下一个
           if((cam_x >= 100 && cam_x <= 320)      // x为10~300，直接不限制，只要在屏幕内就拍
-              && (cam_y >= 0 && cam_y <= 240)){
+              && (cam_y >= 0 && cam_y <= 197)){     //球在球槽容易还被识别到，需要过滤掉屏幕靠下的球，过滤底下的40像素
+              //左上角是原点（0，0）
             if((now - ypj_last_hit_t) < YPJ_HIT_COOLDOWN_MS){
               /* ===== 冷却期：还是同一个球 / 上一拍动作还没执行完 → 忽略（防连拍关键）===== */
               if(YPJ_HIT_LOG)
@@ -2978,7 +2979,10 @@ JIETI_START:
               HAL_Delay(200);
             }
 
+            for(uint8_t i = 1; i <= 4; i++) chassis.speed_pid_pos[i].kp = 14.0f;
             ROBOT_Move(step_cm, 0, JIETI_STEP_SPEED, 0, JIETI_STEP_ACC, 0);
+            for(uint8_t i = 1; i <= 4; i++) chassis.speed_pid_pos[i].kp = 10.0f;
+
             HAL_Delay(750);                       //停稳再校准
             mode_red ? ROBOT_Angle(Yaw_Abs(90)) : ROBOT_Angle(Yaw_Abs(270));
           }else{
@@ -3060,9 +3064,29 @@ JIETI_START:
         //单独的机械臂抬起
         //runActionGroup(151, 1);
         //HAL_Delay(1200);
+        //runActionGroup(160, 1);//复位
+        //HAL_Delay(1200);
+        
+        //结束前加一个保护，有障碍物就一直往右，左边的激光4不好用，用右边的2，2也不好用，用圆环的
+        ROBOT_MoveSpeed(SPD_AVG_V, 0);
+        /* ★超时保护：激光4一直报“有障碍物”时原来会无限往左走(顶住左边不动=卡死)，
+                    现在最多等 WAIT_TIMEOUT_MS，超时打 TIMEOUT 后照常停车继续走流程 */
+
+          {
+            uint32_t lz_t0 = HAL_GetTick();  uint8_t lz_hit = 0;   //连续"看到"计数
+            while(lz_hit < 3){
+              lz_hit = !LASER_Barrier(LASER3_GPIO_Port, LASER3_Pin) ? (uint8_t)(lz_hit + 1) : 0;  //断一次就重新数
+              if(lz_hit >= 3) break;
+              HAL_Delay(50);                                       //每次检测间隔 50ms
+            }
+          }
+
+        ROBOT_MoveSpeed(0, 0);
+
+        //走出阶梯范围再复位
         runActionGroup(160, 1);//复位
         HAL_Delay(1200);
-        
+
         JieTi_Flag = 0;                     //M6.3 阶梯结束
         UART2_Printf("%c", 0xA8);//发0xA8告诉主视觉阶梯结束了
 
@@ -3260,6 +3284,8 @@ YUANHUAN_START:
 
           //往前走确保转方向不卡脚（★短距 15cm：20/30）
           ROBOT_Move(0, 17, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A); 
+          
+          if(1){
           //再往右边走一点，不要靠激光走那么远
           ROBOT_Move(15, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A); 
           /* ============ ★2026-10-06 圆环：放圆环（倒方块 → 往前走一小段之后，回家之前）============
@@ -3324,6 +3350,7 @@ YUANHUAN_START:
           ROBOT_Move(0, -15, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
           ROBOT_Angle(Yaw_Abs(0));                        //⑤ 放完转回“正面朝前”(0=前；与下面“转正再回家”同一个角)
 
+        }
 
 
     /* ★★调试入口(KEY0选成HOME+KEY3开始)：goto 跳到下面 HUIJIA_START 往下执行“回家”。
@@ -3339,7 +3366,12 @@ HUIJIA_START:
           //回家专属
           runActionGroup(161, 1);
           //蓝退多点
+          
+          if(1){//这是做圆环的走位
           ROBOT_Move(mode_red ? 28 : -28, mode_red ? -215 : -230, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);//60，-240能进
+          }
+
+          //ROBOT_Move(mode_red ? 28 : -28, mode_red ? -225 : -215, SPD_LONG_V, SPD_LONG_V, SPD_LONG_A, SPD_LONG_A);
 
           //走固定距离回家
           //ROBOT_Move(mode_red ? 43 : -43, 0, SPD_SHORT_V, SPD_SHORT_V, SPD_SHORT_A, SPD_SHORT_A);
